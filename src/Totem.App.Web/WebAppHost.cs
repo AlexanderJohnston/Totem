@@ -109,11 +109,12 @@ namespace Totem.App.Web
           _configure.ConfigureTimeline(context, timeline);
         });
 
-        var mvc = services
-          .AddMvc()
-          .AddApplicationPart(Assembly.GetEntryAssembly())
-          .AddCommandsAndQueries()
-          .SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
+          var mvc = services
+            .AddMvc()
+            .AddApplicationPart(Assembly.GetEntryAssembly())
+            .AddCommandsAndQueries()
+            .SetCompatibilityVersion(CompatibilityVersion.Version_3_0)
+            .AddMvcOptions((mvcOptions) => { mvcOptions.EnableEndpointRouting = false; });
 
         _configure.ConfigureMvc(context, mvc);
 
