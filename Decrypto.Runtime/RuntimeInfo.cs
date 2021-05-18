@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Decrypto.Runtime
+namespace Decrypto
 {
     public class RuntimeInfo
     {

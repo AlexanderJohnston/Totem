@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Jetbrains.Annotations" Version="2021.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="5.0.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
+    <PackageReference Include="Microsoft.extensions.options.configurationextensions" Version="5.0.0" />
+    <PackageReference Include="NeatInput.Windows" Version="2.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="PostSharp" Version="6.9.5" />
+    <PackageReference Include="PostSharp.Patterns.Common" Version="6.9.5" />
+    <PackageReference Include="PostSharp.Patterns.Diagnostics" Version="6.9.5" />
+    <PackageReference Include="PostSharp.Patterns.Diagnostics.Serilog" Version="6.9.5" />
+    <PackageReference Include="PostSharp.Patterns.Threading" Version="6.9.5" />
+    <PackageReference Include="Serilog.Enrichers.Thread" Version="3.1.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="4.1.0" />
+    <PackageReference Include="SharmIPC" Version="1.18.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Totem.Client\Totem.Client.csproj" />
+    <ProjectReference Include="G:\Code\creeperworld\CrplWiki\WaxInterfaces\WaxInterfaces.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Decrypto.Messages
+namespace Decrypto
 {
     public class MessageInfo
     {

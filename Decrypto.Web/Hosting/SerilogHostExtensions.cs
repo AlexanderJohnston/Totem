@@ -17,7 +17,7 @@ namespace Decrypto.Hosting
               .ReadFrom.Configuration(context.Configuration)
               .Enrich.FromLogContext()
               .Enrich.WithMachineName()
-              .Destructure.ByTransforming<Id>(id => id.ToCompactString())
+              .Destructure.ByTransforming<Id>(id => id.ToShortString())
               .Destructure.ByTransforming<Type>(type => UseUnqualifiedName(type) ? type.Name : type.ToString())
               .UseEnvironment(context);
 

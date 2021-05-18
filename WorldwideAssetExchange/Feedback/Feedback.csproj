@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RestClient.Net" Version="4.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Launchpad\Launchpad.csproj" />
+    <ProjectReference Include="G:\Code\CreeperWorld\CrplWiki\WaxInterfaces\WaxInterfaces.csproj" />
+  </ItemGroup>
+
+</Project>

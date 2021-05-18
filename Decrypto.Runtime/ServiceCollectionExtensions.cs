@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Decrypto.Runtime.Contracts;
+using Decrypto.Blocks;
+using Decrypto.Blocks.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Decrypto.Runtime
+namespace Decrypto
 {
     public static class ServiceCollectionExtensions
     {
