@@ -1,7 +1,5 @@
 using System.Text.Json;
 using EventStore.Client;
-// using EventStore.ClientAPI; // might not need this
-using Microsoft.Extensions.Logging;
 using Totem.Core;
 using Totem.Map;
 using EventData = EventStore.Client.EventData;
@@ -15,7 +13,6 @@ public sealed class EventStore
     readonly CancellationToken _cancel;
     readonly EventStoreClient _client;
     readonly RuntimeMap _map;
-    //readonly IEventStoreConnection _connection;
     readonly ILogger _logger;
     readonly IEventPipeline _pipeline;
     readonly JsonSerializerOptions _options;
@@ -45,14 +42,6 @@ public sealed class EventStore
 
     async Task HandleEvent(ResolvedEvent evnt)
     {
-        //var evntType = _map.Events.FirstOrDefault(e => e.DeclaredType.FullName == evnt.Event.EventType);
-        //if (evntType is null)
-        //{
-        //    _logger.LogError($"Failed to locate event in runtime map. Type: {evnt.Event.EventType}, Id: {evnt.Event.EventId}, Stream: {evnt.Event.EventStreamId}.");
-        //    return;
-        //}
-
-        //var declared = evntType.DeclaredType;
         var stream = ReadOnlyMemoryExtensions.AsStream(evnt.Event.Data);
         var unboxed = JsonSerializer.Deserialize<IEventEnvelope>(stream, _options);
         await RunPipelineAsync(unboxed);

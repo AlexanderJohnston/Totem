@@ -1,8 +1,4 @@
-using System.Threading.Channels;
-using Microsoft.Extensions.Logging;
 using Totem.Core;
-using Totem.Events;
-
 namespace Totem.External;
 
 public sealed class ExternalEventSubscription : IExternalEventSubscription, IDisposable
@@ -31,7 +27,6 @@ public sealed class ExternalEventSubscription : IExternalEventSubscription, IDis
     public void Dispose()
     {
         _logger.LogTrace("[events] Close EventStore subscription");
-
         _store.Complete();
         _cancellation.Cancel();
     }
