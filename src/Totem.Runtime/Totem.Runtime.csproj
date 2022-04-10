@@ -9,9 +9,13 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="EventStore.Client.Grpc" Version="22.0.0" />
+        <PackageReference Include="EventStore.Client.Grpc.PersistentSubscriptions" Version="22.0.0" />
+        <PackageReference Include="EventStore.Client.Grpc.Streams" Version="22.0.0" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0" />
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="6.0.0" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
+        <PackageReference Include="Microsoft.Toolkit.HighPerformance" Version="7.1.2" />
     </ItemGroup>
 
     <ItemGroup>
