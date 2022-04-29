@@ -22,7 +22,7 @@ public sealed class InMemoryEventSubscription : IInMemoryEventSubscription, IDis
         Task.Run(ObserveAsync);
     }
 
-    public async Task Publish(IEventEnvelope envelope)
+    public void Publish(IEventEnvelope envelope)
     {
         if(envelope is null)
             throw new ArgumentNullException(nameof(envelope));

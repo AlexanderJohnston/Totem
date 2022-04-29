@@ -32,14 +32,14 @@ public sealed class EventStore : IExternalEventSubscription, IInMemoryEventSubsc
         //Task.Run(SubscribeToAll);
     }
 
-    public async Task Publish(IEventEnvelope envelope)
+    public void Publish(IEventEnvelope envelope)
     {
         if(envelope is null)
             throw new ArgumentNullException(nameof(envelope));
 
         _logger.LogTrace("[eventstore] Publish {@EventType}.{@EventId}", envelope.MessageKey.DeclaredType, envelope.MessageKey.Id);
 
-        await WriteAsync(envelope);
+        Write(envelope);
     }
 
     public async Task SubscribeToAll()
@@ -90,7 +90,7 @@ public sealed class EventStore : IExternalEventSubscription, IInMemoryEventSubsc
         }
     }
 
-    public async Task WriteAsync([NotNull] IEventEnvelope envelope)
+    public void Write([NotNull] IEventEnvelope envelope)
     {
         var data = new EventData(
             Uuid.NewUuid(),
@@ -100,7 +100,7 @@ public sealed class EventStore : IExternalEventSubscription, IInMemoryEventSubsc
         );
         _logger.LogTrace("[evenstore] Broadcast {@EventType}.{@EventId}", envelope.MessageKey.DeclaredType, envelope.MessageKey.Id);
         var stream = "totem:" + envelope.MessageKey.DeclaredType.Name;
-        await _client.AppendToStreamAsync(stream, StreamState.Any, new[] { data }, cancellationToken: _cancel);
+        _client.AppendToStreamAsync(stream, StreamState.Any, new[] { data }, cancellationToken: _cancel);
     }
 
     public void Complete() => throw new NotImplementedException();

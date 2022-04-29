@@ -4,5 +4,5 @@ namespace Totem.External;
 
 public interface IExternalEventSubscription
 {
-    Task  Publish(IEventEnvelope envelope);
+    void Publish(IEventEnvelope envelope);
 }
