@@ -32,7 +32,7 @@ public class Startup
         .AddInMemoryStorage()
         .AddDiskFileStorage();
 
-        services.AddRouting().AddControllers().AddTotemMvc();
+        services.AddRouting().AddControllers().AddTotemMvc().AddTotemJsonEvents();
     }
 
     public void Configure(IApplicationBuilder app, IWebHostEnvironment environment)

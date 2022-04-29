@@ -1,4 +1,4 @@
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using Totem.Core;
 using Totem.Events;
 
@@ -22,7 +22,7 @@ public sealed class InMemoryEventSubscription : IInMemoryEventSubscription, IDis
         Task.Run(ObserveAsync);
     }
 
-    public void Publish(IEventEnvelope envelope)
+    public async Task Publish(IEventEnvelope envelope)
     {
         if(envelope is null)
             throw new ArgumentNullException(nameof(envelope));

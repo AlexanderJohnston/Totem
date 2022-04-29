@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using Totem.Core;
 using Totem.Http;
 using Totem.Local;

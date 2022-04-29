@@ -22,4 +22,12 @@
         <ProjectReference Include="..\Totem.Messages\Totem.Messages.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <EditorConfigFiles Remove="G:\Code\vnext\Totem\src\Totem.Runtime\.editorconfig" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Include="G:\Code\vnext\Totem\src\Totem.Runtime\.editorconfig" />
+    </ItemGroup>
+
 </Project>

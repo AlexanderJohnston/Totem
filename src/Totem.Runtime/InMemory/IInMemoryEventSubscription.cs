@@ -1,8 +1,8 @@
-using Totem.Core;
+﻿using Totem.Core;
 
 namespace Totem.InMemory;
 
 public interface IInMemoryEventSubscription
 {
-    void Publish(IEventEnvelope envelope);
+    Task Publish(IEventEnvelope envelope);
 }

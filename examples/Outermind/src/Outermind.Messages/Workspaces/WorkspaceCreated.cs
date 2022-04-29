@@ -2,6 +2,7 @@ namespace Outermind.Workspaces;
 
 public class WorkspaceCreated : IEvent
 {
+    public WorkspaceCreated() { }
     public WorkspaceCreated(Id workspaceId, string name, string link)
     {
         WorkspaceId = workspaceId ?? throw new ArgumentNullException(nameof(workspaceId));

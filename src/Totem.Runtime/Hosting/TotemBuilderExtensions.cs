@@ -1,3 +1,4 @@
+﻿using EventStore.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -321,7 +322,9 @@ public static class TotemBuilderExtensions
             throw new ArgumentNullException(nameof(builder));
 
         builder.Services.AddSingleton<ITopicStore, InMemoryTopicStore>();
-        builder.Services.AddSingleton<IInMemoryEventSubscription, InMemoryEventSubscription>();
+        builder.Services.AddSingleton(x => EventStoreClientSettings.Create("esdb+discover://20.232.144.245:2113?tls=false&keepAliveTimeout=10000&keepAliveInterval=5000&tlsVerifyCert=false"));
+        builder.Services.AddSingleton<IInMemoryEventSubscription, Totem.External.EventStore>();
+        //builder.Services.AddSingleton<IInMemoryEventSubscription, InMemoryEventSubscription>();
 
         return builder;
     }
