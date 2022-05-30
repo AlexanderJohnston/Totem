@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Totem.Core;
 using Totem.Events;
+using Totem.External;
 using Totem.Files;
 using Totem.Http;
 using Totem.InMemory;
@@ -322,12 +323,25 @@ public static class TotemBuilderExtensions
             throw new ArgumentNullException(nameof(builder));
 
         builder.Services.AddSingleton<ITopicStore, InMemoryTopicStore>();
-        builder.Services.AddSingleton(x => EventStoreClientSettings.Create("esdb+discover://20.232.144.245:2113?tls=false&keepAliveTimeout=10000&keepAliveInterval=5000&tlsVerifyCert=false"));
-        builder.Services.AddSingleton<IInMemoryEventSubscription, Totem.External.EventStore>();
-        //builder.Services.AddSingleton<IInMemoryEventSubscription, InMemoryEventSubscription>();
+        builder.Services.AddSingleton<IInMemoryEventSubscription, InMemoryEventSubscription>();
 
         return builder;
     }
+
+    public static ITotemBuilder AddExternalTopicStore(this ITotemBuilder builder)
+    {
+        if (builder is null)
+            throw new ArgumentNullException(nameof(builder));
+
+        builder.Services.AddSingleton(x => EventStoreClientSettings.Create("esdb+discover://20.232.144.245:2113?tls=false&keepAliveTimeout=10000&keepAliveInterval=5000&tlsVerifyCert=false"));
+        builder.Services.AddSingleton<ITopicStore, ExternalTopicStore>();
+        builder.Services.AddSingleton<IExternalEventSubscription, Totem.External.EventStore>();
+        builder.Services.AddHostedService<HostedEventListener>();
+
+        return builder;
+    }
+    
+
 
     public static ITotemBuilder AddInMemoryQueueClient(this ITotemBuilder builder)
     {

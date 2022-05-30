@@ -11,16 +11,29 @@ namespace Totem.External
 {
     public class SystemTypeConverter : JsonConverter<Type>
     {
+        RuntimeMap _map;
+
+        public SystemTypeConverter(RuntimeMap map)
+        {
+            _map = map;
+        }
+
         public override Type? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return typeof(string);
-            //return JsonSerializer.Deserialize<Type>(ref reader, options);
+            if (_map.Events.TypeKeys.Contains(typeToConvert))
+            {
+                var qualifiedName = reader.GetString();
+                return Type.GetType(qualifiedName);
+            }
+            return null;
         }
 
         public override void Write(Utf8JsonWriter writer, Type value, JsonSerializerOptions options)
         {
-            writer.WriteStringValue("System.String");
-            //JsonSerializer.Serialize(writer, value, options);
+            if (_map.Events.TypeKeys.Contains(value))
+            {
+                writer.WriteStringValue(value.FullName);
+            }
         }
     }
 
@@ -107,6 +120,7 @@ namespace Totem.External
 
         public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
         {
+            // can do this in the constructor!
             var converterType = typeof(InterfaceConverter<,>).MakeGenericType(ConcreteType, InterfaceType);
 
             return (JsonConverter)Activator.CreateInstance(converterType);

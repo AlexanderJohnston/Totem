@@ -44,32 +44,32 @@ public static class MvcBuilderExtensions
             factories.Add(new InterfaceConverterFactory(type, typeof(IEvent)));
         }
 
-        //builder.AddJsonOptions(options =>
-        //{
-        //    foreach(var factory in factories)
-        //    {
-        //        options.JsonSerializerOptions.Converters.Add(factory);
-        //    }
-        //    options.JsonSerializerOptions.Converters.Add(new SystemTypeConverter());
-        //});
+        builder.AddJsonOptions(options =>
+        {
+            foreach(var factory in factories)
+            {
+                options.JsonSerializerOptions.Converters.Add(factory);
+            }
+            options.JsonSerializerOptions.Converters.Add(new SystemTypeConverter(builder.Services.GetRuntimeMap()));
+        });
 
         var options = new JsonSerializerOptions();
         foreach(var factory in factories)
         {
             options.Converters.Add(factory);
         }
-        options.Converters.Add(new SystemTypeConverter());
+        options.Converters.Add(new SystemTypeConverter(builder.Services.GetRuntimeMap()));
         builder.Services.AddSingleton(options);
 
-        builder.Services.Configure<JsonOptions>(options =>
-        {
-            foreach(var factory in factories)
-            {
-                options.JsonSerializerOptions.Converters.Add(factory);
-            }
-            options.JsonSerializerOptions.Converters.Add(new SystemTypeConverter());
-            //options.JsonSerializerOptions.Converters.Add(new EventConverter());
-        });
+        //builder.Services.Configure<JsonOptions>(options =>
+        //{
+        //    foreach(var factory in factories)
+        //    {
+        //        options.JsonSerializerOptions.Converters.Add(factory);
+        //    }
+        //    options.JsonSerializerOptions.Converters.Add(new SystemTypeConverter(builder.Services.GetRuntimeMap()));
+        //    //options.JsonSerializerOptions.Converters.Add(new EventConverter());
+        //});
 
         return builder;
     }

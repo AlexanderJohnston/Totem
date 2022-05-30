@@ -26,6 +26,7 @@ public class Startup
         .AddEventHandlersAsServices()
         .AddQueryHandlersAsServices()
         .AddInMemoryQueueClient()
+        .AddExternalTopicStore()
         .AddInMemoryTopicStore()
         .AddInMemoryWorkflowStore()
         .AddInMemoryReportStore()
