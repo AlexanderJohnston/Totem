@@ -1,4 +1,4 @@
-using Totem.Core;
+﻿using Totem.Core;
 using Totem.Map;
 
 namespace Totem;
@@ -13,4 +13,5 @@ public interface IEventContext<out TEvent> : IMessageContext
     EventType EventType { get; }
     Id EventId { get; }
     DateTimeOffset WhenOccurred { get; }
+    ulong Position { get; }
 }

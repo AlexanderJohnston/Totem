@@ -32,15 +32,10 @@ namespace Totem.External
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await StartAsync(stoppingToken);
+            _logger.LogDebug("[listener service] Subscribing to the $all stream in eventstore.");
+            await SubscribeToAll(_cancel.Token);
         }
 
-        public Task StartAsync(CancellationToken cancellationToken)
-        {
-            _logger.LogDebug("[listener service] Subscribing to the $all stream in eventstore.");
-            Task.Run(() => SubscribeToAll(_cancel.Token), _cancel.Token);
-            return Task.CompletedTask;
-        }
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
