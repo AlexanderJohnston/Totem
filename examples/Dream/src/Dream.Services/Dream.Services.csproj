@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net7.0</TargetFramework>
+        <LangVersion>10</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>Dream</RootNamespace>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="7.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Http" Version="7.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="Files\**" />
+      <EmbeddedResource Remove="Files\**" />
+      <None Remove="Files\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Include="Files\LocalFileStorage.cs" />
+      <Compile Include="Files\FileItem.cs" />
+      <Compile Include="Files\FilePath.cs" />
+      <Compile Include="Files\FileQuery.cs" />
+      <Compile Include="Files\FileStorageExtensions.cs" />
+      <Compile Include="Files\IFileQuery.cs" />
+      <Compile Include="Files\IFileStorage.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\..\src\Totem.Core.Messages\Totem.Core.Messages.csproj" />
+    </ItemGroup>
+
+</Project>

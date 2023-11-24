@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+    <PropertyGroup>
+        <TargetFramework>net7.0</TargetFramework>
+        <LangVersion>10</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>DreamUI</RootNamespace>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <None Include="Shared\MainLayout.razor" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="7.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\..\src\Totem.Core.Runtime.Logging\Totem.Core.Runtime.Logging.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Totem.Core.Runtime\Totem.Core.Runtime.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Totem.Http.Client\Totem.Http.Client.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Totem.Tsp.Client\Totem.Tsp.Client.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Totem.WebAssembly.Logging\Totem.WebAssembly.Logging.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Totem.WebAssembly\Totem.WebAssembly.csproj" />
+        <ProjectReference Include="..\..\..\Dream\src\Dream.Messages\Dream.Messages.csproj" />
+        <ProjectReference Include="..\DreamUI.Messages\DreamUI.Messages.csproj" />
+        <ProjectReference Include="..\DreamUI.Runtime\DreamUI.Runtime.csproj" />
+    </ItemGroup>
+
+</Project>

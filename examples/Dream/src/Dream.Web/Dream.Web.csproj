@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net7.0</TargetFramework>
+        <LangVersion>10</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>Dream</RootNamespace>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Content Include="Properties\launchSettings.json" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="7.0.0" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.Json" Version="7.0.0" />
+        <PackageReference Include="Serilog" Version="2.12.0" />
+        <PackageReference Include="Serilog.AspNetCore" Version="6.0.1" />
+        <PackageReference Include="Serilog.Enrichers.Environment" Version="2.2.0" />
+        <PackageReference Include="Serilog.Settings.Configuration" Version="3.4.0" />
+        <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+        <PackageReference Include="Serilog.Sinks.SpectreConsole" Version="0.3.3" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\..\src\Totem.Core.Runtime.Logging\Totem.Core.Runtime.Logging.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Totem.Http.Server\Totem.Http.Server.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Totem.Tsp.Server\Totem.Tsp.Server.csproj" />
+        <ProjectReference Include="..\..\..\DreamUI\src\DreamUI.WebAssembly\DreamUI.WebAssembly.csproj" />
+        <ProjectReference Include="..\Dream.Messages\Dream.Messages.csproj" />
+        <ProjectReference Include="..\Dream.Runtime\Dream.Runtime.csproj" />
+        <ProjectReference Include="..\Dream.Services\Dream.Services.csproj" />
+    </ItemGroup>
+
+</Project>
