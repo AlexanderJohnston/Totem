@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\Totem.Core.Messages\Totem.Core.Messages.csproj" />
+    <ProjectReference Include="..\src\Totem.Http.Messages\Totem.Http.Messages.csproj" />
+  </ItemGroup>
+
+</Project>

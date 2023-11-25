@@ -11,6 +11,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "items", "items", "{F2FBA2A8
 		.gitattributes = .gitattributes
 		.gitignore = .gitignore
 		license.txt = license.txt
+		Realizer.Web\Program.cs = Realizer.Web\Program.cs
 		README.md = README.md
 	EndProjectSection
 EndProject
@@ -55,6 +56,16 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Totem.WebAssembly.Logging", "src\Totem.WebAssembly.Logging\Totem.WebAssembly.Logging.csproj", "{85524FD3-CBB8-42A5-968E-B59730C1E7FC}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Totem.Web.Client", "src\Totem.Web.Client\Totem.Web.Client.csproj", "{49428CB9-B7EB-4E51-A218-9350A6943649}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Realization", "Realization", "{D0AE4DCF-F8C4-450D-91A1-CB6E12F5CB9E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Realizer.Services", "Realizer.Services\Realizer.Services.csproj", "{08649AC5-3420-4928-89E2-F2FA5F99A596}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Realizer.Messages", "Realizer.Messages\Realizer.Messages.csproj", "{D9986E61-6032-459C-A2F6-433BA3ACAC2E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Realize.Web", "Realize.Web\Realize.Web.csproj", "{C4364A71-BE32-4F78-8CD1-BBB1693298C5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Realizer.Runtime", "Realizer.Runtime\Realizer.Runtime.csproj", "{4EF28A6A-C06B-4412-8207-806023851CB9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -138,6 +149,22 @@ Global
 		{49428CB9-B7EB-4E51-A218-9350A6943649}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{49428CB9-B7EB-4E51-A218-9350A6943649}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{49428CB9-B7EB-4E51-A218-9350A6943649}.Release|Any CPU.Build.0 = Release|Any CPU
+		{08649AC5-3420-4928-89E2-F2FA5F99A596}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{08649AC5-3420-4928-89E2-F2FA5F99A596}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{08649AC5-3420-4928-89E2-F2FA5F99A596}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{08649AC5-3420-4928-89E2-F2FA5F99A596}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D9986E61-6032-459C-A2F6-433BA3ACAC2E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D9986E61-6032-459C-A2F6-433BA3ACAC2E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D9986E61-6032-459C-A2F6-433BA3ACAC2E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D9986E61-6032-459C-A2F6-433BA3ACAC2E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4364A71-BE32-4F78-8CD1-BBB1693298C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4364A71-BE32-4F78-8CD1-BBB1693298C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4364A71-BE32-4F78-8CD1-BBB1693298C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4364A71-BE32-4F78-8CD1-BBB1693298C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4EF28A6A-C06B-4412-8207-806023851CB9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4EF28A6A-C06B-4412-8207-806023851CB9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4EF28A6A-C06B-4412-8207-806023851CB9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4EF28A6A-C06B-4412-8207-806023851CB9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -152,6 +179,11 @@ Global
 		{5B7B14CD-09F2-4B59-816D-A93D4CF07203} = {C920B474-4D40-4E37-8377-C12AEF5E7EF7}
 		{8FAD11E5-7A17-41D3-B1AE-E78CF17201D0} = {C920B474-4D40-4E37-8377-C12AEF5E7EF7}
 		{4AA7D139-F4C8-43A3-A420-E2705FF86788} = {A0DC6248-F0FE-45B4-A5AA-2366C03E6B21}
+		{D0AE4DCF-F8C4-450D-91A1-CB6E12F5CB9E} = {6087B4F6-F466-4C80-8812-132ECF848E3B}
+		{08649AC5-3420-4928-89E2-F2FA5F99A596} = {D0AE4DCF-F8C4-450D-91A1-CB6E12F5CB9E}
+		{D9986E61-6032-459C-A2F6-433BA3ACAC2E} = {D0AE4DCF-F8C4-450D-91A1-CB6E12F5CB9E}
+		{C4364A71-BE32-4F78-8CD1-BBB1693298C5} = {D0AE4DCF-F8C4-450D-91A1-CB6E12F5CB9E}
+		{4EF28A6A-C06B-4412-8207-806023851CB9} = {D0AE4DCF-F8C4-450D-91A1-CB6E12F5CB9E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {5BCA6A7F-AC34-4FB7-B531-96DD308C41CC}

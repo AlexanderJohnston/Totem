@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Realizer.Messages\Realizer.Messages.csproj" />
+    <ProjectReference Include="..\Realizer.Services\Realizer.Services.csproj" />
+    <ProjectReference Include="..\src\Totem.Core.Runtime\Totem.Core.Runtime.csproj" />
+  </ItemGroup>
+
+</Project>
