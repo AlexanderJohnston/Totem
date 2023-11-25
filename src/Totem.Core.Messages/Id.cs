@@ -69,6 +69,12 @@ public sealed class Id : IEquatable<Id>, IComparable<Id>
     public static bool TryFrom(string? value, [NotNullWhen(true)] out Id? id) =>
         (id = Guid.TryParse(value, out var guid) && guid != Guid.Empty ? new Id(guid) : null) is not null;
 
+    public static bool TryFrom(ulong? value, [NotNullWhen(true)] out Id? id) =>
+        (id = Guid.TryParse(value?.ToString(), out var guid) && guid != Guid.Empty ? new Id(guid) : null) is not null;
+
+    public static bool TryFrom(ushort? value, [NotNullWhen(true)] out Id? id) =>
+        (id = Guid.TryParse(value?.ToString(), out var guid) && guid != Guid.Empty ? new Id(guid) : null) is not null;
+
     public static Id NewId() =>
         new(Guid.NewGuid());
 
@@ -76,6 +82,12 @@ public sealed class Id : IEquatable<Id>, IComparable<Id>
         TryFrom(value, out var id) ? id : throw new ArgumentOutOfRangeException(nameof(value));
 
     public static Id From(string value) =>
+        TryFrom(value, out var id) ? id : throw new ArgumentOutOfRangeException(nameof(value));
+
+    public static Id From(ulong value) =>
+        TryFrom(value, out var id) ? id : throw new ArgumentOutOfRangeException(nameof(value));
+
+    public static Id From(ushort value) =>
         TryFrom(value, out var id) ? id : throw new ArgumentOutOfRangeException(nameof(value));
 
     public static bool operator ==(Id? x, Id? y) => EqualityComparer<Id?>.Default.Equals(x, y);
@@ -87,6 +99,8 @@ public sealed class Id : IEquatable<Id>, IComparable<Id>
 
     public static explicit operator Id(Guid value) => From(value);
     public static explicit operator Id(string value) => From(value);
+    public static explicit operator Id(ulong value) => From(value);
+    public static explicit operator Id(ushort value) => From(value);
     public static implicit operator Guid(Id value) => value.ToGuid();
 
     static Id DeriveId(Guid value, string name)
