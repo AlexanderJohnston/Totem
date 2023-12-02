@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\src\Totem.Core.Messages\Totem.Core.Messages.csproj" />
+    <ProjectReference Include="E:\Code\ThotBot\Realization\Realization.csproj" />
+    <ProjectReference Include="E:\Code\ThotBot\REBL\REBL.csproj" />
   </ItemGroup>
 
 </Project>

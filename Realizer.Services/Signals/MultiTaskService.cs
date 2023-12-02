@@ -10,6 +10,8 @@ using Realization.Skill;
 namespace Realizer.Services.Signals;
 public class MultiTaskService : IMultiTask
 {
+    public MultiTaskService(ILogger<DownloadService> logger) => _logger = logger;
+
     readonly ILogger _logger;
     public Dictionary<ulong, VentralStream> Channels = new();
     public Dictionary<ulong, VentralStream> Threads = new();

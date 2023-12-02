@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\src\Totem.Core.Messages\Totem.Core.Messages.csproj" />
     <ProjectReference Include="..\src\Totem.Http.Messages\Totem.Http.Messages.csproj" />
+    <ProjectReference Include="E:\Code\ThotBot\Realization\Realization.csproj" />
   </ItemGroup>
 
 </Project>

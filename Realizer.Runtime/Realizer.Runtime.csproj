@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
@@ -10,6 +10,7 @@
     <ProjectReference Include="..\Realizer.Messages\Realizer.Messages.csproj" />
     <ProjectReference Include="..\Realizer.Services\Realizer.Services.csproj" />
     <ProjectReference Include="..\src\Totem.Core.Runtime\Totem.Core.Runtime.csproj" />
+    <ProjectReference Include="E:\Code\ThotBot\REBL\REBL.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,3 +1,6 @@
+using Realizer.Services.Signals;
+using REBL;
+
 namespace Realizer.Hosting;
 
 public static class ServiceCollectionExtensions
@@ -7,8 +10,11 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddRealizer(this IServiceCollection services) =>
         services
         .AddHttpClient()
+        .AddSingleton<IMultiTask, MultiTaskService>()
+        .AddSingleton<IShortTermMemory<string>, ShortTermMemoryService>()
         .AddSingleton<IDownloadService, DownloadService>()
         .AddSingleton<IUnpackService, UnpackService>()
+        .AddSingleton<REBLConsole>()
         .AddSingleton<IFileStorage>(provider =>
         {
             var configuration = provider.GetRequiredService<IConfiguration>();

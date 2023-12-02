@@ -1,10 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Memory.Converse;
-using PostSharp.Extensibility;
 using Realizer.Messages.Signals;
 using Realizer.Runtime.Signals.Events;
 using Realizer.Services.Signals;
@@ -27,30 +21,21 @@ public sealed class ThreadTopic : Topic
     {
         try
         {
-            var memoryId = _memories.Remember(command.Message, command.User.DiscriminatorValue, command.User.Username, MemoryType.Unknown, command.ThreadId);
-            var auditorySignal = Process(command, memoryId);
-            _conversations.ListenThread(auditorySignal);
+            var memoryId = _memories.Remember(command.Message, command.DiscriminatorValue, command.UserName, MemoryType.Unknown, command.ThreadId);
+            var message = new DiscordMessage(channelId: command.ChannelId,
+                                             threadid: command.ThreadId,
+                                             message: command.Message,
+                                             context: command.Context,
+                                             topic: command.Topic,
+                                             source: command.Source,
+                                             userName: command.UserName,
+                                             discriminatorValue: command.DiscriminatorValue);
 
-            Then(new SignalThreaded(Id.From(memoryId), auditorySignal));
+            Then(new SignalThreaded(command.TotemThreadId, message));
         }
         catch(Exception exception)
         {
-            //Then(new FailedToThread(command.VersionId, command.ZipUrl, exception.ToString()));
+            Then(new FailedToThread(command.TotemThreadId, exception.ToString()));
         }
-    }
-    //var userSignal = new AuditorySignal() { Context = currentTopic, MemoryId = memId, Source = message.Author.Id, Topic = prediction.Name, Text = message.Content, Channel = message.Channel.Id };
-
-    private AuditorySignal Process(SignalThread signal, Guid memoryId)
-    {
-        var auditorySignal = new AuditorySignal()
-        {
-            Context = signal.Context,
-            MemoryId = memoryId,
-            Source = signal.Source,
-            Topic = signal.Topic,
-            Text = signal.Message,
-            Channel = signal.ChannelId
-        };
-        return auditorySignal;
     }
 }

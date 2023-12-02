@@ -69,11 +69,25 @@ public sealed class Id : IEquatable<Id>, IComparable<Id>
     public static bool TryFrom(string? value, [NotNullWhen(true)] out Id? id) =>
         (id = Guid.TryParse(value, out var guid) && guid != Guid.Empty ? new Id(guid) : null) is not null;
 
-    public static bool TryFrom(ulong? value, [NotNullWhen(true)] out Id? id) =>
-        (id = Guid.TryParse(value?.ToString(), out var guid) && guid != Guid.Empty ? new Id(guid) : null) is not null;
+    public static bool TryFrom(ulong value, [NotNullWhen(true)] out Id? id) =>
+        (id = ToGuid(value, out var guid) && guid != Guid.Empty ? new Id(guid) : null) is not null;
 
-    public static bool TryFrom(ushort? value, [NotNullWhen(true)] out Id? id) =>
-        (id = Guid.TryParse(value?.ToString(), out var guid) && guid != Guid.Empty ? new Id(guid) : null) is not null;
+    public static bool TryFrom(ushort value, [NotNullWhen(true)] out Id? id) =>
+        (id = ToGuid(value, out var guid) && guid != Guid.Empty ? new Id(guid) : null) is not null;
+    public static bool ToGuid(ushort value, out Guid guid)
+    {
+        byte[] bytes = new byte[16];
+        BitConverter.GetBytes(value).CopyTo(bytes, 0);
+        guid = new Guid(bytes);
+        return true;
+    }
+    public static bool ToGuid(ulong value, out Guid guid)
+    {
+        byte[] bytes = new byte[64];
+        BitConverter.GetBytes(value).CopyTo(bytes, 0);
+        guid = new Guid(bytes);
+        return true;
+    }
 
     public static Id NewId() =>
         new(Guid.NewGuid());

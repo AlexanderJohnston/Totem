@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Discord;
 
-namespace Realizer.Messages.Signals;
-public sealed class SignalThread : IHttpCommand
+namespace Realizer.Runtime.Signals;
+public class DiscordMessage
 {
-    public SignalThread(string userName, ushort discriminatorValue, string message, string context, string topic, ulong source, ushort threadid, ulong channelId)
+    public DiscordMessage(string userName, ushort discriminatorValue, string message, string context, string topic, ulong source, ushort threadid, ulong channelId)
     {
         UserName = userName;
         DiscriminatorValue = discriminatorValue;
@@ -20,7 +19,6 @@ public sealed class SignalThread : IHttpCommand
         ChannelId = channelId;
         TotemThreadId = Id.From(threadid);
     }
-
     public string UserName { get; }
     public ushort DiscriminatorValue { get; }
     public string Message { get; }

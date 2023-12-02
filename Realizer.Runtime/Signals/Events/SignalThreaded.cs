@@ -1,21 +1,15 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Memory.Converse;
-
 namespace Realizer.Runtime.Signals.Events;
 public class SignalThreaded : IEvent
 {
-    public SignalThreaded(Id memoryId, AuditorySignal signal)
+    public SignalThreaded(Id memoryId, DiscordMessage message)
     {
         MemoryId = memoryId;
-        Signal = signal;
+        Message = message;
     }
 
     public Id MemoryId { get; }
-    public AuditorySignal Signal { get; }
+
+    public DiscordMessage Message { get; }
 
 
 }
