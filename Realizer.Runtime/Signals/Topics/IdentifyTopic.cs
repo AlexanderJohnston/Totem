@@ -7,12 +7,12 @@ public class IdentifyTopic : Topic
 {
     public static Id Route(IdentifySignal command) => command.Signal.TotemThreadId;
 
-    public IdentifyTopic(REBLConsole console)
+    public IdentifyTopic()
     {
-        _console = console;
+        
     }
 
-    REBLConsole _console;
+    REBLConsole _console = new REBLConsole();
 
     public async Task When(IdentifySignal command, CancellationToken cancellationToken)
     {
@@ -21,11 +21,11 @@ public class IdentifyTopic : Topic
             var potentialCommandResult = await _console.RunHeadless(null, command.Signal.Message);
             if(!string.IsNullOrEmpty(potentialCommandResult))
             {
-                Then(new CommandIdentified(command.MemoryId, potentialCommandResult));
+                Then(new CommandIdentified(command.ThreadId, potentialCommandResult));
             }
             else
             {
-                Then(new UserMessageIdentified(command.MemoryId, command.Signal));
+                Then(new UserMessageIdentified(command.ThreadId, command.Signal));
             }
         }
         catch(Exception exception)

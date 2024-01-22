@@ -6,10 +6,10 @@ public class IdentifySignal : IWorkflowCommand
 {
     public IdentifySignal(Id memoryId, DiscordMessage message)
     {
-        MemoryId = memoryId;
+        ThreadId = memoryId;
         Signal = message;
     }
 
-    public Id MemoryId { get; }
+    public Id ThreadId { get; }
     public DiscordMessage Signal { get; }
 }

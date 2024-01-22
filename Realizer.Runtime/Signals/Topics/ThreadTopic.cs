@@ -4,7 +4,7 @@ using Realizer.Runtime.Signals.Events;
 using Realizer.Services.Signals;
 
 namespace Realizer.Runtime.Signals.Topics;
-public sealed class ThreadTopic : Topic
+public class ThreadTopic : Topic
 {
     public static Id Route(SignalThread command) => command.TotemThreadId;
 
@@ -21,9 +21,11 @@ public sealed class ThreadTopic : Topic
     {
         try
         {
-            var memoryId = _memories.Remember(command.Message, command.DiscriminatorValue, command.UserName, MemoryType.Unknown, command.ThreadId);
+            // convert string to short
+            var shortThreadId = ushort.Parse(command.ThreadId);
+            var memoryId = _memories.Remember(command.Message, command.DiscriminatorValue, command.UserName, MemoryType.Unknown, shortThreadId);
             var message = new DiscordMessage(channelId: command.ChannelId,
-                                             threadid: command.ThreadId,
+                                             threadid: shortThreadId,
                                              message: command.Message,
                                              context: command.Context,
                                              topic: command.Topic,

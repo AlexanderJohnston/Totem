@@ -6,9 +6,9 @@ public class UserMessageIdentified : IEvent
     // Take in a memory id and a signal
     public UserMessageIdentified(Id memoryId, DiscordMessage signal)
     {
-        MemoryId = memoryId;
+        ThreadId = memoryId;
         Signal = signal;
     }
-    public Id MemoryId { get; }
+    public Id ThreadId { get; }
     public DiscordMessage Signal { get; }
 }

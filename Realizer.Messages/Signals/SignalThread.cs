@@ -8,7 +8,7 @@ using Discord;
 namespace Realizer.Messages.Signals;
 public sealed class SignalThread : IHttpCommand
 {
-    public SignalThread(string userName, ushort discriminatorValue, string message, string context, string topic, ulong source, ushort threadid, ulong channelId)
+    public SignalThread(string userName, ushort discriminatorValue, string message, string context, string topic, ulong source, string threadId, ulong channelId)
     {
         UserName = userName;
         DiscriminatorValue = discriminatorValue;
@@ -16,9 +16,10 @@ public sealed class SignalThread : IHttpCommand
         Context = context;
         Source = source;
         Topic = topic;
-        ThreadId = threadid;
+        ThreadId = threadId;
         ChannelId = channelId;
-        TotemThreadId = Id.From(threadid);
+        Id.TryFromAny(threadId, out var id);
+        TotemThreadId = id;
     }
 
     public string UserName { get; }
@@ -27,7 +28,7 @@ public sealed class SignalThread : IHttpCommand
     public string Context { get; }
     public ulong Source { get; }
     public string Topic { get; }
-    public ushort ThreadId { get; }
+    public string ThreadId { get; }
     public ulong ChannelId { get; }
     public Id TotemThreadId { get; }
 }

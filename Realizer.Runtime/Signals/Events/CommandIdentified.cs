@@ -5,9 +5,9 @@ public class CommandIdentified : IEvent
     // Take an Id and string containing the result text
     public CommandIdentified(Id memoryId, string result)
     {
-        MemoryId = memoryId;
+        ThreadId = memoryId;
         Result = result;
     }
-    public Id MemoryId { get; }
+    public Id ThreadId { get; }
     public string Result { get; }
 }

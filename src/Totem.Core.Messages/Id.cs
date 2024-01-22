@@ -74,6 +74,26 @@ public sealed class Id : IEquatable<Id>, IComparable<Id>
 
     public static bool TryFrom(ushort value, [NotNullWhen(true)] out Id? id) =>
         (id = ToGuid(value, out var guid) && guid != Guid.Empty ? new Id(guid) : null) is not null;
+
+    public static bool TryFromAny(string anything, [NotNullWhen(true)] out Id? id) =>
+        (id = ToGuidFromBytes(anything, out var guid) && guid != Guid.Empty ? new Id(guid) : null) is not null;
+
+    public static bool ToGuidFromBytes(string anything, out Guid guid)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(anything));
+        var clipped = bytes[..16];
+        try
+        {
+            guid = new Guid(clipped);
+        }
+        catch (Exception ex)
+        {
+            guid = Guid.Empty;
+            return false;
+        }
+        return true;
+    }
+
     public static bool ToGuid(ushort value, out Guid guid)
     {
         byte[] bytes = new byte[16];

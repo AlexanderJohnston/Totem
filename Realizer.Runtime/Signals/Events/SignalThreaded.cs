@@ -3,11 +3,11 @@ public class SignalThreaded : IEvent
 {
     public SignalThreaded(Id memoryId, DiscordMessage message)
     {
-        MemoryId = memoryId;
+        ThreadId = memoryId;
         Message = message;
     }
 
-    public Id MemoryId { get; }
+    public Id ThreadId { get; }
 
     public DiscordMessage Message { get; }
 
