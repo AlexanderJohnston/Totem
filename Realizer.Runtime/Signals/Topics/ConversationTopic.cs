@@ -13,7 +13,6 @@ public class ConversationTopic : Topic
     Id _threadId;
 
     public static Id Route(AnalyzeUserMessage command) => command.ThreadId;
-    public static Id Route(UserMessageIdentified e) => e.ThreadId;
 
     public void Given(EnterThoughtLoop e)
     {
@@ -31,6 +30,10 @@ public class ConversationTopic : Topic
     {
         // Emit event with the current state and the DiscordMessage
         if (_currentState == ConversationState.NotStarted)
+        {
+            Then(new EnterThoughtLoop(command.ThreadId, command.Signal, _currentState));
+        }
+        else
         {
             Then(new EnterThoughtLoop(command.ThreadId, command.Signal, _currentState));
         }

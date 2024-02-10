@@ -27,6 +27,7 @@ internal sealed class RuntimeMapBuilder
 
     internal RuntimeMap Build()
     {
+        // TODO add some compile time validation here with postsharp
         ReflectTypes();
         ValidateTypes();
         BuildTypes();

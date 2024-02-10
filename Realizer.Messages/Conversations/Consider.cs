@@ -8,10 +8,10 @@ public class Consider : IWorkflowCommand
     public Consider(Id threadId, DiscordMessage message, ConversationState state)
     {
         ThreadId = threadId;
-        Message = message;
+        Signal = message;
         State = state;
     }
     public Id ThreadId { get; }
-    public DiscordMessage Message { get; }
+    public DiscordMessage Signal { get; }
     public ConversationState State { get; }
 }

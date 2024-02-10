@@ -14,6 +14,7 @@ public static class ServiceCollectionExtensions
         .AddSingleton<IShortTermMemory<string>, ShortTermMemoryService>()
         .AddSingleton<IDownloadService, DownloadService>()
         .AddSingleton<IUnpackService, UnpackService>()
+        .AddSingleton<RebelService>()
         //.AddSingleton<REBLConsole>()
         .AddSingleton<IFileStorage>(provider =>
         {

@@ -1,3 +1,5 @@
+using Totem.Serialization;
+
 namespace Totem.Core;
 
 public sealed class TotemJsonFormat
@@ -20,5 +22,7 @@ public sealed class TotemJsonFormat
     {
         options.WriteIndented = true;
         options.Converters.Add(new JsonStringEnumConverter());
+        // TODO remove this blackjack and hookers but it fixes report lists not deserializing GUIDs from json properly
+        //options.Converters.Add(new IdConverter());
     }
 }

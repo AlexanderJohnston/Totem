@@ -3,6 +3,7 @@ using Realizer.Messages.Sanctuary;
 using Realizer.Runtime.Sanctuary.Events.REBL;
 using Realizer.Runtime.Signals.Events;
 using Realizer.Runtime.Signals.Events.Conversation;
+using Realizer.Services.Signals;
 using REBL;
 using REBL.Tests;
 
@@ -18,16 +19,16 @@ public class Realizer : Topic
     public static Id Route(NewThread command) => command.TotemThreadId;
 
 
-    public Realizer(/*REBLConsole console*/)
+    public Realizer(RebelService rebelService)
     {
-        //_console = console;
+        _rebelService = rebelService;
     }
 
-    REBLConsole _console;
+    RebelService _rebelService;
 
     public void Given(ConfigureThread e)
     {
-        _console = new REBLConsole();
+        _rebelService.NewThread();
     }
 
     public async Task When(NewThread thread, CancellationToken cancellationToken)
@@ -35,38 +36,41 @@ public class Realizer : Topic
         Then(new ConfigureThread());
     }
 
-    public async Task When(Consider consider, CancellationToken cancellationToken)
+    public async Task When(Consider choice, CancellationToken cancellationToken)
     {
-        var command = TesterHelper.GetInput(ref _console, consider.Message.Message);
-        string potentialCommandResult = await _console.RunHeadless(command);
+        var result = _rebelService.GetInput(choice.Signal.Message);
 
-        // make template
-        command = TesterHelper.MakeEchoTemplate(ref _console, "user.input.template");
-        potentialCommandResult = await _console.RunHeadless(command);
+        // Make a template which echoes the user input to elicit a reaction
+        result = _rebelService.MakeTemplate("user.input.template", "{0}");
 
-        // make buffer user.input.buffer
-        command = TesterHelper.MakeBuffer(ref _console, "user.input.buffer");
-        potentialCommandResult = await _console.RunHeadless(command);
+        // Make a buffer containing the user's input
+        result = _rebelService.MakeBuffer("user.input.buffer");
 
-        // addtemplate to the buffer
-        command = TesterHelper.AddTemplate(ref _console, "user.input.buffer", "user.input.template");
-        potentialCommandResult = await _console.RunHeadless(command);
+        // Add the echo template to the buffer
+        result = _rebelService.AddTemplate("user.input.template", "user.input.buffer");
 
+        // Add the user.input expression to the buffer
+        result = _rebelService.AddExpression("user.input", "user.input.buffer");
 
-        // add the user.input expression to the buffer
-        command = TesterHelper.AddExpression(ref _console, "user.input.buffer", "user.input");
-        potentialCommandResult = await _console.RunHeadless(command);
+        // Realize the buffer as a Claim
+        result = _rebelService.MakeClaim("user.input.buffer");
 
-        // make a claim based on buffer
-        command = TesterHelper.MakeCLaim(ref _console, "user.input.buffer");
-        potentialCommandResult = await _console.RunHeadless(command);
+        // Check if thought was successfully claimed and echoed back from the REBL
+        if (result == choice.Signal.Message)
+        {
+            // Elicit AI behavior based on the claim
+            var response = _rebelService.RunHeadless("run user.input.buffer");
+
+            // Report the result of AI behavior
+            Then(new ConsiderReply(response, choice.ThreadId, choice.Signal.ThreadId));
+        }
     }
 
     public async Task When(Rebel rebel, CancellationToken cancellationToken)
     {
         try
         {
-            string potentialCommandResult = await _console.RunHeadless(null, rebel.Command);
+            string potentialCommandResult = _rebelService.RunHeadless(rebel.Command);
             if(!string.IsNullOrEmpty(potentialCommandResult))
             {
                 Then(new ReblUpdated(rebel.InstanceId, potentialCommandResult));

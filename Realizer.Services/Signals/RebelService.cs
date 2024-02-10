@@ -1,13 +1,20 @@
-using Realizer.Messages.Conversations;
 using REBL;
+using REBL.Commands;
 using REBL.Tests;
 
-namespace Realize.Web.Services;
+namespace Realizer.Services.Signals;
 
 public class RebelService
 {
     private REBLConsole _console;
     public RebelService()
+    {
+        _console = new REBLConsole();
+    }
+
+    public string RunHeadless(string command) => _console.RunHeadless(null, command).Result;
+
+    public void NewThread()
     {
         _console = new REBLConsole();
     }
