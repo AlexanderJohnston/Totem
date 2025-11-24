@@ -5,6 +5,7 @@ using Totem.Core;
 using Totem.Hosting;
 using Realizer.Hosting;
 using Realizer;
+using Totem.InExternal.Services;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,14 +36,15 @@ void ConfigureServices(IServiceCollection services)
     .AddEventHandlerServices()
     .AddNotificationHandlerServices()
     .AddNotificationHandlerServices()
-    .AddInMemoryTopicStore()
-    .AddInMemoryReportStore()
-    .AddInMemoryWorkflowStore()
-    .AddInMemoryReportBus()
-    .AddInMemoryWorkflowBus()
-    .AddInMemoryHandlerBus()
-    .AddInMemoryNotificationBus()
-    .AddInMemoryReportBroker();
+    .AddEventStoreTopicStore(config => new EventStoreConfig())
+    .AddExternalTopicStore()
+    .AddExternalReportStore()
+    .AddExternalWorkflowStore()
+    .AddExternalReportBus()
+    .AddExternalWorkflowBus()
+    .AddExternalHandlerBus()
+    .AddExternalNotificationBus()
+    .AddExternalReportBroker();
 
     services.AddMvc().AddTotemMvc();
     services.AddRouting().AddControllers();

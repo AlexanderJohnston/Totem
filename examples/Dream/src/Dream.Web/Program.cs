@@ -4,6 +4,7 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SpectreConsole;
 using Totem.Hosting;
+using Totem.InExternal.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +19,7 @@ await app.RunAsync();
 
 void ConfigureServices(IServiceCollection services)
 {
+
     services
     .AddTotemRuntime(MessagesInfo.Assembly, RuntimeInfo.Assembly)
     .AddCommands(pipeline => pipeline.UseTopic())
@@ -33,14 +35,16 @@ void ConfigureServices(IServiceCollection services)
     .AddEventHandlerServices()
     .AddNotificationHandlerServices()
     .AddNotificationHandlerServices()
-    .AddInMemoryTopicStore()
-    .AddInMemoryReportStore()
-    .AddInMemoryWorkflowStore()
-    .AddInMemoryReportBus()
-    .AddInMemoryWorkflowBus()
-    .AddInMemoryHandlerBus()
-    .AddInMemoryNotificationBus()
-    .AddInMemoryReportBroker();
+    .AddAbstractEventStore()
+    .AddEventStoreTopicStore(config => new EventStoreConfig())
+    .AddExternalTopicStore()
+    .AddExternalReportStore()
+    .AddExternalWorkflowStore()
+    .AddExternalReportBus()
+    .AddExternalWorkflowBus()
+    .AddExternalHandlerBus()
+    .AddExternalNotificationBus()
+    .AddExternalReportBroker();
 
     services.AddMvc().AddTotemMvc();
     services.AddRouting().AddControllers();

@@ -22,14 +22,14 @@ static void ConfigureServices(IServiceCollection services, string baseAddress)
     .AddEventHandlerServices()
     .AddSubscriptionHandlerServices()
     .AddNotificationHandlerServices()
-    .AddInMemoryTopicStore()
-    .AddInMemoryWorkflowStore()
-    .AddInMemoryReportStore()
-    .AddInMemoryReportBus()
-    .AddInMemoryWorkflowBus()
-    .AddInMemoryHandlerBus()
-    .AddInMemoryNotificationBus()
-    .AddInMemoryReportBroker();
+    .AddExternalTopicStore()
+    .AddExternalWorkflowStore()
+    .AddExternalReportStore()
+    .AddExternalReportBus()
+    .AddExternalWorkflowBus()
+    .AddExternalHandlerBus()
+    .AddExternalNotificationBus()
+    .AddExternalReportBroker();
 
     services
     .AddTotemHttpClient()
