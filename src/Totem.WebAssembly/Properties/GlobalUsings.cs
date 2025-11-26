@@ -1,0 +1,11 @@
+global using Microsoft.AspNetCore.Components;
+global using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+global using Microsoft.AspNetCore.Components.WebAssembly.Http;
+global using Microsoft.AspNetCore.Http.Connections.Client;
+global using Microsoft.Extensions.DependencyInjection;
+global using Totem;
+global using Totem.Core;
+global using Totem.Reports;
+global using Totem.Reports.Bindings;
+global using Totem.Reports.Queries;
+global using Totem.Reports.Subscriptions;

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
+        <TargetFramework>net7.0</TargetFramework>
         <LangVersion>10</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>Totem</RootNamespace>
@@ -9,14 +9,23 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="6.0.1" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="6.0.3" />
-        <PackageReference Include="Serilog.Extensions.Hosting" Version="4.2.0" />
-        <PackageReference Include="Serilog.Extensions.Logging" Version="3.1.0" />
+      <Compile Remove="Hosting\**" />
+      <EmbeddedResource Remove="Hosting\**" />
+      <None Remove="Hosting\**" />
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Totem.Runtime\Totem.Runtime.csproj" />
+      <Compile Include="Hosting\SameOriginCredentialsHandler.cs" />
+      <Compile Include="Hosting\TotemTspClientBuilderExtensions.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="7.0.0" />
+        <PackageReference Include="Microsoft.AspNetCore.Http.Connections.Client" Version="7.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Totem.Web.Client\Totem.Web.Client.csproj" />
     </ItemGroup>
 
 </Project>
