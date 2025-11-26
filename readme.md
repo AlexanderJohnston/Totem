@@ -132,14 +132,14 @@ A command is an instruction to the environment that awaits an outcome after occu
 In vNext, commands are often expressed via marker interfaces to distinguish how they enter the system:
 
 - **Workflow commands**: participate directly in the event-driven workflow graph (e.g., `IWorkflowCommand`).
-- **HTTP commands**: arrive over HTTP boundaries (e.g., `IHttpCommand`) and are projected into workflow commands or handled directly.
+- **HTTP commands**: arrive over HTTP boundaries (e.g., `IHttpCommand`) and are projected into workflow commands.
 
 ```csharp
 using Totem;
 
 namespace Acme.ProductImport;
 
-public sealed class StartImport : IWorkflowCommand
+public sealed class StartImport : IHttpCommand
 {
   public StartImport(Id importId, string reason)
   {
@@ -152,46 +152,51 @@ public sealed class StartImport : IWorkflowCommand
 }
 ```
 
+```csharp
+public sealed class UnpackImport : IWorkflowCommand
+{
+    public UnpackVersion(Id importId)
+    {
+        ImportId = importId;
+    }
+
+    public Id ImportId { get; }
+}
+```
+
 Commands have imperative names representing instructions to the environment.
 
-## Query
+## Report
 
-A query is an observer that tallies events into a data structure, optimized for reads:
+A report is an observer that tallies events into a data structure comprised of rows, optimized for HTTP reads.
 
 ```csharp
 using Totem.Timeline;
 
-namespace Acme.ProductImport.Queries;
+namespace Acme.ProductImport.Reports;
 
-public class ImportStatus : Query
+public sealed class ImportSummaryRow : ReportRow
 {
-  public bool Importing;
-  public string Reason;
-  public string Error;
+  public string Status { get; set; } = "";
+}
 
-  void Given(ImportStarted e)
-  {
-    Importing = true;
-    Reason = e.Reason;
-    Error = null;
-  }
+public class ImportSummary : Report<ImportSummaryRow>
+{
+  public static Id Route(ImportFinished e) => e.ImportId;
 
-  void Given(ImportFinished e)
+  public void When(ImportFinished e)
   {
-    Importing = false;
-  }
-
-  void Given(ImportFailed e)
-  {
-    Importing = false;
-    Error = e.Error;
+    Row.Status = "Finished";
   }
 }
 ```
 
-The `Given` methods signal interest in those event types. The timeline calls them in order, fully completing one before moving onto the next.
+The `When` methods signal interest in those event types. The timeline calls them in order, fully completing one before moving onto the next.
 
-Queries remember where they left off, allowing them to resume after restarts, and support subscriptions well-suited to reactive UIs.
+The `ImportSummary` observer listens for `ImportFinished` events. For any given importId on those events, we write to the associated `ImportSummaryRow`, setting the Status of that import to "Finished".
+
+Reports remember where they left off, allowing them to resume after restarts, and support subscriptions well-suited to reactive UIs.
+
 
 ## Topic
 
@@ -229,34 +234,6 @@ A first `StartImport` results in `ImportStarted`. That becomes a new timeline po
 All events sent to `Then` go to the timeline *after* `When` completes, with the cause set to the current position.
 
 A topic may have any combination of `Given` and `When` methods for events. If both are present for the same event, `Given` runs first so `When` can see the new state.
-
-### Scheduling events in the future
-
-`When` methods can also emit future events via scheduling APIs. For example:
-
-```csharp
-public class ImportSchedule : Topic
-{
-  bool _scheduled;
-
-  void GivenScheduled(StartScheduledImport e) =>
-    _scheduled = true;
-
-  void Given(StartScheduledImport e) =>
-    _scheduled = false;
-
-  void When(ImportFinished e)
-  {
-    if(!_scheduled)
-    {
-      var nextOccurrence = Clock.Now.AddHours(24);
-      ThenSchedule.At(new StartScheduledImport(), nextOccurrence);
-    }
-  }
-}
-```
-
-`GivenScheduled` runs when the event is scheduled, not when it occurs. `ThenSchedule` is designed for extension methods such as `.At`, `.NextInterval`, or `.NextTimeOfDay`.
 
 ### Interacting with the world
 
@@ -332,34 +309,7 @@ Workflows:
 
 They keep sequencing explicit while preserving the event-driven nature of the timeline.
 
-## Report
 
-Reports are lightweight read models based on `Report<T>`, tuned for HTTP-style queries.
-
-Where `Query` captures long-lived state, `Report<T>` focuses on a single logical row or short-lived projection:
-
-```csharp
-using Totem.Timeline;
-
-namespace Acme.ProductImport.Reports;
-
-public sealed class ImportSummaryRow : ReportRow
-{
-  public string Status { get; set; } = "";
-}
-
-public class ImportSummary : Report<ImportSummaryRow>
-{
-  public static Id Route(ImportFinished e) => e.ImportId;
-
-  public void When(ImportFinished e)
-  {
-    Row.Status = "Finished";
-  }
-}
-```
-
-HTTP query contracts (e.g., `IHttpReportQuery<T>`, `IHttpReportListQuery<T>`) can be used to expose these projections over HTTP in a type-safe way, with the timeline maintaining routing and consistency.
 
 ## Route
 
