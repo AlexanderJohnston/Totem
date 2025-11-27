@@ -237,51 +237,47 @@ A topic may have any combination of `Given` and `When` methods for events. If bo
 
 ### Interacting with the world
 
-Topics act *in the now*, making them ideal for working with external systems. Dependencies are supplied via dependency injection and declared as parameters:
+Topics act *in the now*, making them ideal for working with external systems. Dependencies are supplied via dependency injection (for example in constructors) and, when needed, `CancellationToken`s passed into `When` methods:
 
 ```csharp
-using Totem.Timeline;
+using Dream.Versions;
 
-namespace Acme.ProductImport.Topics;
+namespace Dream.Versions.Topics;
 
-public class ImportSteps : Topic
+public sealed class DownloadTopic : Topic
 {
-  readonly ProductList _products = new ProductList();
+  public static Id Route(DownloadVersion command) => command.VersionId;
 
-  void Given(ProductsDiffed e) =>
-    _products.ApplyDiff(e.Diff);
+  readonly IDownloadService _service;
 
-  async Task When(ImportStarted e, IProductFile file)
+  public DownloadTopic(IDownloadService service) =>
+    _service = service;
+
+  public async Task When(DownloadVersion command, CancellationToken cancellationToken)
   {
+    if(!Uri.TryCreate(command.ZipUrl, UriKind.Absolute, out var zipUrl))
+    {
+      ThenError(VersionErrors.ParseZipUrlFailed);
+      return;
+    }
+
     try
     {
-      var diff = await file.DiffProducts(_products);
-      Then(new ProductsDiffed(diff));
-    }
-    catch(Exception error)
-    {
-      Then(new ImportFailed(error.ToString()));
-    }
-  }
+      var file = await _service.DownloadAsync(zipUrl, cancellationToken);
 
-  async Task When(ProductsDiffed e, IProductDb db)
-  {
-    try
-    {
-      await db.SyncProducts(_products);
-      Then(new ImportFinished());
+      Then(new VersionDownloaded(command.VersionId, command.ZipUrl, file.Path.ToString(), file.ByteCount));
     }
-    catch(Exception error)
+    catch(Exception exception)
     {
-      Then(new ImportFailed(error.ToString()));
+      Then(new DownloadVersionFailed(command.VersionId, command.ZipUrl, exception.ToString()));
     }
   }
 }
 ```
 
-`When` methods support asynchronous operations; the topic does not move to the next event until the `Task` completes.
+`When` methods support asynchronous operations; the topic does not move to the next event until the `Task` completes, and can emit both domain events and error results (for example via `Then` and `ThenError`).
 
-Each topic is a team member specializing in a set of decisions.
+Topics can also maintain state across events (as in installation workflows), manage conversational context (as in conversation and thread topics), and generally act as team members specializing in a set of decisions.
 
 ## Workflow
 
