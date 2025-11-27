@@ -310,25 +310,26 @@ The types above can have single or multiple instances. `Route` methods determine
 using Totem;
 using Totem.Timeline;
 
-namespace Acme.ProductImport.Queries;
+namespace Acme.ProductImport.Topics;
 
-public class ProductDetails : Query
+public class DownloadManager : Topic
 {
-  static Id Route(ProductAdded e) => e.ProductId;
-  static Id Route(ProductIncluded e) => e.ProductId;
-  static Id Route(ProductExcluded e) => e.ProductId;
+  public Id VersionId;
+  public bool Enabled;
 
-  public string Name;
-  public bool IsIncluded;
+  static Id Route(VersionReleased e) => e.versionId;
+  static Id Route(EnableDownload e) => e.versionId;
+  static Id Route(DisableDownload e) => e.versionId;
 
-  void Given(ProductAdded e) =>
-    Name = e.Name;
+  void Given(VersionRelased e) =>
+    VersionId = e.versionId;
 
-  void Given(ProductIncluded e) =>
-    IsIncluded = true;
+  void Given(EnableDownload e) =>
+    Enabled = true;
 
-  void Given(ProductExcluded e) =>
-    IsIncluded = false;
+  void Given(DisableDownload e) =>
+    Enabled = false;
+
 }
 ```
 
