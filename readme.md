@@ -168,7 +168,10 @@ Commands have imperative names representing instructions to the environment.
 
 ## Report
 
-A report is an observer that tallies events into a data structure comprised of rows, optimized for HTTP reads.
+A `Report` is an observer that tallies events into a data structure comprised of rows.
+The `Report` itself keeps the data shape, the `ReportRow` separate from routing and async concerns.
+
+They differ from "projections" in that Totem manages their storage and checkpoints internally, and because they are full Timeline objects; they can maintain internal state that's never serialized, using `Given` to drive efficient updates to the public row.
 
 ```csharp
 using Totem.Timeline;
@@ -195,8 +198,7 @@ The `When` methods signal interest in those event types. The timeline calls them
 
 The `ImportSummary` observer listens for `ImportFinished` events. For any given importId on those events, we write to the associated `ImportSummaryRow`, setting the Status of that import to "Finished".
 
-Reports remember where they left off, allowing them to resume after restarts, and support subscriptions well-suited to reactive UIs.
-
+Reports remember where they left off, allowing them to resume after restarts.
 
 ## Topic
 
