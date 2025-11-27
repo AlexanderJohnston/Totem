@@ -127,9 +127,9 @@ Events have past-tense names representing facts about the environment.
 
 ## Command
 
-A command is an instruction to the environment that awaits an outcome after occurring.
+A command is a *choice* made.
 
-In vNext, commands are often expressed via marker interfaces to distinguish how they enter the system:
+Commands are expressed via marker interfaces to distinguish how they enter the system:
 
 - **Workflow commands**: participate directly in the event-driven workflow graph (e.g., `IWorkflowCommand`).
 - **HTTP commands**: arrive over HTTP boundaries (e.g., `IHttpCommand`) and are projected into workflow commands.
@@ -277,11 +277,9 @@ public sealed class DownloadTopic : Topic
 
 `When` methods support asynchronous operations; the topic does not move to the next event until the `Task` completes, and can emit both domain events and error results (for example via `Then` and `ThenError`).
 
-Topics can also maintain state across events (as in installation workflows), manage conversational context (as in conversation and thread topics), and generally act as team members specializing in a set of decisions.
-
 ## Workflow
 
-A workflow connects events to follow-up commands. Where topics generally make domain decisions and emit events, workflows are about *orchestrating* further work.
+A workflow connects decisions (events) to follow-up choices (commands). Where topics generally make domain decisions and emit events, workflows are about *orchestrating* further work.
 
 ```csharp
 using Totem.Timeline;
@@ -301,11 +299,6 @@ Workflows:
 
 - observe events via `When`
 - enqueue follow-up commands via `ThenEnqueue`
-- often serve as bridges between areas or between HTTP edges and internal topics
-
-They keep sequencing explicit while preserving the event-driven nature of the timeline.
-
-
 
 ## Route
 
@@ -319,25 +312,15 @@ namespace Acme.ProductImport.Queries;
 
 public class ProductDetails : Query
 {
-  static Many<Id> RouteFirst(ProductsDiffed e) => e.Diff.Ids;
+  static Id Route(ProductAdded e) => e.ProductId;
   static Id Route(ProductIncluded e) => e.ProductId;
   static Id Route(ProductExcluded e) => e.ProductId;
 
   public string Name;
   public bool IsIncluded;
 
-  void Given(ProductsDiffed e)
-  {
-    if(e.Diff.RemovedIds.Contains(Id))
-    {
-      ThenDone();
-    }
-    else
-    {
-      var product = e.Diff[Id];
-      Name = product.Name;
-    }
-  }
+  void Given(ProductAdded e) =>
+    Name = e.Name;
 
   void Given(ProductIncluded e) =>
     IsIncluded = true;
@@ -346,11 +329,6 @@ public class ProductDetails : Query
     IsIncluded = false;
 }
 ```
-
-- `RouteFirst` creates instances and routes events to them.
-- `Route` sends events to existing instances only.
-- Both can return `Id` or any `IEnumerable<Id>`.
-- `ThenDone` signals the end of an instance’s lifetime.
 
 ## Area
 
