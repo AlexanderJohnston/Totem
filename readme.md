@@ -1,4 +1,4 @@
-### <img align="left" src="icon.png" /> Totem vNext
+### <img align="left" src="logo.png" /> Totem vNext
 
 A framework for building timeline-based applications on .NET
 
