@@ -1,0 +1,201 @@
+{
+  "main": {
+    "id": "ea9340b42457511c",
+    "type": "split",
+    "children": [
+      {
+        "id": "913d45872995c590",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b379a15cefa44895",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "agentic/Totem Sub-Agent Logic.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Totem Sub-Agent Logic"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "0075e56204dca25e",
+    "type": "split",
+    "children": [
+      {
+        "id": "34d490178e79ae66",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "5202763acd52afe7",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "197341498c5c8d10",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "3d88110885873966",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "6fbc1dbbbb2e67c7",
+    "type": "split",
+    "children": [
+      {
+        "id": "146671bff174ca6d",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "93884af64bdf8ecd",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "agentic/Totem Sub-Agent Logic.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Totem Sub-Agent Logic"
+            }
+          },
+          {
+            "id": "89f0e2946f4e8cf4",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "agentic/Totem Sub-Agent Logic.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Totem Sub-Agent Logic"
+            }
+          },
+          {
+            "id": "4621a0f5fd0b3e4d",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "4579bb0ca0f5761b",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "c01e0718d6f3010e",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "agentic/Totem Sub-Agent Logic.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Totem Sub-Agent Logic"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "b379a15cefa44895",
+  "lastOpenFiles": [
+    "examples/Dream/src/Dream.Runtime/Versions/Topics/EchoTopic.cs",
+    "examples/Dream/src/Dream.Web/EventStoreDB-Client-Dotnet-Legacy-22.0.0",
+    "examples/Dream/src/Dream.Messages/Test/BounceRow.cs",
+    "examples/Dream/src/Dream.Runtime/Versions/DoneBouncing.cs",
+    "examples/Dream/src/Dream.Runtime/Versions/Reports/BounceReport.cs",
+    "examples/Dream/src/Dream.Runtime/DoneBouncing.cs",
+    "examples/Dream/src/Dream.Messages/Test/KeepBouncing.cs",
+    "examples/Dream/src/Dream.Runtime/Versions/Workflows/BounceWorkflow.cs",
+    "examples/Dream/src/Dream.Runtime/Versions/EchoBounced.cs",
+    "examples/Dream/src/Dream.Messages/Test/EchoBounced.cs",
+    "examples/Dream/src/Dream.Messages/Versions/EchoBounced.cs",
+    "agentic/Totem Sub-Agent Logic.md"
+  ]
+}

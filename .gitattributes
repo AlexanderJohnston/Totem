@@ -45,3 +45,7 @@
 *.fsproj text=auto
 *.dbproj text=auto
 *.sln text=auto eol=crlf
+
+# Copilot custom agents: ensure YAML frontmatter parses consistently
+.github/agents/*.md text eol=lf
+.github/agents/*.agent.md text eol=lf

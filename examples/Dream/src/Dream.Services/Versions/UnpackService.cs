@@ -31,9 +31,15 @@ public sealed class UnpackService : IUnpackService
             using var entryStream = entry.Open();
 
             var key = entry.FullName.Trim(FilePath.Separator);
-            var file = await _fileStorage.PutAsync(_contentRoot, key, entryStream, cancellationToken);
-
-            byteCount += file.ByteCount;
+            if (entry.Length == 0) // Treat this as a folder, not a file
+            {
+                Directory.CreateDirectory(key);
+            }
+            else
+            {
+                var file = await _fileStorage.PutAsync(_contentRoot, key, entryStream, cancellationToken);
+                byteCount += file.ByteCount;
+            }
 
             if(Path.GetFileName(entry.FullName) == _exeName)
             {
