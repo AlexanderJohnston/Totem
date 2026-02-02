@@ -53,14 +53,7 @@ internal sealed class ExternalWorkflowStream
 
             foreach(var resolvedEvent in batch.Events)
             {
-                var record = DeserializeRecord(resolvedEvent.Event.Data.Span);
-
-                if(record is null)
-                {
-                    continue;
-                }
-
-                var envelope = CreateEnvelope(record);
+                var envelope = DeserializeEnvelope(resolvedEvent.Event.Data.Span, resolvedEvent.Event.Metadata.Span);
 
                 if(envelope is null)
                 {
@@ -90,8 +83,22 @@ internal sealed class ExternalWorkflowStream
     {
         transaction.Context.WorkflowKey.CheckConcurrency(_version, transaction.Position);
 
-        var record = WorkflowEventRecord.From(transaction.Context.Envelope, _jsonFormat);
-        var eventData = new EventData(Uuid.NewUuid(), EventTypeName, JsonSerializer.SerializeToUtf8Bytes(record, _jsonFormat.Options));
+        var envelope = transaction.Context.Envelope;
+        var eventType = envelope.EventType;
+        var data = JsonSerializer.SerializeToUtf8Bytes(envelope.Event, eventType, _jsonFormat.Options);
+
+        var metadata = new ExternalWorkflowEventMetadata
+        {
+            EventClrType = eventType.AssemblyQualifiedName ?? eventType.FullName ?? eventType.Name,
+            EventId = envelope.EventId.ToString(),
+            CorrelationId = envelope.Info.CorrelationId.ToString(),
+            WhenOccurred = envelope.WhenOccurred,
+            TopicClrType = envelope.TopicKey.DeclaredType.AssemblyQualifiedName ?? envelope.TopicKey.DeclaredType.FullName ?? envelope.TopicKey.DeclaredType.Name,
+            TopicId = envelope.TopicKey.Id.ToString()
+        };
+
+        var metadataBytes = JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonFormat.Options);
+        var eventData = new EventData(Uuid.NewUuid(), EventTypeName, data, metadataBytes);
         var expectedRevision = GetExpectedRevision(transaction.Position);
 
         await _eventStoreService.AppendToStreamAsync(GetStreamName(), expectedRevision, eventData, cancellationToken);
@@ -106,16 +113,16 @@ internal sealed class ExternalWorkflowStream
     static StreamRevision GetExpectedRevision(TimelinePosition position) =>
         position.IsStart ? StreamRevision.None : new StreamRevision((ulong) position.ToIndex());
 
-    WorkflowEventRecord? DeserializeRecord(ReadOnlySpan<byte> data)
+    ExternalWorkflowEventMetadata? DeserializeMetadata(ReadOnlySpan<byte> metadata)
     {
-        if(data.IsEmpty)
+        if(metadata.IsEmpty)
         {
             return null;
         }
 
         try
         {
-            return JsonSerializer.Deserialize<WorkflowEventRecord>(data, _jsonFormat.Options);
+            return JsonSerializer.Deserialize<ExternalWorkflowEventMetadata>(metadata, _jsonFormat.Options);
         }
         catch(JsonException)
         {
@@ -123,58 +130,50 @@ internal sealed class ExternalWorkflowStream
         }
     }
 
-    EventEnvelope? CreateEnvelope(WorkflowEventRecord record)
+    EventEnvelope? DeserializeEnvelope(ReadOnlySpan<byte> data, ReadOnlySpan<byte> metadataBytes)
     {
-        var eventType = ExternalTypeResolver.Resolve(record.EventClrType);
-        var topicType = ExternalTypeResolver.Resolve(record.TopicClrType);
+        var metadata = DeserializeMetadata(metadataBytes);
+
+        if(metadata is null)
+        {
+            return null;
+        }
+
+        var eventType = ExternalTypeResolver.Resolve(metadata.EventClrType);
+        var topicType = ExternalTypeResolver.Resolve(metadata.TopicClrType);
 
         if(eventType is null || topicType is null)
         {
             return null;
         }
 
-        var e = (IEvent?) JsonSerializer.Deserialize(record.EventJson, eventType, _jsonFormat.Options);
+        var e = (IEvent?) JsonSerializer.Deserialize(data, eventType, _jsonFormat.Options);
 
         if(e is null)
         {
             return null;
         }
 
-        if(!Id.TryFrom(record.TopicId, out var topicId))
+        if(!Id.TryFrom(metadata.TopicId, out var topicId))
         {
             return null;
         }
 
         var topicKey = new TimelineKey(topicType, topicId);
-        var messageId = Id.TryFrom(record.EventId, out var eventId) ? eventId : Id.NewId();
-        var correlationId = Id.TryFrom(record.CorrelationId, out var correlation) ? correlation : Id.NewId();
+        var messageId = Id.TryFrom(metadata.EventId, out var eventId) ? eventId : Id.NewId();
+        var correlationId = Id.TryFrom(metadata.CorrelationId, out var correlation) ? correlation : Id.NewId();
         var info = new EnvelopeInfo(messageId, correlationId);
 
-        return new EventEnvelope(e, topicKey, record.WhenOccurred, info);
+        return new EventEnvelope(e, topicKey, metadata.WhenOccurred, info);
     }
 
-    sealed class WorkflowEventRecord
+    sealed class ExternalWorkflowEventMetadata
     {
         public string EventClrType { get; set; } = string.Empty;
-        public string EventJson { get; set; } = string.Empty;
         public string EventId { get; set; } = string.Empty;
         public string CorrelationId { get; set; } = string.Empty;
         public DateTimeOffset WhenOccurred { get; set; }
         public string TopicClrType { get; set; } = string.Empty;
         public string TopicId { get; set; } = string.Empty;
-
-        public static WorkflowEventRecord From(EventEnvelope envelope, TotemJsonFormat jsonFormat)
-        {
-            return new WorkflowEventRecord
-            {
-                EventClrType = envelope.EventType.AssemblyQualifiedName ?? envelope.EventType.FullName ?? envelope.EventType.Name,
-                EventJson = JsonSerializer.Serialize(envelope.Event, envelope.EventType, jsonFormat.Options),
-                EventId = envelope.EventId.ToString(),
-                CorrelationId = envelope.Info.CorrelationId.ToString(),
-                WhenOccurred = envelope.WhenOccurred,
-                TopicClrType = envelope.TopicKey.DeclaredType.AssemblyQualifiedName ?? envelope.TopicKey.DeclaredType.FullName ?? envelope.TopicKey.DeclaredType.Name,
-                TopicId = envelope.TopicKey.Id.ToString()
-            };
-        }
     }
 }

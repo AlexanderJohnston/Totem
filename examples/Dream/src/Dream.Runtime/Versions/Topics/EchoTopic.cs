@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Dream.Test;
 using Totem.Core;
 
-namespace Dream.Versions.Topics;
+namespace Dream.Versions.Topics; 
 public sealed class EchoTopic : Topic
 {
     public async Task When(EchoBounce command, CancellationToken cancellationToken)
