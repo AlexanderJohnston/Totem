@@ -154,7 +154,7 @@ namespace Totem.App.Service
         {
           var pairs = new Dictionary<string, string>
           {
-            [HostDefaults.EnvironmentKey] = Environment.GetEnvironmentVariable("NETCORE_ENVIRONMENT") ?? EnvironmentName.Development
+            [HostDefaults.EnvironmentKey] = Environment.GetEnvironmentVariable("NETCORE_ENVIRONMENT") ?? Environments.Development
           };
 
           hostConfiguration.AddInMemoryCollection(pairs);
