@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Totem.Runtime;
+using Xunit.Sdk;
 
 namespace Totem.App.Tests.Hosting
 {
@@ -39,9 +40,15 @@ namespace Totem.App.Tests.Hosting
     {
       if(_host.IsValueCreated)
       {
-        var host = await _host.Value;
+        try
+        {
+          var host = await _host.Value;
 
-        await host.Disconnect();
+          await host.Disconnect();
+        }
+        catch(Xunit.Sdk.SkipException)
+        {
+        }
       }
     }
 

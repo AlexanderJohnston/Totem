@@ -9,7 +9,7 @@ namespace Totem.App.Service
   /// </summary>
   public sealed class ServiceAppCancellation : IHostedService
   {
-    public ServiceAppCancellation(IApplicationLifetime lifetimeService, CancellationToken stopToken)
+    public ServiceAppCancellation(IHostApplicationLifetime lifetimeService, CancellationToken stopToken)
     {
       stopToken.Register(lifetimeService.StopApplication);
     }

@@ -1,6 +1,5 @@
 using System.Threading.Tasks;
 using Totem.Timeline.IntegrationTests.Hosting;
-using Xunit;
 
 namespace Totem.Timeline.IntegrationTests
 {
@@ -9,7 +8,7 @@ namespace Totem.Timeline.IntegrationTests
   /// </summary>
   public class RoutingToLatentInstance : IntegrationTest
   {
-    [Fact]
+    [EventStoreFact]
     public async Task OnlyCreatesForRouteFirst()
     {
       var id = Id.From("A");

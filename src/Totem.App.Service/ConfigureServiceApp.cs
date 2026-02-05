@@ -187,8 +187,8 @@ namespace Totem.App.Service
               timeline.AddEventStore().BindOptionsToConfiguration()));
 
           // Allow an external host (such as a Windows Service) to stop the application
-          services.AddSingleton<IHostedService>(p =>
-            new ServiceAppCancellation(p.GetService<IApplicationLifetime>(), _cancellationToken));
+            services.AddSingleton<IHostedService>(p =>
+            new ServiceAppCancellation(p.GetService<IHostApplicationLifetime>(), _cancellationToken));
         }));
 
     public void ApplySerilog(IHostBuilder host)

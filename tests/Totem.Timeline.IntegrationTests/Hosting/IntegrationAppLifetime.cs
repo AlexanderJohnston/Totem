@@ -11,7 +11,7 @@ namespace Totem.Timeline.IntegrationTests.Hosting
   {
     readonly IntegrationApp _app;
 
-    internal IntegrationAppLifetime(IntegrationAppHost host, IntegrationApp app, IApplicationLifetime lifetimeService)
+    internal IntegrationAppLifetime(IntegrationAppHost host, IntegrationApp app, IHostApplicationLifetime lifetimeService)
     {
       _app = app;
 

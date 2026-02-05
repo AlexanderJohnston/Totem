@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using System.Threading;
 using Microsoft.Extensions.Configuration;
@@ -44,7 +45,7 @@ namespace Totem.Timeline.IntegrationTests.Hosting
       .AddSingleton<IHostLifetime>(p => new IntegrationAppLifetime(
         host,
         p.GetService<IntegrationApp>(),
-        p.GetService<IApplicationLifetime>()))
+        p.GetService<IHostApplicationLifetime>()))
       .Add(host.AppServices);
 
     static IEnumerable<Type> GetAreaTypes(this IntegrationAppHost host) =>
@@ -58,7 +59,17 @@ namespace Totem.Timeline.IntegrationTests.Hosting
         var processOptions = p.GetOptions<EventStoreProcessOptions>();
         var timelineOptions = p.GetOptions<EventStoreTimelineOptions>();
 
-        Expect.That(processOptions.ExeFile).IsNot("<user secret>", "The eventStoreProcess:exeFile options is required, generally as a user secret");
+        if(string.IsNullOrWhiteSpace(processOptions.ExeFile) ||
+           processOptions.ExeFile == "<user secret>" ||
+           !File.Exists(processOptions.ExeFile))
+        {
+          processOptions.ExeFile = null;
+        }
+
+        if(string.IsNullOrWhiteSpace(processOptions.ExeFile))
+        {
+          return new EventStoreProcess(new EventStoreProcessCommand(processOptions.ExeFile, 0, 0), processOptions.ReadyDelay);
+        }
 
         var command = new EventStoreProcessCommand(
           processOptions.ExeFile,

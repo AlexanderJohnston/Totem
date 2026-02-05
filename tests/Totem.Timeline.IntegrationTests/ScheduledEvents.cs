@@ -1,7 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using Totem.Timeline.IntegrationTests.Hosting;
-using Xunit;
 
 namespace Totem.Timeline.IntegrationTests
 {
@@ -10,7 +9,7 @@ namespace Totem.Timeline.IntegrationTests
   /// </summary>
   public class ScheduledEvents : IntegrationTest
   {
-    [Fact]
+    [EventStoreFact]
     public async Task OccurWithin50Ms()
     {
       await Append(new StartTimer());
