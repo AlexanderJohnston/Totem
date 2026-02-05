@@ -14,7 +14,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageProjectUrl>https://github.com/bwatts/Totem</PackageProjectUrl>
-    <PackageIconUrl>https://raw.githubusercontent.com/bwatts/totem/master/icon.png</PackageIconUrl>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageReleaseNotes>https://github.com/bwatts/Totem/releases</PackageReleaseNotes>
     <PackageTags>totem;ddd;cqrs;event-sourcing;dotnet;dotnet-core;csharp;aspnet-core;signalr</PackageTags>
     <RepositoryUrl>https://github.com/bwatts/Totem</RepositoryUrl>
@@ -36,6 +36,10 @@
     <ProjectReference Include="..\Totem.Timeline.SignalR\Totem.Timeline.SignalR.csproj" />
     <ProjectReference Include="..\Totem.Timeline\Totem.Timeline.csproj" />
     <ProjectReference Include="..\Totem\Totem.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\icon.png" Pack="true" PackagePath="/" />
   </ItemGroup>
 
 </Project>
