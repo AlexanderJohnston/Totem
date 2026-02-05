@@ -238,7 +238,7 @@ namespace Totem.App.Web
       host.Configure(app =>
         _app.Apply(app, () =>
         {
-          var environment = app.ApplicationServices.GetRequiredService<Microsoft.Extensions.Hosting.IHostingEnvironment>();
+          var environment = app.ApplicationServices.GetRequiredService<IHostEnvironment>();
 
           if(environment.IsDevelopment())
           {
