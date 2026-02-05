@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.SignalR;
 
