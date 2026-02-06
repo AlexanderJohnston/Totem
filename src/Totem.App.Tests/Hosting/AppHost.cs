@@ -30,10 +30,8 @@ namespace Totem.App.Tests.Hosting
       return _shutdown.Task;
     }
 
-    void BuildAndRun()
-    {
+    void BuildAndRun() =>
       CreateBuilder().Build().RunAsync().ContinueWith(StopHost);
-    }
 
     protected abstract IHostBuilder CreateBuilder();
 
