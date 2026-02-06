@@ -40,15 +40,9 @@ namespace Totem.App.Tests.Hosting
     {
       if(_host.IsValueCreated)
       {
-        try
-        {
-          var host = await _host.Value;
+        var host = await _host.Value;
 
-          await host.Disconnect();
-        }
-        catch(Xunit.Sdk.SkipException)
-        {
-        }
+        await host.Disconnect();
       }
     }
 

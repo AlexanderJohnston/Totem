@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Totem.Timeline.IntegrationTests.Hosting;
+using Xunit;
 
 namespace Totem.Timeline.IntegrationTests
 {
@@ -10,7 +11,7 @@ namespace Totem.Timeline.IntegrationTests
   /// </summary>
   public class RoutingToMultiInstance : IntegrationTest
   {
-    [EventStoreFact]
+    [Fact]
     public async Task CreatesAllInstances()
     {
       var ids = Many.Of(Id.From("A"), Id.From("B"), Id.From("C"));

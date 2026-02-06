@@ -29,11 +29,6 @@ namespace Totem.Timeline.IntegrationTests.Hosting
 
     internal async Task<Process> StartProcess()
     {
-      if(string.IsNullOrWhiteSpace(_exeFile))
-      {
-        return Process.GetCurrentProcess();
-      }
-
       if(IsFirstCommand())
       {
         KillExistingProcesses();
@@ -66,9 +61,7 @@ namespace Totem.Timeline.IntegrationTests.Hosting
     }
 
     IEnumerable<Process> GetExistingProcesses() =>
-      string.IsNullOrWhiteSpace(_exeFile)
-        ? Array.Empty<Process>()
-        : Process.GetProcessesByName(Path.GetFileNameWithoutExtension(_exeFile));
+      Process.GetProcessesByName(Path.GetFileNameWithoutExtension(_exeFile));
 
     ProcessStartInfo CreateStartInfo() =>
       new ProcessStartInfo

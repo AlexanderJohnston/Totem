@@ -20,19 +20,7 @@ namespace Totem.App.Tests.Hosting
     {
       BuildAndRun();
 
-      try
-      {
-        await _startup.Task;
-      }
-      catch(AggregateException error)
-      {
-        if(error.InnerExceptions.Count == 1 && error.InnerException is SkipException skip)
-        {
-          throw skip;
-        }
-
-        throw;
-      }
+      await _startup.Task;
     }
 
     protected override Task Close()
@@ -44,14 +32,7 @@ namespace Totem.App.Tests.Hosting
 
     void BuildAndRun()
     {
-      try
-      {
-        CreateBuilder().Build().RunAsync().ContinueWith(StopHost);
-      }
-      catch(Xunit.Sdk.SkipException skip)
-      {
-        _startup.SetException(skip);
-      }
+      CreateBuilder().Build().RunAsync().ContinueWith(StopHost);
     }
 
     protected abstract IHostBuilder CreateBuilder();

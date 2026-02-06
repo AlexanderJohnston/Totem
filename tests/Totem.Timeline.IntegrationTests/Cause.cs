@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Totem.Timeline.IntegrationTests.Hosting;
+using Xunit;
 
 namespace Totem.Timeline.IntegrationTests
 {
@@ -8,7 +9,7 @@ namespace Totem.Timeline.IntegrationTests
   /// </summary>
   public class Cause : IntegrationTest
   {
-    [EventStoreFact]
+    [Fact]
     public async Task SetByWhen()
     {
       await Append(new StartTest());
