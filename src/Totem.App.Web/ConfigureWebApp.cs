@@ -246,6 +246,7 @@ namespace Totem.App.Web
           }
 
           app.UseStaticFiles();
+          app.UseRouting();
 
           _mvcApp.Apply(app, () =>
             app.UseMvc(routes =>
@@ -278,7 +279,8 @@ namespace Totem.App.Web
 
           _mvc.Apply(context, services, () =>
             services
-            .AddMvc()
+            .AddMvc(options => options.EnableEndpointRouting = false)
+            .AddNewtonsoftJson()
             .AddTotemWebRuntime()
             .AddCommandsAndQueries()
             .AddEntryAssemblyPart());
