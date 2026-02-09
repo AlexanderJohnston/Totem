@@ -185,6 +185,7 @@
   },
   "active": "b379a15cefa44895",
   "lastOpenFiles": [
+    "copilot-session-1f022069-4d7b-4ab4-b0d9-0b15f70a2bd9.md",
     "examples/Dream/src/Dream.Runtime/Versions/Topics/EchoTopic.cs",
     "examples/Dream/src/Dream.Web/EventStoreDB-Client-Dotnet-Legacy-22.0.0",
     "examples/Dream/src/Dream.Messages/Test/BounceRow.cs",
@@ -195,7 +196,6 @@
     "examples/Dream/src/Dream.Runtime/Versions/Workflows/BounceWorkflow.cs",
     "examples/Dream/src/Dream.Runtime/Versions/EchoBounced.cs",
     "examples/Dream/src/Dream.Messages/Test/EchoBounced.cs",
-    "examples/Dream/src/Dream.Messages/Versions/EchoBounced.cs",
     "agentic/Totem Sub-Agent Logic.md"
   ]
 }

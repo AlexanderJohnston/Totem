@@ -58,8 +58,9 @@ internal sealed class ExternalReportIndex
 
             var record = new ReportIndexRecord { ReportId = rowId.ToString() };
             var data = JsonSerializer.SerializeToUtf8Bytes(record, _jsonFormat.Options);
+            var metadata = JsonSerializer.SerializeToUtf8Bytes(new ExternalReportIndexMetadata(), _jsonFormat.Options);
             var expected = _expectedRevision ?? StreamRevision.None;
-            var result = await _eventStoreService.AppendToStreamAsync(GetStreamName(), expected, new EventData(Uuid.NewUuid(), EventTypeName, data), cancellationToken).ConfigureAwait(false);
+            var result = await _eventStoreService.AppendToStreamAsync(GetStreamName(), expected, new EventData(Uuid.NewUuid(), EventTypeName, data, metadata), cancellationToken).ConfigureAwait(false);
 
             _expectedRevision = result.NextExpectedStreamVersion;
             _rowIds.TryAdd(rowId, 0);
@@ -150,5 +151,9 @@ internal sealed class ExternalReportIndex
     sealed class ReportIndexRecord
     {
         public string ReportId { get; set; } = string.Empty;
+    }
+
+    sealed class ExternalReportIndexMetadata
+    {
     }
 }

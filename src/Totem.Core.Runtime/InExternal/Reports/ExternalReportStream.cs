@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using EventStore.Client;
 using Totem;
@@ -59,14 +60,14 @@ internal sealed class ExternalReportStream
 
             foreach(var resolvedEvent in batch.Events)
             {
-                var record = DeserializeRecord(resolvedEvent.Event.Data.Span);
+                var metadata = DeserializeMetadata(resolvedEvent.Event.Metadata.Span);
 
-                if(record is null)
+                if(metadata is null)
                 {
                     continue;
                 }
 
-                var envelope = CreateEnvelope(record);
+                var envelope = DeserializeEnvelope(metadata);
 
                 if(envelope is null)
                 {
@@ -78,8 +79,8 @@ internal sealed class ExternalReportStream
                 _reportType.CallGivenIfDefined(report, eventContext);
 
                 _position = _position.Next();
-                _rowJson = record.RowJson;
-                _whenUpdated = record.WhenOccurred;
+                _rowJson = Encoding.UTF8.GetString(resolvedEvent.Event.Data.Span);
+                _whenUpdated = metadata.WhenOccurred;
                 _hasSnapshot = true;
             }
 
@@ -99,8 +100,27 @@ internal sealed class ExternalReportStream
     {
         transaction.Context.ReportKey.CheckConcurrency(_position, transaction.Position);
 
-        var record = ReportRowRecord.From(transaction.Context.Envelope, transaction.Report.Row, _reportType, _jsonFormat);
-        var eventData = new EventData(Uuid.NewUuid(), EventTypeName, JsonSerializer.SerializeToUtf8Bytes(record, _jsonFormat.Options));
+        var envelope = transaction.Context.Envelope;
+        var eventType = envelope.EventType;
+
+        var rowType = _reportType.Row.DeclaredType;
+        var rowJson = JsonSerializer.Serialize(transaction.Report.Row, rowType, _jsonFormat.Options);
+        var data = JsonSerializer.SerializeToUtf8Bytes(transaction.Report.Row, rowType, _jsonFormat.Options);
+
+        var metadata = new ExternalReportRowMetadata
+        {
+            EventClrType = eventType.AssemblyQualifiedName ?? eventType.FullName ?? eventType.Name,
+            EventJson = JsonSerializer.Serialize(envelope.Event, eventType, _jsonFormat.Options),
+            EventId = envelope.EventId.ToString(),
+            CorrelationId = envelope.Info.CorrelationId.ToString(),
+            TopicClrType = envelope.TopicKey.DeclaredType.AssemblyQualifiedName ?? envelope.TopicKey.DeclaredType.FullName ?? envelope.TopicKey.DeclaredType.Name,
+            TopicId = envelope.TopicKey.Id.ToString(),
+            RowClrType = rowType.AssemblyQualifiedName ?? rowType.FullName ?? rowType.Name,
+            WhenOccurred = envelope.WhenOccurred
+        };
+
+        var metadataBytes = JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonFormat.Options);
+        var eventData = new EventData(Uuid.NewUuid(), EventTypeName, data, metadataBytes);
         var expectedRevision = GetExpectedRevision(transaction.Position);
 
         await _eventStoreService.AppendToStreamAsync(GetStreamName(), expectedRevision, eventData, cancellationToken);
@@ -108,8 +128,8 @@ internal sealed class ExternalReportStream
         var wasNew = !_hasSnapshot;
 
         _position = _position.Next();
-        _rowJson = record.RowJson;
-        _whenUpdated = record.WhenOccurred;
+        _rowJson = rowJson;
+        _whenUpdated = metadata.WhenOccurred;
         _hasSnapshot = true;
 
         return new ReportCommitResult(_position, wasNew, _whenUpdated);
@@ -130,22 +150,23 @@ internal sealed class ExternalReportStream
         }
 
         var resolved = result.Events[0];
-        var record = DeserializeRecord(resolved.Event.Data.Span);
+        var metadata = DeserializeMetadata(resolved.Event.Metadata.Span);
 
-        if(record is null)
+        if(metadata is null)
         {
             return null;
         }
 
+        var rowJson = Encoding.UTF8.GetString(resolved.Event.Data.Span);
         var eventNumber = resolved.Event.EventNumber.ToUInt64();
         var position = TimelinePosition.From((long) eventNumber);
 
         _position = position;
-        _rowJson = record.RowJson;
-        _whenUpdated = record.WhenOccurred;
+        _rowJson = rowJson;
+        _whenUpdated = metadata.WhenOccurred;
         _hasSnapshot = true;
 
-        return new ReportSnapshot(position, record.WhenOccurred, record.RowJson);
+        return new ReportSnapshot(position, metadata.WhenOccurred, rowJson);
     }
 
     internal IReportRow? DeserializeRow(string? rowJson)
@@ -165,16 +186,16 @@ internal sealed class ExternalReportStream
     static StreamRevision GetExpectedRevision(TimelinePosition position) =>
         position.IsStart ? StreamRevision.None : new StreamRevision((ulong) position.ToIndex());
 
-    ReportRowRecord? DeserializeRecord(ReadOnlySpan<byte> data)
+    ExternalReportRowMetadata? DeserializeMetadata(ReadOnlySpan<byte> metadata)
     {
-        if(data.IsEmpty)
+        if(metadata.IsEmpty)
         {
             return null;
         }
 
         try
         {
-            return JsonSerializer.Deserialize<ReportRowRecord>(data, _jsonFormat.Options);
+            return JsonSerializer.Deserialize<ExternalReportRowMetadata>(metadata, _jsonFormat.Options);
         }
         catch(JsonException)
         {
@@ -182,34 +203,46 @@ internal sealed class ExternalReportStream
         }
     }
 
-    EventEnvelope? CreateEnvelope(ReportRowRecord record)
+    EventEnvelope? DeserializeEnvelope(ExternalReportRowMetadata metadata)
     {
-        var eventType = ExternalTypeResolver.Resolve(record.EventClrType);
-        var topicType = ExternalTypeResolver.Resolve(record.TopicClrType);
+        var eventType = ExternalTypeResolver.Resolve(metadata.EventClrType);
+        var topicType = ExternalTypeResolver.Resolve(metadata.TopicClrType);
 
         if(eventType is null || topicType is null)
         {
             return null;
         }
 
-        var e = (IEvent?) JsonSerializer.Deserialize(record.EventJson, eventType, _jsonFormat.Options);
+        var e = (IEvent?) JsonSerializer.Deserialize(metadata.EventJson, eventType, _jsonFormat.Options);
 
         if(e is null)
         {
             return null;
         }
 
-        if(!Id.TryFrom(record.TopicId, out var topicId))
+        if(!Id.TryFrom(metadata.TopicId, out var topicId))
         {
             return null;
         }
 
         var topicKey = new TimelineKey(topicType, topicId);
-        var messageId = Id.TryFrom(record.EventId, out var eventId) ? eventId : Id.NewId();
-        var correlationId = Id.TryFrom(record.CorrelationId, out var correlation) ? correlation : Id.NewId();
+        var messageId = Id.TryFrom(metadata.EventId, out var eventId) ? eventId : Id.NewId();
+        var correlationId = Id.TryFrom(metadata.CorrelationId, out var correlation) ? correlation : Id.NewId();
         var info = new EnvelopeInfo(messageId, correlationId);
 
-        return new EventEnvelope(e, topicKey, record.WhenOccurred, info);
+        return new EventEnvelope(e, topicKey, metadata.WhenOccurred, info);
+    }
+
+    sealed class ExternalReportRowMetadata
+    {
+        public string EventClrType { get; set; } = string.Empty;
+        public string EventJson { get; set; } = string.Empty;
+        public string EventId { get; set; } = string.Empty;
+        public string CorrelationId { get; set; } = string.Empty;
+        public string TopicClrType { get; set; } = string.Empty;
+        public string TopicId { get; set; } = string.Empty;
+        public string RowClrType { get; set; } = string.Empty;
+        public DateTimeOffset WhenOccurred { get; set; }
     }
 
     internal readonly struct ReportSnapshot
@@ -240,34 +273,4 @@ internal sealed class ExternalReportStream
         public DateTimeOffset WhenUpdated { get; }
     }
 
-    sealed class ReportRowRecord
-    {
-        public string EventClrType { get; set; } = string.Empty;
-        public string EventJson { get; set; } = string.Empty;
-        public string EventId { get; set; } = string.Empty;
-        public string CorrelationId { get; set; } = string.Empty;
-        public string TopicClrType { get; set; } = string.Empty;
-        public string TopicId { get; set; } = string.Empty;
-        public string RowClrType { get; set; } = string.Empty;
-        public string RowJson { get; set; } = string.Empty;
-        public DateTimeOffset WhenOccurred { get; set; }
-
-        public static ReportRowRecord From(EventEnvelope envelope, IReportRow row, ReportType reportType, TotemJsonFormat jsonFormat)
-        {
-            var rowType = reportType.Row.DeclaredType;
-
-            return new ReportRowRecord
-            {
-                EventClrType = envelope.EventType.AssemblyQualifiedName ?? envelope.EventType.FullName ?? envelope.EventType.Name,
-                EventJson = JsonSerializer.Serialize(envelope.Event, envelope.EventType, jsonFormat.Options),
-                EventId = envelope.EventId.ToString(),
-                CorrelationId = envelope.Info.CorrelationId.ToString(),
-                TopicClrType = envelope.TopicKey.DeclaredType.AssemblyQualifiedName ?? envelope.TopicKey.DeclaredType.FullName ?? envelope.TopicKey.DeclaredType.Name,
-                TopicId = envelope.TopicKey.Id.ToString(),
-                RowClrType = rowType.AssemblyQualifiedName ?? rowType.FullName ?? rowType.Name,
-                RowJson = JsonSerializer.Serialize(row, rowType, jsonFormat.Options),
-                WhenOccurred = envelope.WhenOccurred
-            };
-        }
-    }
 }
