@@ -16,11 +16,11 @@ namespace Totem.App.Tests.Hosting
     readonly TaskSource _shutdown = new TaskSource();
     IHostApplicationLifetime _lifetimeService;
 
-    protected override async Task Open()
+    protected override Task Open()
     {
       BuildAndRun();
 
-      await _startup.Task;
+      return _startup.Task;
     }
 
     protected override Task Close()
