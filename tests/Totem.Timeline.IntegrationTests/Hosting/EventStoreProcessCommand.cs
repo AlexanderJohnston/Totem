@@ -17,14 +17,12 @@ namespace Totem.Timeline.IntegrationTests.Hosting
     static int _firstCommandFlag;
 
     readonly string _exeFile;
-    readonly int _tcpPort;
-    readonly int _httpPort;
+    readonly int _port;
     
-    internal EventStoreProcessCommand(string exeFile, int tcpPort, int httpPort)
+    internal EventStoreProcessCommand(string exeFile, int port)
     {
       _exeFile = exeFile;
-      _tcpPort = tcpPort;
-      _httpPort = httpPort;
+      _port = port;
     }
 
     internal async Task<Process> StartProcess()
@@ -73,12 +71,8 @@ namespace Totem.Timeline.IntegrationTests.Hosting
           .Write("--mem-db")
           .Write(" --stats-period-sec=60")
           .Write(" --run-projections=all")
-          .Write(" --int-ip=127.0.0.1")
-          .Write(" --ext-ip=127.0.0.1")
-          .Write(" --int-tcp-port=").Write(_tcpPort)
-          .Write(" --ext-tcp-port=").Write(_tcpPort)
-          .Write(" --int-http-port=").Write(_httpPort)
-          .Write(" --ext-http-port=").Write(_httpPort),
+          .Write(" --insecure")
+          .Write(" --http-port=").Write(_port),
       };
   }
 }

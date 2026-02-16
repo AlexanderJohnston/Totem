@@ -1,7 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using EventStore.ClientAPI;
+using EventStore.Client;
 
 namespace Totem.Timeline.EventStore.DbOperations
 {
@@ -16,7 +17,7 @@ namespace Totem.Timeline.EventStore.DbOperations
     readonly Many<long> _schedule;
     readonly long _scheduleFirst;
     readonly long _scheduleLast;
-    long _readCheckpoint;
+    long _readCheckpoint = -1;
     int _batchIndex;
 
     internal ReadResumeScheduleCommand(EventStoreContext context, Many<long> schedule)
@@ -26,8 +27,6 @@ namespace Totem.Timeline.EventStore.DbOperations
 
       _scheduleFirst = schedule.First();
       _scheduleLast = schedule.Last();
-
-      _readCheckpoint = StreamPosition.End;
 
       // There is overhead in piping a resume algorithm from configuration. The default should work until
       // we experience otherwise.
@@ -54,11 +53,16 @@ namespace Totem.Timeline.EventStore.DbOperations
 
       var batch = await ReadBatch();
 
-      foreach(var e in batch.Events)
+      if(batch == null || batch.Count == 0)
       {
-        _readCheckpoint = e.Link.EventNumber;
+        return false;
+      }
 
-        var areaPosition = e.Event.EventNumber;
+      foreach(var e in batch)
+      {
+        _readCheckpoint = (long)e.Link.EventNumber.ToUInt64();
+
+        var areaPosition = (long)e.Event.EventNumber.ToUInt64();
 
         if(areaPosition < _scheduleFirst)
         {
@@ -71,25 +75,34 @@ namespace Totem.Timeline.EventStore.DbOperations
         }
       }
 
-      return !batch.IsEndOfStream;
+      // If fewer results than requested, we've reached the end
+      var batchSize = _algorithm.GetNextBatchSize(_batchIndex);
+      return batch.Count >= batchSize;
     }
 
-    async Task<StreamEventsSlice> ReadBatch()
+    async Task<List<ResolvedEvent>> ReadBatch()
     {
-      var result = await _context.Connection.ReadStreamEventsBackwardAsync(
+      var startPos = _readCheckpoint < 0
+        ? StreamPosition.End
+        : new StreamPosition((ulong)_readCheckpoint);
+
+      var result = _context.Client.ReadStreamAsync(
+        Direction.Backwards,
         TimelineStreams.Schedule,
-        _readCheckpoint,
-        _algorithm.GetNextBatchSize(_batchIndex),
+        startPos,
+        maxCount: _algorithm.GetNextBatchSize(_batchIndex),
         resolveLinkTos: true);
 
-      switch(result.Status)
+      var readState = await result.ReadState;
+
+      if(readState == ReadState.StreamNotFound)
       {
-        case SliceReadStatus.StreamNotFound:
-        case SliceReadStatus.Success:
-          return result;
-        default:
-          throw new Exception($"Unexpected result when reading {TimelineStreams.Schedule} to resume: {result.Status}");
+        return new List<ResolvedEvent>();
       }
+
+      var events = new List<ResolvedEvent>();
+      await foreach(var e in result) events.Add(e);
+      return events;
     }
   }
 }

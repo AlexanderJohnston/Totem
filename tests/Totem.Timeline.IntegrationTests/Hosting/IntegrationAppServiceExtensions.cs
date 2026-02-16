@@ -60,8 +60,7 @@ namespace Totem.Timeline.IntegrationTests.Hosting
 
         var command = new EventStoreProcessCommand(
           processOptions.ExeFile,
-          timelineOptions.Server.TcpPort,
-          timelineOptions.Server.HttpPort);
+          timelineOptions.Server.Port);
 
         return new EventStoreProcess(command, processOptions.ReadyDelay);
       });
@@ -72,8 +71,7 @@ namespace Totem.Timeline.IntegrationTests.Hosting
 
       return services.Configure<EventStoreTimelineOptions>(options =>
       {
-        options.Server.TcpPort += offset;
-        options.Server.HttpPort += offset;
+        options.Server.Port += offset;
       });
     }
   }
