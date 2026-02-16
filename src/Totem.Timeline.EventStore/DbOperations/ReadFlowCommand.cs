@@ -1,6 +1,7 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
-using EventStore.ClientAPI;
+using EventStore.Client;
 using Totem.Runtime.Json;
 using Totem.Timeline.Runtime;
 
@@ -26,21 +27,25 @@ namespace Totem.Timeline.EventStore.DbOperations
     {
       var stream = _key.GetCheckpointStream();
 
-      var result = await _context.Connection.ReadEventAsync(stream, StreamPosition.End, resolveLinkTos: false);
+      var result = _context.Client.ReadStreamAsync(Direction.Backwards, stream, StreamPosition.End, maxCount: 1);
 
-      switch(result.Status)
+      if(await result.ReadState == ReadState.StreamNotFound)
       {
-        case EventReadStatus.NoStream:
-        case EventReadStatus.NotFound:
-          return new FlowInfo.NotFound();
-        case EventReadStatus.Success:
-          _checkpoint = result.Event.Value;
-          _metadata = _context.ReadCheckpointMetadata(_checkpoint);
-
-          return ReadFlow();
-        default:
-          throw new Exception($"Unexpected result when reading {stream}: {result.Status}");
+        return new FlowInfo.NotFound();
       }
+
+      var events = new System.Collections.Generic.List<ResolvedEvent>();
+      await foreach(var e in result) events.Add(e);
+
+      if(events.Count == 0)
+      {
+        return new FlowInfo.NotFound();
+      }
+
+      _checkpoint = events[0];
+      _metadata = _context.ReadCheckpointMetadata(_checkpoint);
+
+      return ReadFlow();
     }
 
     FlowInfo ReadFlow()
@@ -69,6 +74,6 @@ namespace Totem.Timeline.EventStore.DbOperations
     }
 
     Flow ReadInstance() =>
-      (Flow) _context.Json.FromJsonUtf8(_checkpoint.Event.Data, _key.Type.DeclaredType);
+      (Flow) _context.Json.FromJsonUtf8(_checkpoint.Event.Data.ToArray(), _key.Type.DeclaredType);
   }
 }

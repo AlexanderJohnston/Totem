@@ -1,5 +1,5 @@
 using System.Threading.Tasks;
-using EventStore.ClientAPI;
+using EventStore.Client;
 using Totem.Runtime;
 using Totem.Timeline.Runtime;
 
@@ -11,40 +11,38 @@ namespace Totem.Timeline.EventStore
   public class TimelineSubscription : Connection
   {
     readonly EventStoreContext _context;
-    readonly CatchUpSubscriptionSettings _settings;
     readonly TimelinePosition _checkpoint;
     readonly ITimelineObserver _observer;
-    EventStoreCatchUpSubscription _subscription;
+    StreamSubscription _subscription;
 
     public TimelineSubscription(
       EventStoreContext context,
-      CatchUpSubscriptionSettings settings,
       TimelinePosition checkpoint,
       ITimelineObserver observer)
     {
       _context = context;
-      _settings = settings;
       _checkpoint = checkpoint;
       _observer = observer;
     }
 
-    protected override Task Open()
+    protected override async Task Open()
     {
-      _subscription = _context.Connection.SubscribeToStreamFrom(
-        TimelineStreams.Timeline,
-        _checkpoint.ToInt64OrNull(),
-        _settings,
-        eventAppeared: (_, e) =>
-          _observer.OnNext(_context.ReadAreaPoint(e)),
-        subscriptionDropped: (_, reason, error) =>
-          _observer.OnDropped(reason.ToString(), error));
+      var fromStream = _checkpoint.IsSome
+        ? FromStream.After(new StreamPosition((ulong)_checkpoint.ToInt64OrNull().Value))
+        : FromStream.Start;
 
-      return base.Open();
+      _subscription = await _context.Client.SubscribeToStreamAsync(
+        TimelineStreams.Timeline,
+        fromStream,
+        eventAppeared: async (subscription, e, ct) =>
+          await _observer.OnNext(_context.ReadAreaPoint(e)),
+        subscriptionDropped: (subscription, reason, error) =>
+          _observer.OnDropped(reason.ToString(), error));
     }
 
     protected override Task Close()
     {
-      _subscription?.Stop();
+      _subscription?.Dispose();
 
       return base.Close();
     }

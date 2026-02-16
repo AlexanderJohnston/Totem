@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using EventStore.ClientAPI;
+using EventStore.Client;
 using Totem.Reflection;
 using Totem.Runtime.Json;
 using Totem.Timeline.Area;
@@ -52,11 +52,11 @@ namespace Totem.Timeline.EventStore
       metadata.ApplyRoutes(type, routes);
 
       return new EventData(
-        eventId.IsUnassigned ? Guid.NewGuid() : Guid.Parse(eventId.ToString()),
+        eventId.IsUnassigned ? Uuid.NewUuid() : Uuid.FromGuid(Guid.Parse(eventId.ToString())),
         type.ToString(),
-        isJson: true,
-        data: context.ToJson(e),
-        metadata: context.ToJson(metadata));
+        context.ToJson(e),
+        context.ToJson(metadata),
+        "application/json");
     }
 
     internal static Many<EventData> GetNewEventData(
@@ -92,25 +92,25 @@ namespace Totem.Timeline.EventStore
 
     internal static EventData GetCheckpointEventData(this EventStoreContext context, Flow flow) =>
       new EventData(
-        Guid.NewGuid(),
+        Uuid.NewUuid(),
         "timeline:Checkpoint",
-        isJson: true,
-        data: context.ToJson(flow),
-        metadata: context.ToJson(new CheckpointMetadata
+        context.ToJson(flow),
+        context.ToJson(new CheckpointMetadata
         {
           Position = flow.Context.CheckpointPosition,
           ErrorPosition = flow.Context.ErrorPosition,
           ErrorMessage = flow.Context.ErrorMessage,
           IsDone = flow.Context.IsDone
-        }));
+        }),
+        "application/json");
 
     internal static EventData GetClientEventData(this EventStoreContext context, Event e) =>
       new EventData(
-        Guid.NewGuid(),
+        Uuid.NewUuid(),
         $"timeline:{e.GetType().Name}",
-        isJson: true,
-        data: context.ToJson(e),
-        metadata: null);
+        context.ToJson(e),
+        null,
+        "application/json");
 
     //
     // Reads
@@ -121,12 +121,12 @@ namespace Totem.Timeline.EventStore
       var type = context.ReadEventType(e);
 
       return new TimelinePoint(
-        new TimelinePosition(e.Event.EventNumber),
+        new TimelinePosition((long)e.Event.EventNumber.ToUInt64()),
         metadata.Cause,
         type,
         metadata.When,
         metadata.WhenOccurs,
-        Id.From(e.Event.EventId),
+        Id.From(e.Event.EventId.ToGuid()),
         metadata.CommandId,
         metadata.UserId,
         metadata.Topic,
@@ -148,41 +148,41 @@ namespace Totem.Timeline.EventStore
       context.ReadAreaPoint(e, context.ReadAreaMetadata(e));
 
     internal static AreaEventMetadata ReadAreaMetadata(this EventStoreContext context, ResolvedEvent e) =>
-      context.Json.FromJsonUtf8<AreaEventMetadata>(e.Event.Metadata);
+      context.Json.FromJsonUtf8<AreaEventMetadata>(e.Event.Metadata.ToArray());
 
     internal static CheckpointMetadata ReadCheckpointMetadata(this EventStoreContext context, ResolvedEvent e) =>
-      context.Json.FromJsonUtf8<CheckpointMetadata>(e.Event.Metadata);
+      context.Json.FromJsonUtf8<CheckpointMetadata>(e.Event.Metadata.ToArray());
 
     internal static EventType ReadEventType(this EventStoreContext context, ResolvedEvent e) =>
       context.Area.Events.Get(TypeName.From(e.Event.EventType));
 
     static Event ReadEvent(this EventStoreContext context, ResolvedEvent e, EventType type) =>
-      (Event) context.Json.FromJsonUtf8(e.Event.Data, type.DeclaredType);
+      (Event) context.Json.FromJsonUtf8(e.Event.Data.ToArray(), type.DeclaredType);
 
     //
     // Appends
     //
 
-    static Task<WriteResult> AppendEvent(this EventStoreContext context, string stream, EventData data) =>
-      context.Connection.AppendToStreamAsync(stream, ExpectedVersion.Any, data);
+    static Task<IWriteResult> AppendEvent(this EventStoreContext context, string stream, EventData data) =>
+      context.Client.AppendToStreamAsync(stream, StreamState.Any, new[] { data });
 
-    internal static Task<WriteResult> AppendToTimeline(this EventStoreContext context, IEnumerable<EventData> data) =>
-      context.Connection.AppendToStreamAsync(TimelineStreams.Timeline, ExpectedVersion.Any, data);
+    internal static Task<IWriteResult> AppendToTimeline(this EventStoreContext context, IEnumerable<EventData> data) =>
+      context.Client.AppendToStreamAsync(TimelineStreams.Timeline, StreamState.Any, data);
 
-    internal static Task<WriteResult> AppendToTimeline(this EventStoreContext context, EventData data) =>
+    internal static Task<IWriteResult> AppendToTimeline(this EventStoreContext context, EventData data) =>
       context.AppendEvent(TimelineStreams.Timeline, data);
 
-    internal static Task<WriteResult> AppendToCheckpoint(this EventStoreContext context, Flow flow) =>
+    internal static Task<IWriteResult> AppendToCheckpoint(this EventStoreContext context, Flow flow) =>
       context.AppendEvent(flow.Context.Key.GetCheckpointStream(), context.GetCheckpointEventData(flow));
 
-    internal static Task<WriteResult> AppendToClient(this EventStoreContext context, Event e) =>
-      context.Connection.AppendToStreamAsync(TimelineStreams.Client, ExpectedVersion.Any, context.GetClientEventData(e));
+    internal static Task<IWriteResult> AppendToClient(this EventStoreContext context, Event e) =>
+      context.Client.AppendToStreamAsync(TimelineStreams.Client, StreamState.Any, new[] { context.GetClientEventData(e) });
 
     //
     // Metadata
     //
 
-    internal static Task<WriteResult> SetCheckpointStreamMetadata(this EventStoreContext context, Flow flow, StreamMetadata value) =>
-      context.Connection.SetStreamMetadataAsync(flow.Context.Key.GetCheckpointStream(), ExpectedVersion.Any, value);
+    internal static Task<IWriteResult> SetCheckpointStreamMetadata(this EventStoreContext context, Flow flow, StreamMetadata value) =>
+      context.Client.SetStreamMetadataAsync(flow.Context.Key.GetCheckpointStream(), StreamState.Any, value);
   }
 }

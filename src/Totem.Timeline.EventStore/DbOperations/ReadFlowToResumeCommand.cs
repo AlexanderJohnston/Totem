@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
-using EventStore.ClientAPI;
+using EventStore.Client;
 using Totem.Timeline.Runtime;
 
 namespace Totem.Timeline.EventStore.DbOperations
@@ -71,20 +73,32 @@ namespace Totem.Timeline.EventStore.DbOperations
 
     async Task ReadPoints()
     {
-      var result = await ReadLastRoute();
+      var lastRoute = await ReadLastRoute();
 
-      if(result.Status == EventReadStatus.Success)
+      if(lastRoute != null)
       {
-        await ReadPoints(result.Event.Value);
+        await ReadPoints(lastRoute.Value);
       }
     }
 
-    Task<EventReadResult> ReadLastRoute() =>
-      _context.Connection.ReadEventAsync(_routesStream, StreamPosition.End, resolveLinkTos: true);
+    async Task<ResolvedEvent?> ReadLastRoute()
+    {
+      var result = _context.Client.ReadStreamAsync(Direction.Backwards, _routesStream, StreamPosition.End, maxCount: 1, resolveLinkTos: true);
+
+      if(await result.ReadState == ReadState.StreamNotFound)
+      {
+        return null;
+      }
+
+      var events = new List<ResolvedEvent>();
+      await foreach(var e in result) events.Add(e);
+
+      return events.Count > 0 ? events[0] : (ResolvedEvent?)null;
+    }
 
     async Task ReadPoints(ResolvedEvent lastRoute)
     {
-      if(_areaCheckpoint == null || _areaCheckpoint < lastRoute.Event.EventNumber)
+      if(_areaCheckpoint == null || _areaCheckpoint < (long)lastRoute.Event.EventNumber.ToUInt64())
       {
         AddPoint(lastRoute);
 
@@ -99,7 +113,7 @@ namespace Totem.Timeline.EventStore.DbOperations
     {
       _points.Write.Insert(0, _context.ReadAreaPoint(e));
 
-      _routesCheckpoint = e.Link.EventNumber;
+      _routesCheckpoint = (long)e.Link.EventNumber.ToUInt64();
     }
 
     async Task<bool> ReadNextBatch()
@@ -111,9 +125,9 @@ namespace Totem.Timeline.EventStore.DbOperations
 
       var batch = await ReadBatch();
 
-      foreach(var e in batch.Events)
+      foreach(var e in batch)
       {
-        if(e.Event.EventNumber <= _areaCheckpoint)
+        if((long)e.Event.EventNumber.ToUInt64() <= _areaCheckpoint)
         {
           return false;
         }
@@ -121,23 +135,31 @@ namespace Totem.Timeline.EventStore.DbOperations
         AddPoint(e);
       }
 
-      return !batch.IsEndOfStream;
+      // If fewer results than requested, we've reached the end
+      var batchSize = _key.Type.ResumeAlgorithm.GetNextBatchSize(_batchIndex);
+      return batch.Count >= batchSize;
     }
 
-    async Task<StreamEventsSlice> ReadBatch()
+    async Task<List<ResolvedEvent>> ReadBatch()
     {
-      var result = await _context.Connection.ReadStreamEventsBackwardAsync(
+      var batchSize = _key.Type.ResumeAlgorithm.GetNextBatchSize(_batchIndex);
+      var startPos = new StreamPosition((ulong)(_routesCheckpoint - 1));
+
+      var result = _context.Client.ReadStreamAsync(
+        Direction.Backwards,
         _routesStream,
-        start: _routesCheckpoint - 1,
-        count: _key.Type.ResumeAlgorithm.GetNextBatchSize(_batchIndex),
+        startPos,
+        maxCount: batchSize,
         resolveLinkTos: true);
 
-      if(result.Status != SliceReadStatus.Success)
+      if(await result.ReadState == ReadState.StreamNotFound)
       {
-        throw new Exception($"Unexpected result when reading {_routesStream} to resume: {result.Status}");
+        throw new Exception($"Unexpected result when reading {_routesStream} to resume: stream not found");
       }
 
-      return result;
+      var events = new List<ResolvedEvent>();
+      await foreach(var e in result) events.Add(e);
+      return events;
     }
   }
 }

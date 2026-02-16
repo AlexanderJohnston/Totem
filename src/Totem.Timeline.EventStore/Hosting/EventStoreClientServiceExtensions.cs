@@ -1,6 +1,6 @@
 using System;
 using System.ComponentModel;
-using EventStore.ClientAPI;
+using EventStore.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Totem.Runtime.Hosting;
 using Totem.Runtime.Json;
@@ -21,9 +21,8 @@ namespace Totem.Timeline.EventStore.Hosting
     {
       client.ConfigureServices(services =>
         services
-        .AddSingleton<ILogger, EventStoreLogAdapter>()
         .AddSingleton(p => new EventStoreContext(
-          p.BuildConnection(),
+          p.BuildClient(),
           p.GetRequiredService<IJsonFormat>(),
           p.GetRequiredService<AreaMap>()))
         .AddSingleton<IClientDb, ClientDb>()

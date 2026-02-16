@@ -1,6 +1,7 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
-using EventStore.ClientAPI;
+using EventStore.Client;
 using Totem.Runtime.Json;
 using Totem.Timeline.Client;
 
@@ -13,8 +14,8 @@ namespace Totem.Timeline.EventStore.Client
   {
     readonly EventStoreContext _context;
     readonly IClientObserver _observer;
-    EventStoreSubscription _timelineSubscription;
-    EventStoreSubscription _clientSubscription;
+    StreamSubscription _timelineSubscription;
+    StreamSubscription _clientSubscription;
 
     internal ClientSubscription(EventStoreContext context, IClientObserver observer)
     {
@@ -36,30 +37,26 @@ namespace Totem.Timeline.EventStore.Client
 
     async Task SubscribeToTimeline()
     {
-      var task = _context.Connection.SubscribeToStreamAsync(
+      _timelineSubscription = await _context.Client.SubscribeToStreamAsync(
         TimelineStreams.Timeline,
-        resolveLinkTos: false,
-        eventAppeared: (_, e) => OnNextFromTimeline(e),
-        subscriptionDropped: (_, reason, error) => OnDropped(reason, error));
-
-      _timelineSubscription = await task.ConfigureAwait(false);
+        FromStream.End,
+        eventAppeared: async (sub, e, ct) => await OnNextFromTimeline(e),
+        subscriptionDropped: (sub, reason, error) => OnDropped(reason, error));
     }
 
     async Task SubscribeToClient()
     {
-      var task = _context.Connection.SubscribeToStreamAsync(
+      _clientSubscription = await _context.Client.SubscribeToStreamAsync(
         TimelineStreams.Client,
-        resolveLinkTos: false,
-        eventAppeared: (_, e) => OnNextFromClient(e),
-        subscriptionDropped: (_, reason, error) => OnDropped(reason, error));
-
-      _clientSubscription = await task.ConfigureAwait(false);
+        FromStream.End,
+        eventAppeared: async (sub, e, ct) => await OnNextFromClient(e),
+        subscriptionDropped: (sub, reason, error) => OnDropped(reason, error));
     }
 
     Task OnNextFromTimeline(ResolvedEvent e) =>
       _observer.OnNext(_context.ReadAreaPoint(e));
 
-    void OnDropped(SubscriptionDropReason reason, Exception error) =>
+    void OnDropped(SubscriptionDroppedReason reason, Exception error) =>
       _observer.OnDropped(reason.ToString(), error);
 
     Task OnNextFromClient(ResolvedEvent e)
@@ -78,7 +75,7 @@ namespace Totem.Timeline.EventStore.Client
     }
 
     T ReadEvent<T>(ResolvedEvent e) =>
-      _context.Json.FromJsonUtf8<T>(e.Event.Data);
+      _context.Json.FromJsonUtf8<T>(e.Event.Data.ToArray());
 
     Task OnNext(CommandFailed e) =>
       _observer.OnCommandFailed(e.CommandId, e.Error);
