@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Totem.Timeline.Hosting;
 
@@ -14,13 +14,15 @@ namespace Totem.App.Web
   {
     public static Task Run<TArea>(ConfigureWebApp configure) where TArea : TimelineArea, new()
     {
-      var host = WebHost.CreateDefaultBuilder();
-
-      configure.ApplyHost(host);
-      configure.ApplyApp(host);
-      configure.ApplyAppConfiguration(host);
-      configure.ApplyServices<TArea>(host);
-      configure.ApplySerilog(host);
+      var host = Host.CreateDefaultBuilder()
+      .ConfigureWebHostDefaults(webHost =>
+      {
+        configure.ApplyHost(webHost);
+        configure.ApplyApp(webHost);
+        configure.ApplyAppConfiguration(webHost);
+        configure.ApplyServices<TArea>(webHost);
+        configure.ApplySerilog(webHost);
+      });
 
       return host.Build().RunAsync();
     }
@@ -35,3 +37,4 @@ namespace Totem.App.Web
       Run<TArea>(new ConfigureWebApp());
   }
 }
+

@@ -1,5 +1,7 @@
+using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
+using Xunit.Sdk;
 using Totem.Runtime;
 using Totem.Threading;
 
@@ -12,13 +14,13 @@ namespace Totem.App.Tests.Hosting
   {
     readonly TaskSource _startup = new TaskSource();
     readonly TaskSource _shutdown = new TaskSource();
-    IApplicationLifetime _lifetimeService;
+    IHostApplicationLifetime _lifetimeService;
 
-    protected override Task Open()
+    protected override async Task Open()
     {
       BuildAndRun();
 
-      return _startup.Task;
+      await _startup.Task;
     }
 
     protected override Task Close()
@@ -33,7 +35,7 @@ namespace Totem.App.Tests.Hosting
 
     protected abstract IHostBuilder CreateBuilder();
 
-    internal void SetLifetimeService(IApplicationLifetime lifetimeService)
+    internal void SetLifetimeService(IHostApplicationLifetime lifetimeService)
     {
       _lifetimeService = lifetimeService;
 

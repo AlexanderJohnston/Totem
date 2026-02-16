@@ -1,6 +1,6 @@
 version: 1.0.0-beta.{build}
 
-image: Visual Studio 2017
+image: Visual Studio 2022
 configuration: Release
 platform: Any CPU
 
@@ -37,14 +37,10 @@ environment:
   ASPNETCORE_ENVIRONMENT: Production
 
 before_build:
-  - nuget restore -verbosity quiet
+  - dotnet restore
 
-build:
-  project: Totem.sln
-  publish_nuget: false
-  publish_nuget_symbols: false
-  include_nuget_references: false
-  verbosity: minimal
+build_script:
+  - dotnet build .\Totem.sln -c Release
 
 test: off
 

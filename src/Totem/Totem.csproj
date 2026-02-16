@@ -14,12 +14,16 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageProjectUrl>https://github.com/bwatts/Totem</PackageProjectUrl>
-    <PackageIconUrl>https://raw.githubusercontent.com/bwatts/totem/master/icon.png</PackageIconUrl>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageReleaseNotes>https://github.com/bwatts/Totem/releases</PackageReleaseNotes>
     <PackageTags>totem;dotnet;dotnet-core;csharp;utilities</PackageTags>
     <RepositoryUrl>https://github.com/bwatts/Totem</RepositoryUrl>
     <Description>A collection of tools for common development scenarios in .NET</Description>
     <NoWarn>1591;NU5105</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\icon.png" Pack="true" PackagePath="/" />
+  </ItemGroup>
 
 </Project>

@@ -33,7 +33,7 @@ namespace Totem.App.Web
     readonly WebStep<IServiceCollection> _mvc = new WebStep<IServiceCollection>();
     readonly WebStep<IServiceCollection> _signalR = new WebStep<IServiceCollection>();
     readonly ConfigureStep<IRouteBuilder> _mvcRoutes = new ConfigureStep<IRouteBuilder>();
-    readonly ConfigureStep<HubRouteBuilder> _signalRRoutes = new ConfigureStep<HubRouteBuilder>();
+    readonly ConfigureStep<IEndpointRouteBuilder> _signalRRoutes = new ConfigureStep<IEndpointRouteBuilder>();
     readonly ConfigureStep<IApplicationBuilder> _mvcApp = new ConfigureStep<IApplicationBuilder>();
     readonly ConfigureStep<IApplicationBuilder> _signalRApp = new ConfigureStep<IApplicationBuilder>();
     string _webRoot;
@@ -84,7 +84,7 @@ namespace Totem.App.Web
     public ConfigureWebApp BeforeMvcRoutes(Action<IRouteBuilder> configure) =>
       _mvcRoutes.Before(this, configure);
 
-    public ConfigureWebApp BeforeSignalRRoutes(Action<HubRouteBuilder> configure) =>
+    public ConfigureWebApp BeforeSignalRRoutes(Action<IEndpointRouteBuilder> configure) =>
       _signalRRoutes.Before(this, configure);
 
     public ConfigureWebApp BeforeMvcApp(Action<IApplicationBuilder> configure) =>
@@ -120,7 +120,7 @@ namespace Totem.App.Web
     public ConfigureWebApp AfterMvcRoutes(Action<IRouteBuilder> configure) =>
       _mvcRoutes.After(this, configure);
 
-    public ConfigureWebApp AfterSignalRRoutes(Action<HubRouteBuilder> configure) =>
+    public ConfigureWebApp AfterSignalRRoutes(Action<IEndpointRouteBuilder> configure) =>
       _signalRRoutes.After(this, configure);
 
     public ConfigureWebApp AfterMvcApp(Action<IApplicationBuilder> configure) =>
@@ -156,7 +156,7 @@ namespace Totem.App.Web
     public ConfigureWebApp ReplaceMvcRoutes(Action<IRouteBuilder> configure) =>
       _mvcRoutes.Replace(this, configure);
 
-    public ConfigureWebApp ReplaceSignalRRoutes(Action<HubRouteBuilder> configure) =>
+    public ConfigureWebApp ReplaceSignalRRoutes(Action<IEndpointRouteBuilder> configure) =>
       _signalRRoutes.Replace(this, configure);
 
     public ConfigureWebApp ReplaceMvcApp(Action<IApplicationBuilder> configure) =>
@@ -238,7 +238,7 @@ namespace Totem.App.Web
       host.Configure(app =>
         _app.Apply(app, () =>
         {
-          var environment = app.ApplicationServices.GetRequiredService<Microsoft.Extensions.Hosting.IHostingEnvironment>();
+          var environment = app.ApplicationServices.GetRequiredService<IHostEnvironment>();
 
           if(environment.IsDevelopment())
           {
@@ -246,13 +246,14 @@ namespace Totem.App.Web
           }
 
           app.UseStaticFiles();
+          app.UseRouting();
 
           _mvcApp.Apply(app, () =>
             app.UseMvc(routes =>
               _mvcRoutes.Apply(routes)));
 
           _signalRApp.Apply(app, () =>
-            app.UseSignalR(routes =>
+            app.UseEndpoints(routes =>
               _signalRRoutes.Apply(routes, () => routes.MapQueryHub())));
         }));
 
@@ -278,7 +279,8 @@ namespace Totem.App.Web
 
           _mvc.Apply(context, services, () =>
             services
-            .AddMvc()
+            .AddMvc(options => options.EnableEndpointRouting = false)
+            .AddNewtonsoftJson()
             .AddTotemWebRuntime()
             .AddCommandsAndQueries()
             .AddEntryAssemblyPart());

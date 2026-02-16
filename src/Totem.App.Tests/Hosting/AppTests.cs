@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Totem.Runtime;
+using Xunit.Sdk;
 
 namespace Totem.App.Tests.Hosting
 {

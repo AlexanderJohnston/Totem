@@ -1,13 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.NewtonsoftJson;
 using Microsoft.Extensions.Options;
 using Totem.Runtime.Hosting;
 
 namespace Totem.Timeline.Mvc.Hosting
 {
   /// <summary>
-  /// Configures JSON serialization via <see cref="MvcJsonOptions"/> 
+  /// Configures JSON serialization via <see cref="MvcNewtonsoftJsonOptions"/> 
   /// </summary>
-  public class WebRuntimeOptionsSetup : IPostConfigureOptions<MvcJsonOptions>
+  public class WebRuntimeOptionsSetup : IPostConfigureOptions<MvcNewtonsoftJsonOptions>
   {
     readonly IOptions<JsonFormatOptions> _jsonFormatOptions;
 
@@ -16,7 +17,7 @@ namespace Totem.Timeline.Mvc.Hosting
       _jsonFormatOptions = jsonFormatOptions;
     }
 
-    public void PostConfigure(string name, MvcJsonOptions options)
+    public void PostConfigure(string name, MvcNewtonsoftJsonOptions options)
     {
       var source = _jsonFormatOptions.Value.SerializerSettings;
       var target = options.SerializerSettings;
