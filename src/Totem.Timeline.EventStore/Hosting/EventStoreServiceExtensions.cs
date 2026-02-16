@@ -83,10 +83,14 @@ namespace Totem.Timeline.EventStore.Hosting
         return settings;
       }
 
+      // Omit the credentials when insecure mode is true
+
       var tls = options.Server.Insecure ? "tls=false" : "";
-      var connStr = string.IsNullOrEmpty(options.Connection.Username)
-        ? $"esdb://{options.Server.Name}:{options.Server.Port}?{tls}"
-        : $"esdb://{options.Connection.Username}:{options.Connection.Password}@{options.Server.Name}:{options.Server.Port}?{tls}";
+      var includeCredentials = !options.Server.Insecure && !string.IsNullOrEmpty(options.Connection.Username);
+
+      var connStr = includeCredentials
+        ? $"esdb://{options.Connection.Username}:{options.Connection.Password}@{options.Server.Name}:{options.Server.Port}?{tls}"
+        : $"esdb://{options.Server.Name}:{options.Server.Port}?{tls}";
 
       var s = EventStoreClientSettings.Create(connStr);
       s.LoggerFactory = provider.GetService<ILoggerFactory>();
