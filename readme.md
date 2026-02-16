@@ -122,8 +122,7 @@ Events have past-tense names representing facts about the environment.
 
 ## Command
 
-A command is an event* that awaits an outcome after occurring:
-<br/><sup><sub>* This may rankle some. Please suspend disbelief initially.</sup></sub>
+A command represents a choice to do work in response to some decision made.
 
 ```csharp
 using Totem.Timeline;

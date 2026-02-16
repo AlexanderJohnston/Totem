@@ -36,6 +36,7 @@
     <ProjectReference Include="..\Totem.Timeline.SignalR\Totem.Timeline.SignalR.csproj" />
     <ProjectReference Include="..\Totem.Timeline\Totem.Timeline.csproj" />
     <ProjectReference Include="..\Totem\Totem.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>
