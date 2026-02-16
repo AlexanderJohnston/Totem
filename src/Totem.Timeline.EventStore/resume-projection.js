@@ -23,7 +23,8 @@ function defaultState() {
 }
 
 function onNext(state, event) {
-  let { streamId, metadata } = event;
+  let { streamId, metadataRaw } = event;
+  let metadata = metadataRaw ? JSON.parse(metadataRaw) : {};
 
   observe();
 
