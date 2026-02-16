@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27428.2037
+# Visual Studio Version 18
+VisualStudioVersion = 18.2.11415.280 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Totem", "src\Totem\Totem.csproj", "{591C4A49-8193-4780-BEF3-F3420EC3C65C}"
 EndProject
@@ -24,6 +24,12 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Totem.Timeline.IntegrationTests", "tests\Totem.Timeline.IntegrationTests\Totem.Timeline.IntegrationTests.csproj", "{FA17F2BF-3BAD-4AC4-A970-16E7C81D2852}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Totem.App.Tests", "src\Totem.App.Tests\Totem.App.Tests.csproj", "{AD26407A-1944-4507-A296-56338B4AF0EA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Quantum", "Outermind\Quantum.csproj", "{89918063-7F9C-CBEB-B994-FF7BF0890257}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Quantum.Service", "Outermind.Service\Quantum.Service.csproj", "{FBE4A23E-67C6-598A-4049-9E22DE4CC45D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Quantum.Web", "Outermind.Web\Quantum.Web.csproj", "{861C1243-1602-028F-98DA-4C83BEE0FF51}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -71,6 +77,18 @@ Global
 		{AD26407A-1944-4507-A296-56338B4AF0EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AD26407A-1944-4507-A296-56338B4AF0EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AD26407A-1944-4507-A296-56338B4AF0EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{89918063-7F9C-CBEB-B994-FF7BF0890257}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{89918063-7F9C-CBEB-B994-FF7BF0890257}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{89918063-7F9C-CBEB-B994-FF7BF0890257}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{89918063-7F9C-CBEB-B994-FF7BF0890257}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FBE4A23E-67C6-598A-4049-9E22DE4CC45D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FBE4A23E-67C6-598A-4049-9E22DE4CC45D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FBE4A23E-67C6-598A-4049-9E22DE4CC45D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FBE4A23E-67C6-598A-4049-9E22DE4CC45D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{861C1243-1602-028F-98DA-4C83BEE0FF51}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{861C1243-1602-028F-98DA-4C83BEE0FF51}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{861C1243-1602-028F-98DA-4C83BEE0FF51}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{861C1243-1602-028F-98DA-4C83BEE0FF51}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
