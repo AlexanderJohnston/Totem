@@ -45,16 +45,29 @@ namespace Totem.Runtime.Json
           throw new JsonException($"Expected StartObject, got {reader.TokenType}");
         }
 
+        // Scan all properties to find $type (JSON property order is not guaranteed)
         var readerClone = reader;
         Type resolvedType = typeToConvert;
 
-        if(readerClone.Read() && readerClone.TokenType == JsonTokenType.PropertyName)
+        while(readerClone.Read())
         {
-          var propName = readerClone.GetString();
-          if(propName == TypePropertyName && readerClone.Read() && readerClone.TokenType == JsonTokenType.String)
+          if(readerClone.TokenType == JsonTokenType.EndObject) break;
+
+          if(readerClone.TokenType == JsonTokenType.PropertyName)
           {
-            var typeDiscriminator = readerClone.GetString();
-            resolvedType = ResolveType(typeDiscriminator) ?? typeToConvert;
+            var propName = readerClone.GetString();
+            if(propName == TypePropertyName)
+            {
+              if(readerClone.Read() && readerClone.TokenType == JsonTokenType.String)
+              {
+                resolvedType = ResolveType(readerClone.GetString()) ?? typeToConvert;
+              }
+              break;
+            }
+
+            // Skip the value of non-$type properties
+            readerClone.Read();
+            readerClone.TrySkip();
           }
         }
 
