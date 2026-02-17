@@ -22,7 +22,7 @@ namespace Totem.Runtime
     public IEnumerable<Field> Keys => _pairs.Keys;
     public IEnumerable<object> Values => _pairs.Values;
     public IEnumerable<(Field, object)> Pairs => _pairs.Select(pair => (pair.Key, pair.Value));
-    public IEnumerable<string> Names => _pairs.Keys.Select(field => field.Name);
+    public IEnumerable<string> Names => _pairs.Keys.Select(f => f.Name);
 
     public object this[Field field]
     {
