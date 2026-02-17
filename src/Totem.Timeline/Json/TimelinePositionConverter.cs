@@ -1,5 +1,6 @@
 using System;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Totem.Timeline.Json
 {
@@ -11,28 +12,22 @@ namespace Totem.Timeline.Json
   /// making this a lossy conversion. However, we will have more immediate issues if we
   /// ever see timeline positions at that scale.
   /// </remarks>
-  public class TimelinePositionConverter : JsonConverter
+  public class TimelinePositionConverter : JsonConverter<TimelinePosition>
   {
-    public override bool CanConvert(Type objectType) =>
-      objectType == typeof(TimelinePosition);
-
-    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer) =>
-      reader.Value == null
-        ? TimelinePosition.None
-        : new TimelinePosition(Convert.ToInt64(reader.Value));
-
-    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+    public override TimelinePosition Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-      var position = (TimelinePosition) value;
+      if(reader.TokenType == JsonTokenType.Null)
+        return TimelinePosition.None;
 
-      if(position.IsNone)
-      {
-        writer.WriteNull();
-      }
+      return new TimelinePosition(reader.GetInt64());
+    }
+
+    public override void Write(Utf8JsonWriter writer, TimelinePosition value, JsonSerializerOptions options)
+    {
+      if(value.IsNone)
+        writer.WriteNullValue();
       else
-      {
-        writer.WriteValue(position.ToInt64());
-      }
+        writer.WriteNumberValue(value.ToInt64());
     }
   }
 }

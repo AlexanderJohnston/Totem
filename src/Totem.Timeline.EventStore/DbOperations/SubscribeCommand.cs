@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using EventStore.Client;
-using Newtonsoft.Json.Linq;
+using System.Text.Json.Nodes;
 using Totem.Reflection;
 using Totem.Runtime.Json;
 using Totem.Timeline.Runtime;
@@ -55,48 +55,48 @@ namespace Totem.Timeline.EventStore.DbOperations
 
     async Task<ResumeInfo> ReadResumeInfo(byte[] data)
     {
-      var json = _context.Json.ToJObjectUtf8(data);
+      var json = _context.Json.ToJsonNodeUtf8(data);
 
       var checkpoint = ReadCheckpoint(json["checkpoint"]);
-      var routes = ReadResumeFlows(json["routes"].Value<JArray>()).ToMany();
-      var schedule = await ReadResumeSchedule(json["schedule"].Value<JArray>());
+      var routes = ReadResumeFlows(json["routes"].AsArray()).ToMany();
+      var schedule = await ReadResumeSchedule(json["schedule"].AsArray());
 
       var subscription = new TimelineSubscription(_context, checkpoint, _observer);
 
       return new ResumeInfo(checkpoint, routes, schedule, subscription);
     }
 
-    TimelinePosition ReadCheckpoint(JToken json) =>
-      json.Type == JTokenType.Null ? TimelinePosition.None : new TimelinePosition(json.Value<long>());
+    TimelinePosition ReadCheckpoint(JsonNode json) =>
+      json == null ? TimelinePosition.None : new TimelinePosition(json.GetValue<long>());
 
-    IEnumerable<FlowKey> ReadResumeFlows(JArray json)
+    IEnumerable<FlowKey> ReadResumeFlows(JsonArray json)
     {
       foreach(var typeItem in json)
       {
-        if(typeItem is JArray multiInstance)
+        if(typeItem is JsonArray multiInstance)
         {
-          var type = _context.Area.GetFlow(TypeName.From(multiInstance[0].Value<string>()));
+          var type = _context.Area.GetFlow(TypeName.From(multiInstance[0].GetValue<string>()));
 
           foreach(var idItem in multiInstance.Skip(1))
           {
-            yield return FlowKey.From(type, Id.From(idItem.Value<string>()));
+            yield return FlowKey.From(type, Id.From(idItem.GetValue<string>()));
           }
         }
         else
         {
-          yield return FlowKey.From(typeItem.Value<string>(), _context.Area);
+          yield return FlowKey.From(typeItem.GetValue<string>(), _context.Area);
         }
       }
     }
 
-    async Task<Many<TimelinePoint>> ReadResumeSchedule(JArray json)
+    async Task<Many<TimelinePoint>> ReadResumeSchedule(JsonArray json)
     {
       if(json.Count == 0)
       {
         return new Many<TimelinePoint>();
       }
 
-      var schedule = json.Values<long>().ToMany();
+      var schedule = json.Select(node => node.GetValue<long>()).ToMany();
 
       return await new ReadResumeScheduleCommand(_context, schedule).Execute();
     }
