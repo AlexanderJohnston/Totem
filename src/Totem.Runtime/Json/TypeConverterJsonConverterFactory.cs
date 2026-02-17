@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Totem.IO;
 
 namespace Totem.Runtime.Json
 {
@@ -13,11 +14,7 @@ namespace Totem.Runtime.Json
   {
     public override bool CanConvert(Type typeToConvert)
     {
-      var converter = TypeDescriptor.GetConverter(typeToConvert);
-
-      return converter.GetType() != typeof(TypeConverter)
-        && converter.CanConvertFrom(typeof(string))
-        && converter.CanConvertTo(typeof(string));
+      return TypeDescriptor.GetConverter(typeToConvert) is TextConverter;
     }
 
     public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
