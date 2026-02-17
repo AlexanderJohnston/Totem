@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using EventStore.ClientAPI;
+using EventStore.Client;
 using Newtonsoft.Json.Linq;
 using Totem.Reflection;
 using Totem.Runtime.Json;
@@ -17,39 +17,41 @@ namespace Totem.Timeline.EventStore.DbOperations
   {
     readonly EventStoreContext _context;
     readonly ITimelineObserver _observer;
-    readonly CatchUpSubscriptionSettings _settings;
 
     internal SubscribeCommand(
       EventStoreContext context,
-      CatchUpSubscriptionSettings settings,
       ITimelineObserver observer)
     {
       _context = context;
-      _settings = settings;
       _observer = observer;
     }
 
     internal async Task<ResumeInfo> Execute()
     {
-      var result = await _context.Connection.ReadEventAsync(
+      var result = _context.Client.ReadStreamAsync(
+        Direction.Backwards,
         TimelineStreams.Resume,
         StreamPosition.End,
-        resolveLinkTos: false);
+        maxCount: 1);
 
-      switch(result.Status)
+      if(await result.ReadState == ReadState.StreamNotFound)
       {
-        case EventReadStatus.NoStream:
-        case EventReadStatus.NotFound:
-          return ReadInitialResumeInfo();
-        case EventReadStatus.Success:
-          return await ReadResumeInfo(result.Event?.Event.Data);
-        default:
-          throw new Exception($"Unexpected result when reading {TimelineStreams.Resume} to resume: {result.Status}");
+        return ReadInitialResumeInfo();
       }
+
+      var events = new System.Collections.Generic.List<ResolvedEvent>();
+      await foreach(var e in result) events.Add(e);
+
+      if(events.Count == 0)
+      {
+        return ReadInitialResumeInfo();
+      }
+
+      return await ReadResumeInfo(events[0].Event.Data.ToArray());
     }
 
     ResumeInfo ReadInitialResumeInfo() =>
-      new ResumeInfo(new TimelineSubscription(_context, _settings, TimelinePosition.None, _observer));
+      new ResumeInfo(new TimelineSubscription(_context, TimelinePosition.None, _observer));
 
     async Task<ResumeInfo> ReadResumeInfo(byte[] data)
     {
@@ -59,7 +61,7 @@ namespace Totem.Timeline.EventStore.DbOperations
       var routes = ReadResumeFlows(json["routes"].Value<JArray>()).ToMany();
       var schedule = await ReadResumeSchedule(json["schedule"].Value<JArray>());
 
-      var subscription = new TimelineSubscription(_context, _settings, checkpoint, _observer);
+      var subscription = new TimelineSubscription(_context, checkpoint, _observer);
 
       return new ResumeInfo(checkpoint, routes, schedule, subscription);
     }

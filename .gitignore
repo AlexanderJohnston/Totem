@@ -27,3 +27,4 @@ nuget.exe
 *.ipch
 /*.vspx
 *.metaproj*
+copilot-session-*.md

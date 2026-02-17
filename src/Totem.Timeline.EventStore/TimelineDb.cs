@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using EventStore.ClientAPI;
+using EventStore.Client;
 using Totem.Runtime;
 using Totem.Timeline.Client;
 using Totem.Timeline.EventStore.Client;
@@ -15,13 +15,11 @@ namespace Totem.Timeline.EventStore
   public sealed class TimelineDb : Connection, ITimelineDb
   {
     readonly EventStoreContext _context;
-    readonly CatchUpSubscriptionSettings _subscriptionSettings;
     readonly IResumeProjection _resumeProjection;
 
-    public TimelineDb(EventStoreContext context, CatchUpSubscriptionSettings subscriptionSettings, IResumeProjection resumeProjection)
+    public TimelineDb(EventStoreContext context, IResumeProjection resumeProjection)
     {
       _context = context;
-      _subscriptionSettings = subscriptionSettings;
       _resumeProjection = resumeProjection;
     }
 
@@ -33,7 +31,7 @@ namespace Totem.Timeline.EventStore
     }
 
     public Task<ResumeInfo> Subscribe(ITimelineObserver observer) =>
-      new SubscribeCommand(_context, _subscriptionSettings, observer).Execute();
+      new SubscribeCommand(_context, observer).Execute();
 
     public Task<FlowInfo> ReadFlow(FlowKey key) =>
       new ReadFlowCommand(_context, key).Execute();
@@ -47,7 +45,7 @@ namespace Totem.Timeline.EventStore
 
       var result = await _context.AppendToTimeline(data);
 
-      return new TimelinePosition(result.NextExpectedVersion - newEvents.Count + 1);
+      return new TimelinePosition((long)result.NextExpectedStreamRevision.ToUInt64() - newEvents.Count + 1);
     }
 
     public Task WriteScheduledEvent(TimelinePoint cause)
@@ -59,7 +57,7 @@ namespace Totem.Timeline.EventStore
 
     public async Task WriteCheckpoint(Flow flow, TimelinePoint point)
     {
-      WriteResult result;
+      IWriteResult result;
 
       try
       {
@@ -77,7 +75,7 @@ namespace Totem.Timeline.EventStore
 
       if(flow.Context.IsDone)
       {
-        await TryWriteDoneMetadata(flow, result.NextExpectedVersion);
+        await TryWriteDoneMetadata(flow, (long)result.NextExpectedStreamRevision.ToUInt64());
       }
     }
 
@@ -85,7 +83,7 @@ namespace Totem.Timeline.EventStore
     {
       try
       {
-        await _context.SetCheckpointStreamMetadata(flow, StreamMetadata.Create(maxCount: 1));
+        await _context.SetCheckpointStreamMetadata(flow, new StreamMetadata(maxCount: 1));
       }
       catch(Exception error)
       {
@@ -97,7 +95,7 @@ namespace Totem.Timeline.EventStore
     {
       try
       {
-        await _context.SetCheckpointStreamMetadata(flow, StreamMetadata.Create(maxCount: 1, truncateBefore: position));
+        await _context.SetCheckpointStreamMetadata(flow, new StreamMetadata(maxCount: 1, truncateBefore: new StreamPosition((ulong)position)));
       }
       catch(Exception error)
       {

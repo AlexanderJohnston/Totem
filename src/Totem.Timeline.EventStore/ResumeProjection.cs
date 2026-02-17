@@ -1,9 +1,8 @@
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using EventStore.ClientAPI.Exceptions;
-using EventStore.ClientAPI.Projections;
-using EventStore.ClientAPI.SystemData;
+using EventStore.Client;
+using Grpc.Core;
 using Totem.Runtime;
 using Totem.Timeline.Area;
 
@@ -15,14 +14,12 @@ namespace Totem.Timeline.EventStore
   public sealed class ResumeProjection : Notion, IResumeProjection
   {
     readonly AreaMap _area;
-    readonly ProjectionsManager _manager;
-    readonly UserCredentials _credentials;
+    readonly EventStoreProjectionManagementClient _manager;
 
-    public ResumeProjection(AreaMap area, ProjectionsManager manager, UserCredentials credentials)
+    public ResumeProjection(AreaMap area, EventStoreProjectionManagementClient manager)
     {
       _area = area;
       _manager = manager;
-      _credentials = credentials;
     }
 
     public async Task Synchronize()
@@ -37,24 +34,19 @@ namespace Totem.Timeline.EventStore
     {
       try
       {
-        await _manager.GetStatusAsync(TimelineStreams.Resume, _credentials);
+        await _manager.GetStatusAsync(TimelineStreams.Resume);
 
         return false;
       }
-      catch(ProjectionCommandFailedException error)
+      catch(RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
       {
-        if(error.HttpStatusCode != 404)
-        {
-          throw;
-        }
-
         return true;
       }
     }
 
     async Task CreateStream()
     {
-      await _manager.CreateContinuousAsync(TimelineStreams.Resume, await ReadScript(), _credentials);
+      await _manager.CreateContinuousAsync(TimelineStreams.Resume, await ReadScript());
 
       Log.Debug("[timeline] Created projection {Name}", TimelineStreams.Resume);
     }

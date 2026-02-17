@@ -1,10 +1,8 @@
 using System;
 using System.ComponentModel;
-using System.Net;
-using EventStore.ClientAPI;
-using EventStore.ClientAPI.Projections;
-using EventStore.ClientAPI.SystemData;
+using EventStore.Client;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Totem.Runtime.Hosting;
 using Totem.Runtime.Json;
 using Totem.Timeline.Area;
@@ -23,24 +21,20 @@ namespace Totem.Timeline.EventStore.Hosting
     {
       timeline.ConfigureServices(services =>
       {
-        services.AddSingleton<ILogger, EventStoreLogAdapter>();
-
         services.AddSingleton<ITimelineDb>(p => new TimelineDb(
           p.GetRequiredService<EventStoreContext>(),
-          p.BuildSubscriptionSettings(),
           p.GetRequiredService<IResumeProjection>()));
 
         services.AddSingleton(p => new EventStoreContext(
-          p.BuildConnection(),
+          p.BuildClient(),
           p.GetRequiredService<IJsonFormat>(),
           p.GetRequiredService<AreaMap>()));
 
         services.AddSingleton<IResumeProjection>(p => new ResumeProjection(
           p.GetRequiredService<AreaMap>(),
-          p.GetRequiredService<ProjectionsManager>(),
-          p.BuildProjectionsCredentials()));
+          p.BuildProjectionClient()));
 
-        services.AddSingleton(BuildProjectionsManager);
+        services.AddSingleton(p => p.BuildProjectionClient());
       });
 
       return new EventStoreTimelineBuilder(timeline);
@@ -66,93 +60,42 @@ namespace Totem.Timeline.EventStore.Hosting
       }
     }
 
-    public static IEventStoreConnection BuildConnection(this IServiceProvider provider)
+    public static EventStoreClient BuildClient(this IServiceProvider provider)
     {
       var options = provider.GetOptions<EventStoreTimelineOptions>();
-      var settings = ConnectionSettings.Create();
-
-      if(options.Verbose)
-      {
-        settings.EnableVerboseLogging();
-      }
-
-      settings.UseCustomLogger(provider.GetRequiredService<ILogger>());
-
-      var connection = options.Connection;
-      var reconnects = options.Reconnects;
-      var heartbeat = options.Heartbeat;
-      var operations = options.Operations;
-
-      settings.WithConnectionTimeoutOf(connection.Timeout);
-
-      settings.SetDefaultUserCredentials(new UserCredentials(
-        connection.Username,
-        connection.Password));
-
-      settings.SetReconnectionDelayTo(reconnects.Delay);
-
-      if(reconnects.Limit > 0)
-      {
-        settings.LimitReconnectionsTo(reconnects.Limit);
-      }
-      else
-      {
-        settings.KeepReconnecting();
-      }
-
-      settings.SetHeartbeatInterval(heartbeat.Interval);
-      settings.SetHeartbeatTimeout(heartbeat.Timeout);
-
-      settings.LimitAttemptsForOperationTo(operations.AttemptLimit);
-      settings.LimitOperationsQueueTo(operations.QueueLimit);
-      settings.SetOperationTimeoutTo(operations.Timeout);
-      settings.SetTimeoutCheckPeriodTo(operations.TimeoutCheckPeriod);
-
-      if(operations.FailOnNoServerResponse)
-      {
-        settings.FailOnNoServerResponse();
-      }
-
-      if(operations.RetryLimit > 0)
-      {
-        settings.LimitRetriesForOperationTo(operations.RetryLimit);
-      }
-      else
-      {
-        settings.KeepRetrying();
-      }
-
-      var uri = new Uri($"tcp://{options.Server.Name}:{options.Server.TcpPort}/");
-
-      return EventStoreConnection.Create(settings.Build(), uri);
+      var settings = BuildClientSettings(options, provider);
+      return new EventStoreClient(settings);
     }
 
-    static CatchUpSubscriptionSettings BuildSubscriptionSettings(this IServiceProvider provider)
+    internal static EventStoreProjectionManagementClient BuildProjectionClient(this IServiceProvider provider)
     {
       var options = provider.GetOptions<EventStoreTimelineOptions>();
-
-      return new CatchUpSubscriptionSettings(
-        options.Subscription.MaxLiveQueueSize,
-        options.Subscription.ReadBatchSize,
-        options.Verbose,
-        resolveLinkTos: false);
+      var settings = BuildClientSettings(options, provider);
+      return new EventStoreProjectionManagementClient(settings);
     }
 
-    static UserCredentials BuildProjectionsCredentials(this IServiceProvider provider)
+    static EventStoreClientSettings BuildClientSettings(EventStoreTimelineOptions options, IServiceProvider provider)
     {
-      var options = provider.GetOptions<EventStoreTimelineOptions>();
+      if(!string.IsNullOrEmpty(options.ConnectionString))
+      {
+        var settings = EventStoreClientSettings.Create(options.ConnectionString);
+        settings.LoggerFactory = provider.GetService<ILoggerFactory>();
+        return settings;
+      }
 
-      return new UserCredentials(options.Connection.Username, options.Connection.Password);
-    }
+      // Omit the credentials when insecure mode is true
 
-    static ProjectionsManager BuildProjectionsManager(this IServiceProvider provider)
-    {
-      var options = provider.GetOptions<EventStoreTimelineOptions>();
+      var tls = options.Server.Insecure ? "tls=false" : "";
+      var includeCredentials = !options.Server.Insecure && !string.IsNullOrEmpty(options.Connection.Username);
 
-      return new ProjectionsManager(
-        provider.GetRequiredService<ILogger>(),
-        new DnsEndPoint(options.Server.Name, options.Server.HttpPort),
-        options.Projections.InstallTimeout);
+      var connStr = includeCredentials
+        ? $"esdb://{options.Connection.Username}:{options.Connection.Password}@{options.Server.Name}:{options.Server.Port}?{tls}"
+        : $"esdb://{options.Server.Name}:{options.Server.Port}?{tls}";
+
+      var s = EventStoreClientSettings.Create(connStr);
+      s.LoggerFactory = provider.GetService<ILoggerFactory>();
+      s.DefaultDeadline = options.Connection.Timeout;
+      return s;
     }
   }
 }

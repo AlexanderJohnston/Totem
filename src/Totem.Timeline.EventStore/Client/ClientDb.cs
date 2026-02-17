@@ -1,7 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
-using EventStore.ClientAPI;
+using EventStore.Client;
 using Totem.Runtime;
 using Totem.Runtime.Json;
 using Totem.Timeline.Client;
@@ -66,7 +67,7 @@ namespace Totem.Timeline.EventStore.Client
 
       var result = await _context.AppendToTimeline(data);
 
-      return new TimelinePosition(result.NextExpectedVersion);
+      return new TimelinePosition((long)result.NextExpectedStreamRevision.ToUInt64());
     }
 
     public Task<Query> ReadQuery(FlowKey key) =>
@@ -79,18 +80,22 @@ namespace Totem.Timeline.EventStore.Client
     {
       var stream = key.GetCheckpointStream();
 
-      var result = await _context.Connection.ReadEventAsync(stream, StreamPosition.End, resolveLinkTos: false);
+      var result = _context.Client.ReadStreamAsync(Direction.Backwards, stream, StreamPosition.End, maxCount: 1);
 
-      switch(result.Status)
+      if(await result.ReadState == ReadState.StreamNotFound)
       {
-        case EventReadStatus.NoStream:
-        case EventReadStatus.NotFound:
-          return getDefault();
-        case EventReadStatus.Success:
-          return getCheckpoint(result.Event.Value);
-        default:
-          throw new Exception($"Unexpected result when reading {stream}: {result.Status}");
+        return getDefault();
       }
+
+      var events = new System.Collections.Generic.List<ResolvedEvent>();
+      await foreach(var e in result) events.Add(e);
+
+      if(events.Count == 0)
+      {
+        return getDefault();
+      }
+
+      return getCheckpoint(events[0]);
     }
 
     Query GetDefaultContent(FlowKey key)
@@ -111,7 +116,7 @@ namespace Totem.Timeline.EventStore.Client
         throw new Exception($"Query is stopped at {metadata.ErrorPosition} with the following error: {metadata.ErrorMessage}");
       }
 
-      var query = (Query) _context.Json.FromJsonUtf8(e.Event.Data, key.Type.DeclaredType);
+      var query = (Query) _context.Json.FromJsonUtf8(e.Event.Data.ToArray(), key.Type.DeclaredType);
 
       FlowContext.Bind(query, key, metadata.Position, metadata.ErrorPosition);
 
@@ -134,11 +139,11 @@ namespace Totem.Timeline.EventStore.Client
         throw new Exception($"Query is stopped at {metadata.ErrorPosition} with the following error: {metadata.ErrorMessage}");
       }
 
-      var checkpoint = new TimelinePosition(e.Event.EventNumber);
+      var checkpoint = new TimelinePosition((long)e.Event.EventNumber.ToUInt64());
 
       return checkpoint == etag.Checkpoint
         ? new QueryContent(etag)
-        : new QueryContent(etag.WithCheckpoint(checkpoint), new MemoryStream(e.Event.Data));
+        : new QueryContent(etag.WithCheckpoint(checkpoint), new MemoryStream(e.Event.Data.ToArray()));
     }
   }
 }
