@@ -19,6 +19,7 @@ namespace Totem.Runtime.Hosting
       settings.DictionaryKeyPolicy = null;
 
       settings.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+      settings.Converters.Add(new TypeConverterJsonConverterFactory());
     }
 
     public void PostConfigure(string name, JsonFormatOptions options)
