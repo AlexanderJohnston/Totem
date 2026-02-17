@@ -62,8 +62,6 @@ namespace Totem.Timeline.Runtime
 
       _schedule.Resume(resumeInfo.Schedule);
 
-      Log.Info("Resume: yes");
-
       return resumeInfo.Subscription;
     }
 
