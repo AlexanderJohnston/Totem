@@ -1,13 +1,13 @@
 using System;
 using System.IO;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Totem.IO;
 
 namespace Totem.Runtime.Json
 {
   /// <summary>
-  /// Formats JSON in a Totem runtime using JSON.NET
+  /// Formats JSON in a Totem runtime using System.Text.Json
   /// </summary>
   public static class JsonFormatExtensions
   {
@@ -16,35 +16,39 @@ namespace Totem.Runtime.Json
     //
 
     public static string ToJson(this IJsonFormat format, object value) =>
-      format.Apply(settings => JsonConvert.SerializeObject(value, settings));
+      JsonSerializer.Serialize(value, value?.GetType() ?? typeof(object), format.Options);
 
     public static string ToJson(this IJsonFormat format, object value, Type type) =>
-      format.Apply(settings => JsonConvert.SerializeObject(value, type, settings));
+      JsonSerializer.Serialize(value, type, format.Options);
 
-    public static JObject ToJObject(this IJsonFormat format, object value) =>
-      format.Apply(settings => JObject.Parse(JsonConvert.SerializeObject(value, settings)));
+    public static JsonNode ToJsonNode(this IJsonFormat format, object value) =>
+      JsonNode.Parse(JsonSerializer.Serialize(value, value?.GetType() ?? typeof(object), format.Options));
 
-    public static JObject ToJObject(this IJsonFormat format, object value, Type type) =>
-      format.Apply(settings => JObject.Parse(JsonConvert.SerializeObject(value, type, settings)));
+    public static JsonNode ToJsonNode(this IJsonFormat format, object value, Type type) =>
+      JsonNode.Parse(JsonSerializer.Serialize(value, type, format.Options));
 
-    public static JObject ToJObject(this IJsonFormat format, string json) =>
-      JObject.Parse(json);
+    public static JsonNode ToJsonNode(this IJsonFormat format, string json) =>
+      JsonNode.Parse(json);
 
     //
     // From
     //
 
     public static T FromJson<T>(this IJsonFormat format, string json) =>
-      format.Apply(settings => JsonConvert.DeserializeObject<T>(json, settings));
+      JsonSerializer.Deserialize<T>(json, format.Options);
 
     public static object FromJson(this IJsonFormat format, string json) =>
-      format.Apply(settings => JsonConvert.DeserializeObject(json, settings));
+      JsonSerializer.Deserialize<object>(json, format.Options);
 
     public static object FromJson(this IJsonFormat format, string json, Type type) =>
-      format.Apply(settings => JsonConvert.DeserializeObject(json, type, settings));
+      JsonSerializer.Deserialize(json, type, format.Options);
 
-    public static void FromJson(this IJsonFormat format, string json, object target) =>
-      format.Apply(settings => JsonConvert.PopulateObject(json, target, settings));
+    public static void FromJson(this IJsonFormat format, string json, object target)
+    {
+      var type = target.GetType();
+      var source = JsonSerializer.Deserialize(json, type, format.Options);
+      CopyProperties(source, target, type);
+    }
 
     //
     // To (binary)
@@ -56,11 +60,11 @@ namespace Totem.Runtime.Json
     public static Binary ToJsonUtf8(this IJsonFormat format, object value, Type type) =>
       Binary.FromUtf8(format.ToJson(value, type));
 
-    public static JObject ToJObjectUtf8(this IJsonFormat format, Binary json) =>
-      format.ToJObject(json.ToStringUtf8());
+    public static JsonNode ToJsonNodeUtf8(this IJsonFormat format, Binary json) =>
+      format.ToJsonNode(json.ToStringUtf8());
 
-    public static JObject ToJObjectUtf8(this IJsonFormat format, byte[] json) =>
-      format.ToJObjectUtf8(Binary.From(json));
+    public static JsonNode ToJsonNodeUtf8(this IJsonFormat format, byte[] json) =>
+      format.ToJsonNodeUtf8(Binary.From(json));
 
     //
     // From (binary)
@@ -101,5 +105,32 @@ namespace Totem.Runtime.Json
 
     public static void FromJsonUtf8(this IJsonFormat format, Stream json, object target) =>
       format.FromJsonUtf8(Binary.From(json), target);
+
+    //
+    // Details
+    //
+
+    static void CopyProperties(object source, object target, Type type)
+    {
+      if(source == null) return;
+
+      const System.Reflection.BindingFlags flags =
+        System.Reflection.BindingFlags.Instance |
+        System.Reflection.BindingFlags.Public |
+        System.Reflection.BindingFlags.NonPublic;
+
+      foreach(var field in type.GetFields(flags))
+      {
+        field.SetValue(target, field.GetValue(source));
+      }
+
+      foreach(var prop in type.GetProperties(flags))
+      {
+        if(prop.CanRead && prop.CanWrite)
+        {
+          prop.SetValue(target, prop.GetValue(source));
+        }
+      }
+    }
   }
 }

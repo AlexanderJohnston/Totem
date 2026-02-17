@@ -280,7 +280,6 @@ namespace Totem.App.Web
           _mvc.Apply(context, services, () =>
             services
             .AddMvc(options => options.EnableEndpointRouting = false)
-            .AddNewtonsoftJson()
             .AddTotemWebRuntime()
             .AddCommandsAndQueries()
             .AddEntryAssemblyPart());

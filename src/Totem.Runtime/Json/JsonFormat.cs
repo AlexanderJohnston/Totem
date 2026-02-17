@@ -1,5 +1,4 @@
-using System;
-using Newtonsoft.Json;
+using System.Text.Json;
 
 namespace Totem.Runtime.Json
 {
@@ -8,17 +7,11 @@ namespace Totem.Runtime.Json
   /// </summary>
   public sealed class JsonFormat : IJsonFormat
   {
-    readonly JsonSerializerSettings _settings = new JsonSerializerSettings();
-
-    public JsonFormat(JsonSerializerSettings settings)
+    public JsonFormat(JsonSerializerOptions options)
     {
-      _settings = settings;
+      Options = options;
     }
 
-    public void Apply(Action<JsonSerializerSettings> operation) =>
-      operation(_settings);
-
-    public TResult Apply<TResult>(Func<JsonSerializerSettings, TResult> operation) =>
-      operation(_settings);
+    public JsonSerializerOptions Options { get; }
   }
 }

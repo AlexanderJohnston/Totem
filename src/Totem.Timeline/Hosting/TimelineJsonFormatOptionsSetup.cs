@@ -25,7 +25,7 @@ namespace Totem.Timeline.Hosting
     }
 
     void AddConverters(JsonFormatOptions options) =>
-      options.SerializerSettings.Converters.AddRange(
+      options.SerializerOptions.Converters.AddRange(
         new FlowKeyConverter(_area),
         new TimelinePositionConverter());
 

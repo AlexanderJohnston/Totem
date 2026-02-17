@@ -60,14 +60,8 @@ namespace Totem
       Many.OfAll(itemsBefore, item0, item1, item2, item3, itemsAfter);
 
     //
-    // ToHashSet
+    // ToHashSet (1-arg and 2-arg overloads removed; built-in LINQ provides them on net10.0)
     //
-
-    public static HashSet<T> ToHashSet<T>(this IEnumerable<T> items) =>
-      new HashSet<T>(items);
-
-    public static HashSet<T> ToHashSet<T>(this IEnumerable<T> items, IEqualityComparer<T> comparer) =>
-      new HashSet<T>(items, comparer);
 
     public static HashSet<TResult> ToHashSet<TSource, TResult>(this IEnumerable<TSource> items, Func<TSource, TResult> selectItem) =>
       items.Select(selectItem).ToHashSet();

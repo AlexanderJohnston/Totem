@@ -1,5 +1,6 @@
 using System;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Totem.Timeline.Area;
 
 namespace Totem.Timeline.Json
@@ -7,7 +8,7 @@ namespace Totem.Timeline.Json
   /// <summary>
   /// Converts instances of <see cref="FlowKey"/> to and from JSON
   /// </summary>
-  public class FlowKeyConverter : JsonConverter
+  public class FlowKeyConverter : JsonConverter<FlowKey>
   {
     readonly AreaMap _area;
 
@@ -16,13 +17,15 @@ namespace Totem.Timeline.Json
       _area = area;
     }
 
-    public override bool CanConvert(Type objectType) =>
-      objectType == typeof(FlowKey);
+    public override FlowKey Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+      reader.TokenType == JsonTokenType.Null ? null : FlowKey.From(reader.GetString(), _area);
 
-    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer) =>
-      reader.Value == null ? null : FlowKey.From(reader.Value.ToString(), _area);
-
-    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer) =>
-      writer.WriteValue(value?.ToString());
+    public override void Write(Utf8JsonWriter writer, FlowKey value, JsonSerializerOptions options)
+    {
+      if(value == null)
+        writer.WriteNullValue();
+      else
+        writer.WriteStringValue(value.ToString());
+    }
   }
 }

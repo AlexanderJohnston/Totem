@@ -15,7 +15,7 @@ namespace Totem.Runtime.Hosting
       services
       .AddOptionsSetup<JsonFormatOptionsSetup>()
       .AddSingleton<IJsonFormat>(provider =>
-        new JsonFormat(provider.GetOptions<JsonFormatOptions>().SerializerSettings));
+        new JsonFormat(provider.GetOptions<JsonFormatOptions>().SerializerOptions));
 
     public static IServiceCollection AddJsonFormat(this IServiceCollection services, Action<JsonFormatOptions> configure) =>
       services.AddJsonFormat().Configure(configure);

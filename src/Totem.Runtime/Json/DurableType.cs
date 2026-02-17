@@ -1,6 +1,6 @@
 using System;
 using System.Reflection;
-using System.Runtime.Serialization;
+using System.Runtime.CompilerServices;
 using Totem.Reflection;
 
 namespace Totem.Runtime.Json
@@ -23,7 +23,7 @@ namespace Totem.Runtime.Json
       Key.ToString();
 
     public object Create() =>
-      FormatterServices.GetUninitializedObject(DeclaredType);
+      RuntimeHelpers.GetUninitializedObject(DeclaredType);
 
     //
     // Factory
