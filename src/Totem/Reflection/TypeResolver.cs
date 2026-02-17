@@ -57,9 +57,15 @@ namespace Totem.Reflection
         }
         else
         {
-#pragma warning disable 618, 612
-          var loadedAssembly = Assembly.LoadWithPartialName(assembly);
-#pragma warning restore 618, 612
+          Assembly loadedAssembly;
+          try
+          {
+            loadedAssembly = Assembly.Load(new AssemblyName(assembly));
+          }
+          catch
+          {
+            loadedAssembly = null;
+          }
 
           if(loadedAssembly == null)
           {
