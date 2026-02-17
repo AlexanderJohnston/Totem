@@ -45,7 +45,7 @@ namespace Totem.App.Web
     public static ConfigureWebApp BeforeMvcRoutes(Action<IRouteBuilder> configure) =>
       new ConfigureWebApp().BeforeMvcRoutes(configure);
 
-    public static ConfigureWebApp BeforeSignalRRoutes(Action<HubRouteBuilder> configure) =>
+    public static ConfigureWebApp BeforeSignalRRoutes(Action<IEndpointRouteBuilder> configure) =>
       new ConfigureWebApp().BeforeSignalRRoutes(configure);
 
     public static ConfigureWebApp BeforeMvcApp(Action<IApplicationBuilder> configure) =>
@@ -81,7 +81,7 @@ namespace Totem.App.Web
     public static ConfigureWebApp AfterMvcRoutes(Action<IRouteBuilder> configure) =>
       new ConfigureWebApp().AfterMvcRoutes(configure);
 
-    public static ConfigureWebApp AfterSignalRRoutes(Action<HubRouteBuilder> configure) =>
+    public static ConfigureWebApp AfterSignalRRoutes(Action<IEndpointRouteBuilder> configure) =>
       new ConfigureWebApp().AfterSignalRRoutes(configure);
 
     public static ConfigureWebApp AfterMvcApp(Action<IApplicationBuilder> configure) =>
@@ -117,7 +117,7 @@ namespace Totem.App.Web
     public static ConfigureWebApp ReplaceMvcRoutes(Action<IRouteBuilder> configure) =>
       new ConfigureWebApp().ReplaceMvcRoutes(configure);
 
-    public static ConfigureWebApp ReplaceSignalRRoutes(Action<HubRouteBuilder> configure) =>
+    public static ConfigureWebApp ReplaceSignalRRoutes(Action<IEndpointRouteBuilder> configure) =>
       new ConfigureWebApp().ReplaceSignalRRoutes(configure);
 
     public static ConfigureWebApp ReplaceMvcApp(Action<IApplicationBuilder> configure) =>
