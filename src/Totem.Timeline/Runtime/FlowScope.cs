@@ -150,7 +150,8 @@ namespace Totem.Timeline.Runtime
           StartIfFirst();
           break;
         case FlowInfo.Stopped stopped:
-          throw new Exception($"Flow is stopped at {stopped.Position} with this error: {stopped.Error}");
+          CompleteTask(new Exception($"Flow {Key} stopped at position {stopped.Position}", new Exception(stopped.Error)));
+          return;
         case FlowInfo.Loaded loaded:
           Flow = (T) loaded.Flow;
           break;
