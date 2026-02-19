@@ -76,23 +76,26 @@ namespace Totem.Timeline.EventStore.Hosting
 
     static EventStoreClientSettings BuildClientSettings(EventStoreTimelineOptions options, IServiceProvider provider)
     {
+      EventStoreClientSettings s;
+
       if(!string.IsNullOrEmpty(options.ConnectionString))
       {
-        var settings = EventStoreClientSettings.Create(options.ConnectionString);
-        settings.LoggerFactory = provider.GetService<ILoggerFactory>();
-        return settings;
+        s = EventStoreClientSettings.Create(options.ConnectionString);
+      }
+      else
+      {
+        // Omit the credentials when insecure mode is true
+
+        var tls = options.Server.Insecure ? "tls=false" : "";
+        var includeCredentials = !options.Server.Insecure && !string.IsNullOrEmpty(options.Connection.Username);
+
+        var connStr = includeCredentials
+          ? $"esdb://{options.Connection.Username}:{options.Connection.Password}@{options.Server.Name}:{options.Server.Port}?{tls}"
+          : $"esdb://{options.Server.Name}:{options.Server.Port}?{tls}";
+
+        s = EventStoreClientSettings.Create(connStr);
       }
 
-      // Omit the credentials when insecure mode is true
-
-      var tls = options.Server.Insecure ? "tls=false" : "";
-      var includeCredentials = !options.Server.Insecure && !string.IsNullOrEmpty(options.Connection.Username);
-
-      var connStr = includeCredentials
-        ? $"esdb://{options.Connection.Username}:{options.Connection.Password}@{options.Server.Name}:{options.Server.Port}?{tls}"
-        : $"esdb://{options.Server.Name}:{options.Server.Port}?{tls}";
-
-      var s = EventStoreClientSettings.Create(connStr);
       s.LoggerFactory = provider.GetService<ILoggerFactory>();
       s.DefaultDeadline = options.Connection.Timeout;
       return s;
