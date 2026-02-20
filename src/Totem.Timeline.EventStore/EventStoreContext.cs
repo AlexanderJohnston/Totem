@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using EventStore.Client;
 using Totem.Runtime;
@@ -11,16 +12,18 @@ namespace Totem.Timeline.EventStore
   /// </summary>
   public class EventStoreContext : Connection
   {
-    public EventStoreContext(EventStoreClient client, IJsonFormat json, AreaMap area)
+    public EventStoreContext(EventStoreClient client, IJsonFormat json, AreaMap area, TimeSpan? deadline)
     {
       Client = client;
       Json = json;
       Area = area;
+      Deadline = deadline;
     }
 
     public readonly EventStoreClient Client;
     public readonly IJsonFormat Json;
     public readonly AreaMap Area;
+    public readonly TimeSpan? Deadline;
 
     protected override Task Open()
     {

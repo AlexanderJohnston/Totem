@@ -164,10 +164,10 @@ namespace Totem.Timeline.EventStore
     //
 
     static Task<IWriteResult> AppendEvent(this EventStoreContext context, string stream, EventData data) =>
-      context.Client.AppendToStreamAsync(stream, StreamState.Any, new[] { data });
+      context.Client.AppendToStreamAsync(stream, StreamState.Any, new[] { data }, deadline: context.Deadline);
 
     internal static Task<IWriteResult> AppendToTimeline(this EventStoreContext context, IEnumerable<EventData> data) =>
-      context.Client.AppendToStreamAsync(TimelineStreams.Timeline, StreamState.Any, data);
+      context.Client.AppendToStreamAsync(TimelineStreams.Timeline, StreamState.Any, data, deadline: context.Deadline);
 
     internal static Task<IWriteResult> AppendToTimeline(this EventStoreContext context, EventData data) =>
       context.AppendEvent(TimelineStreams.Timeline, data);
@@ -176,13 +176,13 @@ namespace Totem.Timeline.EventStore
       context.AppendEvent(flow.Context.Key.GetCheckpointStream(), context.GetCheckpointEventData(flow));
 
     internal static Task<IWriteResult> AppendToClient(this EventStoreContext context, Event e) =>
-      context.Client.AppendToStreamAsync(TimelineStreams.Client, StreamState.Any, new[] { context.GetClientEventData(e) });
+      context.Client.AppendToStreamAsync(TimelineStreams.Client, StreamState.Any, new[] { context.GetClientEventData(e) }, deadline: context.Deadline);
 
     //
     // Metadata
     //
 
     internal static Task<IWriteResult> SetCheckpointStreamMetadata(this EventStoreContext context, Flow flow, StreamMetadata value) =>
-      context.Client.SetStreamMetadataAsync(flow.Context.Key.GetCheckpointStream(), StreamState.Any, value);
+      context.Client.SetStreamMetadataAsync(flow.Context.Key.GetCheckpointStream(), StreamState.Any, value, deadline: context.Deadline);
   }
 }

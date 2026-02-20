@@ -24,7 +24,8 @@ namespace Totem.Timeline.EventStore.Hosting
         .AddSingleton(p => new EventStoreContext(
           p.BuildClient(),
           p.GetRequiredService<IJsonFormat>(),
-          p.GetRequiredService<AreaMap>()))
+          p.GetRequiredService<AreaMap>(),
+          p.GetOptions<EventStoreTimelineOptions>().Connection.Timeout))
         .AddSingleton<IClientDb, ClientDb>()
         .AddSingleton<IQueryDb, QueryDb>());
 
