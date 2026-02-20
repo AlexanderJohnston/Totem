@@ -28,7 +28,8 @@ namespace Totem.Timeline.EventStore.Hosting
         services.AddSingleton(p => new EventStoreContext(
           p.BuildClient(),
           p.GetRequiredService<IJsonFormat>(),
-          p.GetRequiredService<AreaMap>()));
+          p.GetRequiredService<AreaMap>(),
+          p.GetOptions<EventStoreTimelineOptions>().Connection.Timeout));
 
         services.AddSingleton<IResumeProjection>(p => new ResumeProjection(
           p.GetRequiredService<AreaMap>(),
