@@ -432,4 +432,51 @@ namespace Outermind
       ChangeType = changeType;
     }
   }
+
+  /// <summary>
+  /// Emitted by NaraPathParser when a scan path is parsed into structured components.
+  /// </summary>
+  public class RollPathDetected : Event
+  {
+    public string FullPath;
+    public string Client;
+    public string Project;
+    public string Pallet;
+    public string Stage;
+    public string Box;
+    public string Roll;
+
+    public RollPathDetected(string fullPath, string client, string project,
+      string pallet, string stage, string box, string roll)
+    {
+      FullPath = fullPath;
+      Client = client;
+      Project = project;
+      Pallet = pallet;
+      Stage = stage;
+      Box = box;
+      Roll = roll;
+    }
+  }
+
+  /// <summary>
+  /// Emitted by BoxInventory when a truly new roll is discovered for a pallet+box.
+  /// </summary>
+  public class NewRollDiscovered : Event
+  {
+    public string Client;
+    public string Pallet;
+    public string Box;
+    public string Roll;
+    public string FullPath;
+
+    public NewRollDiscovered(string client, string pallet, string box, string roll, string fullPath)
+    {
+      Client = client;
+      Pallet = pallet;
+      Box = box;
+      Roll = roll;
+      FullPath = fullPath;
+    }
+  }
 }
