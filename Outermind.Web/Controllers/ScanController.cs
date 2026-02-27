@@ -74,13 +74,6 @@ namespace Outermind.Controllers
       return await _commands.Execute(command, When<SettingsUpdated>.ThenOk, When<SettingsRefused>.ThenConflict);
     }
 
-    //[HttpPost("/api/registry")]
-    //public async Task<IActionResult> UpdateRegistry([FromBody] List<SmartScanRecord> scans)
-    //{
-    //  var command = new UpdateScanRegistry(scans);
-    //  return await _commands.Execute(command, When<ScanListUpdated>.ThenOk);
-    //}
-
     [HttpPost("/api/registry")]
     public Task<IActionResult> UpdateRegistry(
       [FromBody] List<SmartScanRecord> scans,
