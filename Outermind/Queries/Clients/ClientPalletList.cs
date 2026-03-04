@@ -1,8 +1,9 @@
+using Outermind;
 using System.Collections.Generic;
 using Totem;
 using Totem.Timeline;
 
-namespace Outermind.Queries
+namespace Quantum.Queries.Clients
 {
   /// <summary>
   /// Navigation query: lists all pallets discovered for a client.

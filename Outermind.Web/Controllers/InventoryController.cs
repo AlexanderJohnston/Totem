@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Outermind.Queries;
+using Quantum.Queries.Clients;
 using Totem;
 using Totem.Timeline.Mvc;
 

@@ -1,9 +1,10 @@
+using Outermind;
 using System;
 using System.Collections.Generic;
 using Totem;
 using Totem.Timeline;
 
-namespace Outermind.Topics
+namespace Quantum.Topics.Clients
 {
   /// <summary>
   /// Tracks unique rolls per pallet+box. Routed by "{Client}:{Pallet}:{Box}".

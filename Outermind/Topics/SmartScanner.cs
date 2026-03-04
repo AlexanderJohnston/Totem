@@ -9,8 +9,18 @@ namespace Outermind.Topics
   {
     void When(UpdateScanRegistry command)
     {
-      if(command.Scans.Count > 0)
-        Then(new RegisterScans(command.Scans, command.RequestedAtUtc));
+      var filtered = new List<SmartScanRecord>();
+      if (command.Scans.Count > 0)
+      {
+        foreach (var scan in command.Scans)
+        {
+          if (scan.LastModifiedBy != null && !scan.LastModifiedBy.Contains("Administrator"))
+          {
+            filtered.Add(scan);
+          }
+        }
+        Then(new RegisterScans(filtered, command.RequestedAtUtc));
+      }
       else
         Then(new RejectScans());
     }

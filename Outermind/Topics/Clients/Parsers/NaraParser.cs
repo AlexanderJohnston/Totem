@@ -1,13 +1,14 @@
+using Outermind;
 using System;
 using Totem.Timeline;
 
-namespace Outermind.Topics
+namespace Quantum.Topics.Clients.Parsers
 {
   /// <summary>
   /// Parses ScanForNARA paths into structured RollPathDetected events.
   /// Expects: \\server\share\{Client}\{Project}\{Pallet}\{Stage}\{Box}\{Roll}
   /// </summary>
-  public class NaraPathParser : Topic
+  public class NaraParser : Topic
   {
     void When(ScanForNARA e)
     {
@@ -23,13 +24,13 @@ namespace Outermind.Topics
         return;
 
       var client  = segments[2];  // e.g., "NARA202416724"
-      var project = segments[3];  // e.g., "1-Originals3"
+      var project = segments[3];  // e.g., "2-Frames2"
       var pallet  = segments[4];  // e.g., "Pallet 10"
-      var stage   = segments[5];  // e.g., "04-ReadyforQP"
-      var box     = segments[6];  // e.g., "Box 01"
-      var roll    = segments[7];  // e.g., "Roll_1"
+      var box   = segments[5];  // e.g., "Box 01"
+      var roll     = segments[6];  // e.g., "Roll_1"
+      //var roll    = segments[7];  // e.g., "Roll_1"
 
-      Then(new RollPathDetected(e.FolderPath, client, project, pallet, stage, box, roll));
+      Then(new RollPathDetected(e.FolderPath, client, project, pallet, box, roll));
     }
   }
 }

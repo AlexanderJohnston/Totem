@@ -1,4 +1,5 @@
 using System;
+using System.Runtime;
 using System.Collections.Generic;
 using Outermind.SmartScanning;
 using Quantum.SmartScanning;
@@ -257,8 +258,8 @@ namespace Outermind
       RequestedAtUtc = DateTime.UtcNow;
       Scans = scans == null ? new List<SmartScanRecord>() : new List<SmartScanRecord>(scans);
     }
-  }
-
+      }
+      
 
 
   public class ScanDetected : Event
@@ -433,6 +434,48 @@ namespace Outermind
     }
   }
 
+  public class ScanForDatabankOtisApCards : Event
+  {
+    public string FolderPath;
+    public Id Owner;
+    public string ChangeType;
+
+    public ScanForDatabankOtisApCards(string folderPath, Id owner, string changeType)
+    {
+      FolderPath = folderPath;
+      Owner = owner;
+      ChangeType = changeType;
+    }
+  }
+
+  public class ScanForNotreDame : Event
+  {
+    public string FolderPath;
+    public Id Owner;
+    public string ChangeType;
+
+    public ScanForNotreDame(string folderPath, Id owner, string changeType)
+    {
+      FolderPath = folderPath;
+      Owner = owner;
+      ChangeType = changeType;
+    }
+  }
+
+  public class ScanForMadison : Event
+  {
+    public string FolderPath;
+    public Id Owner;
+    public string ChangeType;
+
+    public ScanForMadison(string folderPath, Id owner, string changeType)
+    {
+      FolderPath = folderPath;
+      Owner = owner;
+      ChangeType = changeType;
+    }
+  }
+
   /// <summary>
   /// Emitted by NaraPathParser when a scan path is parsed into structured components.
   /// </summary>
@@ -447,13 +490,12 @@ namespace Outermind
     public string Roll;
 
     public RollPathDetected(string fullPath, string client, string project,
-      string pallet, string stage, string box, string roll)
+      string pallet, string box, string roll)
     {
       FullPath = fullPath;
       Client = client;
       Project = project;
       Pallet = pallet;
-      Stage = stage;
       Box = box;
       Roll = roll;
     }
