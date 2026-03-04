@@ -420,59 +420,19 @@ namespace Outermind
       UserEvents = userEvents ?? new List<UserEvent>();
     }
   }
-  public class ScanForNARA : Event
+  public class ClientScanDetected : Event
   {
     public string FolderPath;
     public Id Owner;
     public string ChangeType;
+    public string ProfileName;
 
-    public ScanForNARA(string folderPath, Id owner, string changeType)
+    public ClientScanDetected(string folderPath, Id owner, string changeType, string profileName)
     {
       FolderPath = folderPath;
       Owner = owner;
       ChangeType = changeType;
-    }
-  }
-
-  public class ScanForDatabankOtisApCards : Event
-  {
-    public string FolderPath;
-    public Id Owner;
-    public string ChangeType;
-
-    public ScanForDatabankOtisApCards(string folderPath, Id owner, string changeType)
-    {
-      FolderPath = folderPath;
-      Owner = owner;
-      ChangeType = changeType;
-    }
-  }
-
-  public class ScanForNotreDame : Event
-  {
-    public string FolderPath;
-    public Id Owner;
-    public string ChangeType;
-
-    public ScanForNotreDame(string folderPath, Id owner, string changeType)
-    {
-      FolderPath = folderPath;
-      Owner = owner;
-      ChangeType = changeType;
-    }
-  }
-
-  public class ScanForMadison : Event
-  {
-    public string FolderPath;
-    public Id Owner;
-    public string ChangeType;
-
-    public ScanForMadison(string folderPath, Id owner, string changeType)
-    {
-      FolderPath = folderPath;
-      Owner = owner;
-      ChangeType = changeType;
+      ProfileName = profileName;
     }
   }
 
