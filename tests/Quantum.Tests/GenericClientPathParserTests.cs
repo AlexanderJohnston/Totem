@@ -25,7 +25,6 @@ namespace Quantum.Tests
 
       Assert.NotNull(result);
       Assert.Equal(expectedClient, result.Client);
-      Assert.Equal(expectedProject, result.Project);
       Assert.Equal(expectedPallet, result.Pallet);
       Assert.Equal(expectedBox, result.Box);
       Assert.Equal(expectedRoll, result.Roll);

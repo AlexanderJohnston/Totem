@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Outermind;
 using Outermind.SmartScanning;
@@ -28,19 +29,34 @@ namespace Outermind.Topics
     void When(RegisterScans command)
     {
       var snapshot = command.Scans == null ? new List<SmartScanRecord>() : new List<SmartScanRecord>(command.Scans);
-      foreach(var scan in snapshot)
+      foreach (var scan in snapshot)
       {
-        var path = scan.FolderPath ?? string.Empty;
-        var pathLower = path.ToLowerInvariant();
-        var isRejectedPath = pathLower.Contains("3-indexing")
-          || pathLower.Contains("1-ip")
-          || pathLower.Contains("3-samy")
-          || pathLower.Contains("samy")
-          || pathLower.Contains("derivitives")
-          || pathLower.Contains("derivatives")
-          || pathLower.Contains("deliver");
+        var path = (scan.FolderPath ?? string.Empty).AsSpan();
+        var normalizedPath = TrimTrailingDirectorySeparators(path);
+        var isRejectedPath = IsRejectedPath(path);
 
-        if(isRejectedPath)
+        var isCapturePath =
+          normalizedPath.EndsWith("\\Capture".AsSpan(), StringComparison.OrdinalIgnoreCase)
+          || normalizedPath.EndsWith("/Capture".AsSpan(), StringComparison.OrdinalIgnoreCase)
+          || normalizedPath.Contains("\\Capture\\CaptureOne\\".AsSpan(), StringComparison.OrdinalIgnoreCase)
+          || normalizedPath.Contains("/Capture/CaptureOne/".AsSpan(), StringComparison.OrdinalIgnoreCase);
+
+        var shouldSkipPath = (
+            normalizedPath.EndsWith("\\strips".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.EndsWith("/strips".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.EndsWith("\\previews".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.EndsWith("/previews".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.EndsWith("\\thumbs".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.EndsWith("/thumbs".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.Contains("qptemp".AsSpan(), StringComparison.OrdinalIgnoreCase)
+          ) && !isCapturePath; // Include paths ending in Capture\ or containing Capture\CaptureOne\
+
+        if (shouldSkipPath)
+        {
+          continue;
+        }
+
+        if (isRejectedPath)
         {
           var name = scan.LastModifiedBy;
           var userId = Totem.Id.From(name);
@@ -64,6 +80,28 @@ namespace Outermind.Topics
           Then(new ScanDetected(scan, temporalLookupKey, userId, command.RequestedAtUtc));
         }
       }
+    }
+
+    static bool IsRejectedPath(ReadOnlySpan<char> path)
+    {
+      return path.Contains("3-indexing".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        || path.Contains("1-ip".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        || path.Contains("3-samy".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        || path.Contains("samy".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        || path.Contains("derivitives".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        || path.Contains("derivatives".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        || path.Contains("deliver".AsSpan(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    static ReadOnlySpan<char> TrimTrailingDirectorySeparators(ReadOnlySpan<char> path)
+    {
+      var end = path.Length;
+      while (end > 0 && (path[end - 1] == '\\' || path[end - 1] == '/'))
+      {
+        end--;
+      }
+
+      return path[..end];
     }
   }
 }

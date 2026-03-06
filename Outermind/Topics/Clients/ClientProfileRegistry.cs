@@ -11,10 +11,14 @@ namespace Quantum.Topics.Clients
   {
     public static readonly IReadOnlyList<ClientPathProfile> Profiles = new[]
     {
-      new ClientPathProfile("NARA",          "frames"),
-      new ClientPathProfile("NotreDameUniv", "0-copied"),
-      new ClientPathProfile("DatabankOtis",  "0-verified"),
-      new ClientPathProfile("Madison",       "qc complete"),
+      new ClientPathProfile("NARA", "1-originals"),
+      new ClientPathProfile("NotreDameUniv",  "0-copied"),
+      new ClientPathProfile("NotreDameUniv",  "1-originals"),
+      new ClientPathProfile("DatabankOtis", "0-verified"),
+      new ClientPathProfile("Madison",  "qc complete"),
+      new ClientPathProfile("Madison",  "01-photooriginals"),
+      new ClientPathProfile("RicohFtWayne", "1-originals"),
+      new ClientPathProfile("FirstAmerGrandRapids", "1-originals"),
     };
 
     /// <summary>

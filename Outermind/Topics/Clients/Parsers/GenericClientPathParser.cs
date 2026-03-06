@@ -25,7 +25,7 @@ namespace Quantum.Topics.Clients.Parsers
     /// using the profile identified by profileName.
     /// Returns null if the path is invalid or no matching profile is found.
     /// </summary>
-    public static RollPathDetected TryParse(string folderPath, string profileName)
+    public static NewRollDiscovered TryParse(string folderPath, string profileName)
     {
       if (string.IsNullOrWhiteSpace(folderPath))
         return null;
@@ -49,7 +49,7 @@ namespace Quantum.Topics.Clients.Parsers
       var box     = segments[segments.Length - 2];
       var roll    = segments[segments.Length - 1];
 
-      return new RollPathDetected(folderPath, client, project, pallet, box, roll);
+      return new NewRollDiscovered(client, pallet, box, roll, folderPath);
     }
   }
 }
