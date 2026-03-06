@@ -22,7 +22,7 @@ namespace Outermind.Topics
       {
         var path = scan.FolderPath ?? string.Empty;
         var pathLower = path.ToLowerInvariant();
-        var isRejectedPath = pathLower.Contains("3-indexing") || pathLower.Contains("1-ip") || pathLower.Contains("3-samy");
+        var isRejectedPath = pathLower.Contains("3-indexing") || pathLower.Contains("1-ip") || pathLower.Contains("3-samy") || pathLower.Contains("samy");
 
         if(isRejectedPath)
         {
