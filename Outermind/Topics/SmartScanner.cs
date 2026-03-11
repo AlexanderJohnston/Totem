@@ -35,22 +35,16 @@ namespace Outermind.Topics
         var normalizedPath = TrimTrailingDirectorySeparators(path);
         var isRejectedPath = IsRejectedPath(path);
 
-        var isCapturePath =
-          normalizedPath.EndsWith("\\Capture".AsSpan(), StringComparison.OrdinalIgnoreCase)
-          || normalizedPath.EndsWith("/Capture".AsSpan(), StringComparison.OrdinalIgnoreCase)
-          || normalizedPath.Contains("\\Capture\\CaptureOne\\".AsSpan(), StringComparison.OrdinalIgnoreCase)
-          || normalizedPath.Contains("/Capture/CaptureOne/".AsSpan(), StringComparison.OrdinalIgnoreCase);
+        var isCaptureOnePath =
+          normalizedPath.Contains("captureone".AsSpan(), StringComparison.OrdinalIgnoreCase);
 
         var shouldSkipPath = (
-            normalizedPath.EndsWith("\\strips".AsSpan(), StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.EndsWith("/strips".AsSpan(), StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.EndsWith("\\previews".AsSpan(), StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.EndsWith("/previews".AsSpan(), StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.EndsWith("\\thumbs".AsSpan(), StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.EndsWith("/thumbs".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            normalizedPath.EndsWith("strips".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.EndsWith("previews".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.EndsWith("thumbs".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.EndsWith("thumb".AsSpan(), StringComparison.OrdinalIgnoreCase)
             || normalizedPath.Contains("qptemp".AsSpan(), StringComparison.OrdinalIgnoreCase)
-          ) && !isCapturePath; // Include paths ending in Capture\ or containing Capture\CaptureOne\
-
+          ) || isCaptureOnePath; // Include paths which contain junk files
         if (shouldSkipPath)
         {
           continue;

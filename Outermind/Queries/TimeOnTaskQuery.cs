@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Totem;
 using Totem.Timeline;
 
@@ -23,6 +24,9 @@ namespace Outermind.Queries
 
     void Given(TimeOffTask e)
     {
+      if (OffTaskWindows.Any(w => w.OffTaskBeganAtUtc == e.OffTaskBeganAtUtc && w.ResumedAtUtc == e.ResumedAtUtc))
+        return;
+
       OffTaskWindows.Add(new OffTaskWindow
       {
         OffTaskBeganAtUtc = e.OffTaskBeganAtUtc,

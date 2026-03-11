@@ -7,8 +7,10 @@ using Microsoft.AspNetCore.Mvc;
 using Outermind;
 using Outermind.Queries;
 using Outermind.SmartScanning;
+using Quantum.Queries.Clients;
 using Quantum.Web;
 using Totem;
+using Totem.Timeline.Client;
 using Totem.Timeline.Mvc;
 
 namespace Outermind.Controllers
@@ -19,11 +21,13 @@ namespace Outermind.Controllers
   {
     public ICommandServer _commands;
     public IQueryServer _queries;
+    public IQueryDb _queryDb;
 
-    public ScanController(ICommandServer commands, IQueryServer queries)
+    public ScanController(ICommandServer commands, IQueryServer queries, IQueryDb queryDb)
     {
       _commands = commands;
       _queries = queries;
+      _queryDb = queryDb;
     }
 
     [HttpGet(Name = "TestScan")]
@@ -82,10 +86,48 @@ namespace Outermind.Controllers
         new UpdateScanRegistry(scans),
         When<RegisterScans>.ThenOk);
 
+    [HttpGet("/api/clients")]
+    public Task<IActionResult> GetClients([FromServices] IQueryServer queries) =>
+      queries.Get<ClientList>();
+
+    [HttpGet("/api/clients/{id}")]
+    public Task<IActionResult> GetClientPallets(string id, [FromServices] IQueryServer queries) =>
+      queries.Get<ClientPalletList>(id);
+
+    [HttpGet("/api/pallets/{id}")]
+    public Task<IActionResult> GetPalletBoxes(string id, [FromServices] IQueryServer queries) =>
+      queries.Get<PalletBoxList>(id);
+
+    [HttpGet("/api/boxes/{id}")]
+    public Task<IActionResult> GetBoxRolls(string id, [FromServices] IQueryServer queries) =>
+      queries.Get<BoxRollList>(id);
+
     [HttpGet("/api/TimeOnTask/{id}")]
     public Task<IActionResult> UpdateTimeOnTask(string id, [FromServices] IQueryServer queries)
     {
       return queries.Get(typeof(TimeOnTaskQuery), id);
+    }
+
+    [HttpGet("/api/TimeOnTask/users/{userId}")]
+    public Task<IActionResult> GetKnownTemporalUsers(string userId, [FromServices] IQueryServer queries) =>
+      queries.Get<KnownTemporalUsersQuery>(userId);
+
+    [HttpPost("/api/TimeOnTask")]
+    public async Task<IActionResult> BatchTimeOnTask([FromBody] List<string> temporalUsers)
+    {
+      var distinctKeys = temporalUsers?.Distinct().ToList() ?? new List<string>();
+
+      var tasks = distinctKeys.Select(async key =>
+      {
+        var query = await _queryDb.ReadQuery<TimeOnTaskQuery>(Id.From(key));
+        return (key, query.OffTaskWindows);
+      });
+
+      var results = await Task.WhenAll(tasks);
+
+      var response = results.ToDictionary(r => r.key, r => r.OffTaskWindows);
+
+      return Ok(response);
     }
   }
 }

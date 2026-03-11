@@ -45,6 +45,15 @@ namespace Quantum.Topics.Clients
         }
       }
 
+      for (int i = 0; i < segments.Length; i++)
+      {
+        if (segments[i].Contains("original", StringComparison.OrdinalIgnoreCase))
+        {
+          matched = new ClientPathProfile(client, segments[i], i, i + 3);
+          return true;
+        }
+      }
+
       return false;
     }
   }

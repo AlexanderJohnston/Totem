@@ -37,6 +37,18 @@ namespace Quantum.Topics.Clients.Parsers
       var profile = ClientProfileRegistry.Profiles
         .FirstOrDefault(p => p.ClientPrefix.Equals(profileName, StringComparison.OrdinalIgnoreCase));
 
+      if (profile == null && segments.Length >= 3)
+      {
+        for (int i = 0; i < segments.Length; i++)
+        {
+          if (segments[i].Contains("original", StringComparison.OrdinalIgnoreCase))
+          {
+            profile = new ClientPathProfile(segments[2], segments[i], i, i + 3);
+            break;
+          }
+        }
+      }
+
       if (profile == null)
         return null;
 
