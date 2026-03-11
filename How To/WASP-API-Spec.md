@@ -56,6 +56,28 @@ For the current Quasar WASP Explorer, the implemented first-pass routes are:
 
 These routes currently cover the read-only Explorer/search experience in the Quasar frontend.
 
+For the `InfoSearch` routes, the frontend sends the raw search term as the request body JSON string, for example:
+
+```json
+"Hello world"
+```
+
+The Outermind backend then wraps that value before calling WASP:
+
+```json
+{
+  "SearchPattern": "Hello world"
+}
+```
+
+An empty frontend search string is forwarded as:
+
+```json
+{
+  "SearchPattern": ""
+}
+```
+
 ### Backend registration
 
 The backend registers the internal WASP client services during startup:
