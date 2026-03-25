@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Serilog;
 using Totem.Timeline.Hosting;
 
@@ -33,7 +34,7 @@ namespace Totem.App.Web
     public static ConfigureWebApp BeforeTimeline(Action<WebHostBuilderContext, ITimelineClientBuilder> configure) =>
       new ConfigureWebApp().BeforeTimeline(configure);
 
-    public static ConfigureWebApp BeforeSerilog(Action<WebHostBuilderContext, LoggerConfiguration> configure) =>
+    public static ConfigureWebApp BeforeSerilog(Action<HostBuilderContext, LoggerConfiguration> configure) =>
       new ConfigureWebApp().BeforeSerilog(configure);
 
     public static ConfigureWebApp BeforeMvc(Action<WebHostBuilderContext, IServiceCollection> configure) =>
@@ -69,7 +70,7 @@ namespace Totem.App.Web
     public static ConfigureWebApp AfterTimeline(Action<WebHostBuilderContext, ITimelineClientBuilder> configure) =>
       new ConfigureWebApp().AfterTimeline(configure);
 
-    public static ConfigureWebApp AfterSerilog(Action<WebHostBuilderContext, LoggerConfiguration> configure) =>
+    public static ConfigureWebApp AfterSerilog(Action<HostBuilderContext, LoggerConfiguration> configure) =>
       new ConfigureWebApp().AfterSerilog(configure);
 
     public static ConfigureWebApp AfterMvc(Action<WebHostBuilderContext, IServiceCollection> configure) =>
@@ -105,7 +106,7 @@ namespace Totem.App.Web
     public static ConfigureWebApp ReplaceTimeline(Action<WebHostBuilderContext, ITimelineClientBuilder> configure) =>
       new ConfigureWebApp().ReplaceTimeline(configure);
 
-    public static ConfigureWebApp ReplaceSerilog(Action<WebHostBuilderContext, LoggerConfiguration> configure) =>
+    public static ConfigureWebApp ReplaceSerilog(Action<HostBuilderContext, LoggerConfiguration> configure) =>
       new ConfigureWebApp().ReplaceSerilog(configure);
 
     public static ConfigureWebApp ReplaceMvc(Action<WebHostBuilderContext, IServiceCollection> configure) =>

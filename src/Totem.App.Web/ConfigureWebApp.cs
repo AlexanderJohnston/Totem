@@ -23,13 +23,14 @@ namespace Totem.App.Web
   public class ConfigureWebApp
   {
     class WebStep<TArg> : ConfigureStep<WebHostBuilderContext, TArg> {}
+    class HostStep<TArg> : ConfigureStep<HostBuilderContext, TArg> {}
 
     readonly ConfigureStep<IWebHostBuilder> _host = new ConfigureStep<IWebHostBuilder>();
     readonly ConfigureStep<IApplicationBuilder> _app = new ConfigureStep<IApplicationBuilder>();
     readonly WebStep<IConfigurationBuilder> _appConfiguration = new WebStep<IConfigurationBuilder>();
     readonly WebStep<IServiceCollection> _services = new WebStep<IServiceCollection>();
     readonly WebStep<ITimelineClientBuilder> _timeline = new WebStep<ITimelineClientBuilder>();
-    readonly WebStep<LoggerConfiguration> _serilog = new WebStep<LoggerConfiguration>();
+    readonly HostStep<LoggerConfiguration> _serilog = new HostStep<LoggerConfiguration>();
     readonly WebStep<IServiceCollection> _mvc = new WebStep<IServiceCollection>();
     readonly WebStep<IServiceCollection> _signalR = new WebStep<IServiceCollection>();
     readonly ConfigureStep<IRouteBuilder> _mvcRoutes = new ConfigureStep<IRouteBuilder>();
@@ -72,7 +73,7 @@ namespace Totem.App.Web
     public ConfigureWebApp BeforeTimeline(Action<WebHostBuilderContext, ITimelineClientBuilder> configure) =>
       _timeline.Before(this, configure);
 
-    public ConfigureWebApp BeforeSerilog(Action<WebHostBuilderContext, LoggerConfiguration> configure) =>
+    public ConfigureWebApp BeforeSerilog(Action<HostBuilderContext, LoggerConfiguration> configure) =>
       _serilog.Before(this, configure);
 
     public ConfigureWebApp BeforeMvc(Action<WebHostBuilderContext, IServiceCollection> configure) =>
@@ -108,7 +109,7 @@ namespace Totem.App.Web
     public ConfigureWebApp AfterTimeline(Action<WebHostBuilderContext, ITimelineClientBuilder> configure) =>
       _timeline.After(this, configure);
 
-    public ConfigureWebApp AfterSerilog(Action<WebHostBuilderContext, LoggerConfiguration> configure) =>
+    public ConfigureWebApp AfterSerilog(Action<HostBuilderContext, LoggerConfiguration> configure) =>
       _serilog.After(this, configure);
 
     public ConfigureWebApp AfterMvc(Action<WebHostBuilderContext, IServiceCollection> configure) =>
@@ -144,7 +145,7 @@ namespace Totem.App.Web
     public ConfigureWebApp ReplaceTimeline(Action<WebHostBuilderContext, ITimelineClientBuilder> configure) =>
       _timeline.Replace(this, configure);
 
-    public ConfigureWebApp ReplaceSerilog(Action<WebHostBuilderContext, LoggerConfiguration> configure) =>
+    public ConfigureWebApp ReplaceSerilog(Action<HostBuilderContext, LoggerConfiguration> configure) =>
       _serilog.Replace(this, configure);
 
     public ConfigureWebApp ReplaceMvc(Action<WebHostBuilderContext, IServiceCollection> configure) =>
@@ -288,7 +289,7 @@ namespace Totem.App.Web
             services.AddSignalR().AddQueryNotifications());
         }));
 
-    public void ApplySerilog(IWebHostBuilder host)
+    public void ApplySerilog(IHostBuilder host)
     {
       if(_disableSerilog)
       {

@@ -21,8 +21,9 @@ namespace Totem.App.Web
         configure.ApplyApp(webHost);
         configure.ApplyAppConfiguration(webHost);
         configure.ApplyServices<TArea>(webHost);
-        configure.ApplySerilog(webHost);
       });
+
+      configure.ApplySerilog(host);
 
       return host.Build().RunAsync();
     }
