@@ -15,7 +15,7 @@ namespace Quantum.Queries.Clients
     public string Client { get; set; }
     public string Pallet { get; set; }
     public string Box { get; set; }
-    public List<RollEntry> Rolls { get; set; } = new();
+    public HashSet<RollEntry> Rolls { get; set; } = new();
 
     static Id RouteFirst(NewRollDiscovered e) =>
       Id.From($"{e.Client}:{e.Pallet}:{e.Box}");
@@ -34,10 +34,22 @@ namespace Quantum.Queries.Clients
     }
   }
 
-  public class RollEntry
+  public class RollEntry : IEquatable<RollEntry>
   {
     public string Roll { get; set; }
     public string FullPath { get; set; }
     public DateTimeOffset FirstSeenUtc { get; set; }
+
+    public bool Equals(RollEntry other)
+    {
+      if (other is null) return false;
+      if (ReferenceEquals(this, other)) return true;
+      return FullPath == other.FullPath;
+    }
+
+    public override int GetHashCode()
+    {
+      return FullPath != null ? FullPath.GetHashCode() : 0;
+    }
   }
 }

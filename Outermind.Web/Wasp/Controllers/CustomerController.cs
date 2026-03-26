@@ -34,6 +34,6 @@ public class CustomerController : WaspHttpClient
     public Task<WaspResult<List<CustomerInfo>>> AdvancedSearchAsync(AdvancedSearchParameters search) =>
         PostAsync<List<CustomerInfo>>("public-api/customers/advancedinfosearch", search);
 
-    public Task<WaspResult<List<CustomerInfo>>> GetByNumberAsync(IReadOnlyList<string> customerNumbers) =>
-        PostAsync<List<CustomerInfo>>("public-api/customers/GetCustomersByNumber", customerNumbers);
+    public Task<WaspResult<List<WaspResult<CustomerInfo>>>> GetByNumberAsync(IReadOnlyList<string> customerNumbers) =>
+        PostAsync<List<WaspResult<CustomerInfo>>>("public-api/customers/GetCustomersByNumber", customerNumbers);
 }

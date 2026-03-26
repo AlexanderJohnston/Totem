@@ -23,4 +23,8 @@ public class WaspCustomersApiController : WaspApiControllerBase
     [HttpPost("advancedinfosearch")]
     public Task<ActionResult<WaspResult<List<CustomerInfo>>>> AdvancedSearch([FromBody] AdvancedSearchParameters search) =>
         ExecuteAsync(() => _customers.AdvancedSearchAsync(search), nameof(AdvancedSearch));
+
+    [HttpPost("GetCustomersByNumber")]
+    public Task<ActionResult<WaspResult<List<WaspResult<CustomerInfo>>>>> GetByNumber([FromBody] IReadOnlyList<string> customerNumbers) =>
+        ExecuteAsync(() => _customers.GetByNumberAsync(customerNumbers), nameof(GetByNumber));
 }

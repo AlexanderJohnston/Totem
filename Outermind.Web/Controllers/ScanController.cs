@@ -30,53 +30,53 @@ namespace Outermind.Controllers
       _queryDb = queryDb;
     }
 
-    [HttpGet(Name = "TestScan")]
-    public async Task<IActionResult> Test()
-    {
-      return Ok("All good");
-    }
+    //[HttpGet(Name = "TestScan")]
+    //public async Task<IActionResult> Test()
+    //{
+    //  return Ok("All good");
+    //}
 
-    [HttpPut("action")]
-    public async Task<IActionResult> Start([FromBody] ScanTest command)
-    {
-      var cmd = new StartScan(command.Roll, command.Worker, DateTime.UtcNow);
-      return await _commands.Execute(cmd, When<ScanStarted>.ThenOk, When<ScanAlreadyInProgress>.ThenConflict);
-    }
+    //[HttpPut("action")]
+    //public async Task<IActionResult> Start([FromBody] ScanTest command)
+    //{
+    //  var cmd = new StartScan(command.Roll, command.Worker, DateTime.UtcNow);
+    //  return await _commands.Execute(cmd, When<ScanStarted>.ThenOk, When<ScanAlreadyInProgress>.ThenConflict);
+    //}
 
-    //Finish Scan
+    ////Finish Scan
 
-    [HttpPost("action")]
-    public async Task<IActionResult> Finish([FromBody] FinishScan command)
-    {
-      return await _commands.Execute(command, When<ScanFinished>.ThenOk, When<ScanNotFound>.ThenBadRequest);
-    }
+    //[HttpPost("action")]
+    //public async Task<IActionResult> Finish([FromBody] FinishScan command)
+    //{
+    //  return await _commands.Execute(command, When<ScanFinished>.ThenOk, When<ScanNotFound>.ThenBadRequest);
+    //}
 
-    // Delete Scan
-    [HttpDelete("action")]
-    public async Task<IActionResult> Delete([FromBody] DeleteScan command)
-    {
-      return await _commands.Execute(command, When<ScanDeleted>.ThenOk, When<NothingToDelete>.ThenBadRequest);
-    }
+    //// Delete Scan
+    //[HttpDelete("action")]
+    //public async Task<IActionResult> Delete([FromBody] DeleteScan command)
+    //{
+    //  return await _commands.Execute(command, When<ScanDeleted>.ThenOk, When<NothingToDelete>.ThenBadRequest);
+    //}
 
-    // Move Scan
-    [HttpPost("action")]
-    public async Task<IActionResult> Move([FromBody] MoveScan command)
-    {
-      return await _commands.Execute(command, When<ScanMoved>.ThenOk, When<CannotMoveScan>.ThenConflict);
-    }
+    //// Move Scan
+    //[HttpPost("action")]
+    //public async Task<IActionResult> Move([FromBody] MoveScan command)
+    //{
+    //  return await _commands.Execute(command, When<ScanMoved>.ThenOk, When<CannotMoveScan>.ThenConflict);
+    //}
 
-    // Operator Comment
-    [HttpPost("action")]
-    public async Task<IActionResult> Comment([FromBody] OperatorComment command)
-    {
-      return await _commands.Execute(command, When<CommentAdded>.ThenOk, When<CommentRefused>.ThenBadRequest);
-    }
+    //// Operator Comment
+    //[HttpPost("action")]
+    //public async Task<IActionResult> Comment([FromBody] OperatorComment command)
+    //{
+    //  return await _commands.Execute(command, When<CommentAdded>.ThenOk, When<CommentRefused>.ThenBadRequest);
+    //}
 
-    [HttpPost("action")]
-    public async Task<IActionResult> UpdateSettings([FromBody] UpdateSettings command)
-    {
-      return await _commands.Execute(command, When<SettingsUpdated>.ThenOk, When<SettingsRefused>.ThenConflict);
-    }
+    //[HttpPost("action")]
+    //public async Task<IActionResult> UpdateSettings([FromBody] UpdateSettings command)
+    //{
+    //  return await _commands.Execute(command, When<SettingsUpdated>.ThenOk, When<SettingsRefused>.ThenConflict);
+    //}
 
     [HttpPost("/api/registry")]
     public Task<IActionResult> UpdateRegistry(
