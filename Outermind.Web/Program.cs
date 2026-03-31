@@ -7,8 +7,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Outermind;
+using Scalar.AspNetCore;
 using Totem;
 using Totem.App.Web;
+using Totem.Timeline;
 using Quantum.Web.Wasp;
 using static Totem.Timeline.FlowCall;
 
@@ -44,13 +46,31 @@ namespace Quantum.Web
         })
         .AfterServices((context, services) =>
         {
+          services.AddOpenApi(options =>
+          {
+            options.AddSchemaTransformer((schema, context, _) =>
+            {
+              if(typeof(Event).IsAssignableFrom(context.JsonTypeInfo.Type))
+              {
+                schema.Properties?.Remove("when");
+                schema.Properties?.Remove("fields");
+              }
+
+              return Task.CompletedTask;
+            });
+          });
           services.AddWaspApi(context.Configuration);
           services.AddCors(options =>
             options.AddPolicy(CorsPolicyName, policy =>
               ConfigureCors(policy, context.Configuration)));
         })
         .BeforeMvcApp(app =>
-          app.UseCors(CorsPolicyName));
+          app.UseCors(CorsPolicyName))
+        .AfterSignalRRoutes(routes =>
+        {
+          routes.MapOpenApi();
+          routes.MapScalarApiReference();
+        });
 
     static bool IsProduction() =>
       string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Production", StringComparison.OrdinalIgnoreCase);
