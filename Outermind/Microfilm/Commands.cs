@@ -60,13 +60,13 @@ namespace Outermind.Microfilm
   {
     public string JobName { get; set; }
     public string JobNumber { get; set; }
-    public string ServerName { get; set; }
+    public Id ServerId { get; set; }
 
-    public NewClient(string jobName, string jobNumber, string serverName)
+    public NewClient(string jobName, string jobNumber, Id serverId)
     {
       JobName = jobName;
       JobNumber = jobNumber;
-      ServerName = serverName;
+      ServerId = serverId;
     }
   }
 
@@ -77,6 +77,28 @@ namespace Outermind.Microfilm
     public NewServer(string serverName)
     {
       ServerName = serverName;
+    }
+  }
+
+  public class ChangeClientAssignment : Command
+  {
+    public Id ClientId { get; set; }
+    public Id ServerId { get; set; }
+
+    public ChangeClientAssignment(Id clientId, Id serverId)
+    {
+      ClientId = clientId;
+      ServerId = serverId;
+    }
+  }
+
+  public class SetWaspImportEnabled : Command
+  {
+    public bool ImportEnabled { get; set; }
+
+    public SetWaspImportEnabled(bool importEnabled)
+    {
+      ImportEnabled = importEnabled;
     }
   }
 }

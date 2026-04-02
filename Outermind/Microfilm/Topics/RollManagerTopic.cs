@@ -15,6 +15,7 @@ namespace Outermind.Microfilm.Topics
 
     static Id RouteFirst(CreateRoll e) => e.BoxId;
     static Id Route(RollCreated e) => e.Roll.BoxId;
+    static Id Route(WaspRollIdentified e) => e.BoxId;
 
     void Given(RollCreated e)
     {
@@ -30,6 +31,19 @@ namespace Outermind.Microfilm.Topics
       else
       {
         var roll = new KnownRoll(command.RollName, Id.FromGuid(), command.BoxId);
+        Then(new RollCreated(roll));
+      }
+    }
+
+    void When(WaspRollIdentified e)
+    {
+      if (_rolls.Any(r => string.Equals(r.RollName, e.RollName, StringComparison.OrdinalIgnoreCase)))
+      {
+        Then(new RollAlreadyExists(e.RollName, e.BoxId));
+      }
+      else
+      {
+        var roll = new KnownRoll(e.RollName, Id.FromGuid(), e.BoxId);
         Then(new RollCreated(roll));
       }
     }

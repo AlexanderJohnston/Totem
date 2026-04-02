@@ -45,7 +45,7 @@ namespace Outermind.Microfilm.Topics
       else
       {
         var rolls = new List<Id>(command.RollIds);
-        Then(new OperatorAssigned(match, rolls));
+        Then(new OperatorAssigned(match, rolls, command.BoxId));
       }
     }
   }

@@ -15,6 +15,7 @@ namespace Outermind.Microfilm.Topics
 
     static Id RouteFirst(CreateBox e) => e.ClientId;
     static Id Route(BoxCreated e) => e.Box.ClientId;
+    static Id Route(WaspBoxIdentified e) => e.ClientId;
 
     void Given(BoxCreated e)
     {
@@ -30,6 +31,19 @@ namespace Outermind.Microfilm.Topics
       else
       {
         var box = new KnownBox(command.BoxName, Id.FromGuid(), command.ClientId);
+        Then(new BoxCreated(box));
+      }
+    }
+
+    void When(WaspBoxIdentified e)
+    {
+      if (_boxes.Any(b => string.Equals(b.BoxName, e.BoxName, StringComparison.OrdinalIgnoreCase)))
+      {
+        Then(new BoxAlreadyExists(e.BoxName, e.ClientId));
+      }
+      else
+      {
+        var box = new KnownBox(e.BoxName, Id.FromGuid(), e.ClientId);
         Then(new BoxCreated(box));
       }
     }

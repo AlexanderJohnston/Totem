@@ -1,4 +1,9 @@
+using System;
+using System.IO;
+using System.Net.Http.Headers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Outermind.Microfilm;
 using Quantum.Service;
 using Quantum.ServiceContracts;
 
@@ -19,6 +24,7 @@ namespace Outermind.Service
       //services.AddSingleton<ISmartScanBackgroundService>(sp => sp.GetRequiredService<SmartScanBackgroundService>());
       //services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SmartScanBackgroundService>());
       AddOutermindParsers(services);
+      AddWaspAssetService(services);
       return services;
     }
 
@@ -26,6 +32,30 @@ namespace Outermind.Service
     {
       services.AddSingleton<IUsersLogParser, UsersLogParser>();
       return services;
+    }
+
+    public static IServiceCollection AddWaspAssetService(this IServiceCollection services)
+    {
+      services.AddHttpClient<IWaspAssetService, WaspAssetService>((sp, client) =>
+      {
+        var config = sp.GetRequiredService<IConfiguration>();
+        var baseUrl = config["Wasp:BaseUrl"] ?? "https://thecrowleycompany.waspassetcloud.com";
+        var token = config["Wasp:Token"] ?? ReadTokenFile();
+
+        client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+          client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+      });
+      return services;
+    }
+
+    static string ReadTokenFile()
+    {
+      var path = Path.Combine(AppContext.BaseDirectory, "token.txt");
+      return File.Exists(path) ? File.ReadAllText(path).Trim() : null;
     }
   }
 }

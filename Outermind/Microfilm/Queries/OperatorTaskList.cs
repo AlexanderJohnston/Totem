@@ -27,6 +27,7 @@ namespace Outermind.Microfilm.Queries
       {
         AssignedRolls.Add(rollId);
       }
+      AssignedBoxes.Add(e.BoxId);
     }
   }
 }

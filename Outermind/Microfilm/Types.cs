@@ -32,14 +32,14 @@ namespace Outermind.Microfilm
     public string JobName { get; set; }
     public string JobNumber { get; set; }
     public Id ClientId { get; set; }
-    public string ServerName { get; set; }
+    public Id ServerId { get; set; }
 
-    public KnownClient(string jobName, string jobNumber, Id clientId, string serverName)
+    public KnownClient(string jobName, string jobNumber, Id clientId, Id serverId)
     {
       JobName = jobName;
       JobNumber = jobNumber;
       ClientId = clientId;
-      ServerName = serverName;
+      ServerId = serverId;
     }
 
     public bool Equals(KnownClient other)
@@ -119,5 +119,35 @@ namespace Outermind.Microfilm
 
     public override bool Equals(object obj) => Equals(obj as KnownServer);
     public override int GetHashCode() => ServerId.GetHashCode();
+  }
+
+  public class KnownWaspAsset : IEquatable<KnownWaspAsset>
+  {
+    public string AssetId { get; set; }
+    public string JobNumber { get; set; }
+    public string BoxName { get; set; }
+    public string RollName { get; set; }
+    public Id ClientId { get; set; }
+    public Id BoxId { get; set; }
+
+    public KnownWaspAsset(string assetId, string jobNumber, string boxName, string rollName, Id clientId, Id boxId)
+    {
+      AssetId = assetId;
+      JobNumber = jobNumber;
+      BoxName = boxName;
+      RollName = rollName;
+      ClientId = clientId;
+      BoxId = boxId;
+    }
+
+    public bool Equals(KnownWaspAsset other)
+    {
+      if (other is null) return false;
+      if (ReferenceEquals(this, other)) return true;
+      return AssetId == other.AssetId;
+    }
+
+    public override bool Equals(object obj) => Equals(obj as KnownWaspAsset);
+    public override int GetHashCode() => (AssetId ?? "").GetHashCode();
   }
 }

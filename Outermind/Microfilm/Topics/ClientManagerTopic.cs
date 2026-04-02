@@ -7,31 +7,26 @@ using Totem.Timeline;
 namespace Outermind.Microfilm.Topics
 {
   /// <summary>
-  /// Manages client creation per server. One instance per ServerName.
+  /// Maintains a per-server client set for client-local reactions.
+  /// No longer owns client creation; that is handled by ServerManagerTopic.
   /// </summary>
   public class ClientManagerTopic : Topic
   {
     readonly HashSet<KnownClient> _clients = new();
 
-    static Id RouteFirst(NewClient e) => Id.From(e.ServerName);
-    static Id Route(ClientCreated e) => Id.From(e.Client.ServerName);
+    static Id RouteFirst(ClientCreated e) => e.Client.ServerId;
+    static Many<Id> Route(ClientReassigned e) =>
+      new[] { e.PreviousServerId, e.Client.ServerId }.ToMany();
 
     void Given(ClientCreated e)
     {
       _clients.Add(e.Client);
     }
 
-    void When(NewClient command)
+    void Given(ClientReassigned e)
     {
-      if (_clients.Any(c => string.Equals(c.JobNumber, command.JobNumber, StringComparison.OrdinalIgnoreCase)))
-      {
-        Then(new ClientAlreadyExists(command.JobName, command.JobNumber, command.ServerName));
-      }
-      else
-      {
-        var client = new KnownClient(command.JobName, command.JobNumber, Id.FromGuid(), command.ServerName);
-        Then(new ClientCreated(client));
-      }
+      _clients.RemoveWhere(c => c.ClientId == e.Client.ClientId);
+      _clients.Add(e.Client);
     }
   }
 }

@@ -34,7 +34,16 @@ namespace Outermind.Controllers
     public Task<IActionResult> NewClient([FromBody] NewClient command) =>
       _commands.Execute(command,
         When<ClientCreated>.ThenOk,
-        When<ClientAlreadyExists>.ThenConflict);
+        When<ClientAlreadyExists>.ThenConflict,
+        When<ServerNotRecognized>.ThenBadRequest);
+
+    [HttpPut("clients/reassign")]
+    public Task<IActionResult> ChangeClientAssignment([FromBody] ChangeClientAssignment command) =>
+      _commands.Execute(command,
+        When<ClientReassigned>.ThenOk,
+        When<ClientNotRecognized>.ThenBadRequest,
+        When<ServerNotRecognized>.ThenBadRequest,
+        When<ClientAlreadyAssignedToServer>.ThenConflict);
 
     [HttpPost("operators")]
     public Task<IActionResult> CreateOperator([FromBody] CreateOperator command) =>
@@ -60,6 +69,12 @@ namespace Outermind.Controllers
         When<OperatorAssigned>.ThenOk,
         When<OperatorNotRecognized>.ThenBadRequest);
 
+    [HttpPost("wasp/import")]
+    public Task<IActionResult> SetWaspImportEnabled([FromBody] SetWaspImportEnabled command) =>
+      _commands.Execute(command,
+        When<WaspImportEnabledSet>.ThenOk,
+        When<WaspImportAlreadyInRequestedState>.ThenConflict);
+
     //
     // Queries
     //
@@ -68,9 +83,9 @@ namespace Outermind.Controllers
     public Task<IActionResult> GetServers() =>
       _queries.Get<ServerQuery>();
 
-    [HttpGet("clients/{serverName}")]
-    public Task<IActionResult> GetRegisteredClients(string serverName) =>
-      _queries.Get<RegisteredClientsQuery>(serverName);
+    [HttpGet("clients/{serverId}")]
+    public Task<IActionResult> GetRegisteredClients(string serverId) =>
+      _queries.Get<RegisteredClientsQuery>(serverId);
 
     [HttpGet("operators")]
     public Task<IActionResult> GetOperators() =>
@@ -91,5 +106,9 @@ namespace Outermind.Controllers
     [HttpGet("rolls/{rollId}")]
     public Task<IActionResult> GetRollStatus(string rollId) =>
       _queries.Get<RollStatusQuery>(rollId);
+
+    [HttpGet("wasp/import/status")]
+    public Task<IActionResult> GetWaspImportStatus() =>
+      _queries.Get<WaspImportStatusQuery>();
   }
 }
