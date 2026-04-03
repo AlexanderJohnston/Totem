@@ -184,6 +184,16 @@ namespace Outermind.Microfilm
     }
   }
 
+  public class ManualWaspImportEvent : Event
+  {
+    public string Trigger { get; set; }
+
+    public ManualWaspImportEvent(string trigger)
+    {
+      Trigger = trigger;
+    }
+  }
+
   public class ServerNotRecognized : Event
   {
     public Id ServerId { get; set; }

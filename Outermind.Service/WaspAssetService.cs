@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -17,6 +16,8 @@ namespace Outermind.Service
   /// </summary>
   public class WaspAssetService : IWaspAssetService
   {
+    const int AssetPageSize = 500;
+
     readonly HttpClient _http;
 
     static readonly JsonSerializerOptions JsonOptions = new()
@@ -31,16 +32,64 @@ namespace Outermind.Service
 
     public async Task<List<string>> GetAssetIdsAsync()
     {
-      var request = new SearchPatternRequest { SearchPattern = "" };
-      var response = await _http.PostAsJsonAsync("public-api/assets/assetinfosearch", request, JsonOptions);
+      var assetIds = new List<string>();
+      var seenAssetIds = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+      long? totalCount = null;
+      var pageNumber = 1;
+
+      while (true)
+      {
+        var result = await FetchAssetPageAsync(new AdvancedSearchParameters
+        {
+          PageSize = AssetPageSize,
+          PageNumber = pageNumber,
+          TotalCountFromPriorFetch = totalCount,
+          IgnoreAttachments = true,
+          IgnoreGeoLocation = true
+        });
+
+        foreach (var assetTag in result.Data?
+          .Where(a => !string.IsNullOrWhiteSpace(a.AssetTag))
+          .Select(a => a.AssetTag)
+          ?? Enumerable.Empty<string>())
+        {
+          if (seenAssetIds.Add(assetTag))
+          {
+            assetIds.Add(assetTag);
+          }
+        }
+
+        totalCount = result.TotalRecordsLongCount;
+
+        if (!result.HasSuccessWithMoreDataRemaining)
+        {
+          return assetIds;
+        }
+
+        pageNumber++;
+      }
+    }
+
+    async Task<WaspResult<List<AssetInfo>>> FetchAssetPageAsync(AdvancedSearchParameters request)
+    {
+      var response = await _http.PostAsJsonAsync("public-api/assets/assetadvancedinfosearch", request, JsonOptions);
       response.EnsureSuccessStatusCode();
 
-      var result = await response.Content.ReadFromJsonAsync<WaspResult<List<AssetInfo>>>(JsonOptions);
+      var result = await response.Content.ReadFromJsonAsync<WaspResult<List<AssetInfo>>>(JsonOptions)
+        ?? throw new InvalidOperationException("WASP returned an empty asset search response.");
 
-      return result?.Data?
-        .Where(a => !string.IsNullOrWhiteSpace(a.AssetTag))
-        .Select(a => a.AssetTag)
-        .ToList() ?? new List<string>();
+      if (result.HasError || result.HasHttpError)
+      {
+        var message = result.Messages
+          .Where(m => !string.IsNullOrWhiteSpace(m.Message))
+          .Select(m => m.Message)
+          .DefaultIfEmpty("WASP asset search reported an error.")
+          .Aggregate((current, next) => $"{current}; {next}");
+
+        throw new InvalidOperationException(message);
+      }
+
+      return result;
     }
   }
 }

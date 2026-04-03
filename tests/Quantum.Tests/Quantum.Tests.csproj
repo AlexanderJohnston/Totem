@@ -14,5 +14,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Outermind\Quantum.csproj" />
+    <ProjectReference Include="..\..\Outermind.Service\Quantum.Service.csproj" />
+    <ProjectReference Include="..\..\src\Totem.App.Tests\Totem.App.Tests.csproj" />
   </ItemGroup>
 </Project>

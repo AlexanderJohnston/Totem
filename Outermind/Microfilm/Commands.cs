@@ -101,4 +101,14 @@ namespace Outermind.Microfilm
       ImportEnabled = importEnabled;
     }
   }
+
+  public class ForceWaspImport : Command
+  {
+    public string Trigger { get; set; }
+
+    public ForceWaspImport(string trigger)
+    {
+      Trigger = trigger;
+    }
+  }
 }

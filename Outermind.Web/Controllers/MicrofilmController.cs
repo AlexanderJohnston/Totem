@@ -75,6 +75,11 @@ namespace Outermind.Controllers
         When<WaspImportEnabledSet>.ThenOk,
         When<WaspImportAlreadyInRequestedState>.ThenConflict);
 
+    [HttpPost("wasp/import/force")]
+    public Task<IActionResult> ForceWaspImport([FromBody] ForceWaspImport command) =>
+      _commands.Execute(command,
+        When<ManualWaspImportEvent>.ThenOk);
+
     //
     // Queries
     //

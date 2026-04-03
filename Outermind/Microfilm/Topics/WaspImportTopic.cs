@@ -23,9 +23,9 @@ namespace Outermind.Microfilm.Topics
       @"^(.+?)-Box[\s-]+(.+)$",
       RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    // Pattern: {JobNumber}-Box {N}-Cartridge {M}
+    // Pattern: {JobNumber}-Box {N}-{Roll}
     static readonly Regex RollPattern = new(
-      @"^(.+?)-Box[\s]+(.+?)-Cartridge[\s]+(.+)$",
+      @"^(.+?)-Box[\s-]+(.+?)\s*-\s*(.+)$",
       RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     //
@@ -92,7 +92,31 @@ namespace Outermind.Microfilm.Topics
       }
     }
 
+    void When(ForceWaspImport command)
+    {
+      var trigger = string.IsNullOrWhiteSpace(command.Trigger)
+        ? "Manual import requested"
+        : command.Trigger.Trim();
+
+      Then(new ManualWaspImportEvent(trigger));
+    }
+
     async Task When(HourlyWaspImportEvent e, IWaspAssetService waspService)
+    {
+      await RunImport(waspService);
+
+      if (_importEnabled)
+      {
+        ThenSchedule.At(
+          new HourlyWaspImportEvent(true, "Scheduled recurring import"),
+          Clock.Now.AddHours(1));
+      }
+    }
+
+    async Task When(ManualWaspImportEvent e, IWaspAssetService waspService) =>
+      await RunImport(waspService);
+
+    async Task RunImport(IWaspAssetService waspService)
     {
       var importedCount = 0;
       var deferredCount = 0;
@@ -117,10 +141,10 @@ namespace Outermind.Microfilm.Topics
           var rollMatch = RollPattern.Match(assetId);
           if (rollMatch.Success)
           {
-            // This is a roll: {JobNumber}-Box {N}-Cartridge {M}
+            // This is a roll: {JobNumber}-Box {N}-{Roll}
             var jobNumber = rollMatch.Groups[1].Value.Trim();
             var boxName = $"Box {rollMatch.Groups[2].Value.Trim()}";
-            var rollName = $"Cartridge {rollMatch.Groups[3].Value.Trim()}";
+            var rollName = rollMatch.Groups[3].Value.Trim();
 
             if (!_clientIdsByJobNumber.TryGetValue(jobNumber, out var clientId))
             {
@@ -175,7 +199,7 @@ namespace Outermind.Microfilm.Topics
             continue;
           }
 
-          // No match — legacy asset with only job number
+          // No match — not a supported WASP box/roll asset shape
           Then(new WaspLegacyAssetIgnored(assetId, $"Asset '{assetId}' does not match the job-box or job-box-roll format."));
           ignoredCount++;
         }
@@ -185,13 +209,6 @@ namespace Outermind.Microfilm.Topics
       catch (Exception ex)
       {
         Then(new WaspImportFailed(ex.ToString(), "AssetImport"));
-      }
-
-      if (_importEnabled)
-      {
-        ThenSchedule.At(
-          new HourlyWaspImportEvent(true, "Scheduled recurring import"),
-          Clock.Now.AddHours(1));
       }
     }
 

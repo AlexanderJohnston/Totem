@@ -36,6 +36,13 @@ namespace Outermind.Microfilm.Queries
       LastImportedAssetIds = new HashSet<string>();
     }
 
+    void Given(ManualWaspImportEvent e)
+    {
+      LastError = null;
+      LastFailureStep = null;
+      LastImportedAssetIds = new HashSet<string>();
+    }
+
     void Given(WaspBoxIdentified e)
     {
       ImportedAssetIds.Add(e.AssetId);
