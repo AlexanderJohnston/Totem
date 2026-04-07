@@ -15,7 +15,7 @@ namespace Quantum.Tests
   public class WaspAssetServiceTests
   {
     [Fact]
-    public async Task GetAssetIdsAsync_FetchesAllAdvancedSearchPages()
+    public async Task GetAssetIdsAsync_FetchesAdditionalPagesWhenTotalCountExceedsCurrentPageWindow()
     {
       var requests = new List<AdvancedSearchParameters>();
       var responses = new Queue<WaspResult<List<AssetInfo>>>(new[]
@@ -27,8 +27,8 @@ namespace Quantum.Tests
             new() { AssetTag = "JOB-001-Box-1" },
             new() { AssetTag = "JOB-001-Box-2" }
           },
-          HasSuccessWithMoreDataRemaining = true,
-          TotalRecordsLongCount = 3
+          HasSuccessWithMoreDataRemaining = false,
+          TotalRecordsLongCount = 501
         },
         new WaspResult<List<AssetInfo>>
         {
@@ -37,7 +37,7 @@ namespace Quantum.Tests
             new() { AssetTag = "JOB-001-Box-3" }
           },
           HasSuccessWithMoreDataRemaining = false,
-          TotalRecordsLongCount = 3
+          TotalRecordsLongCount = 501
         }
       });
 
@@ -73,7 +73,7 @@ namespace Quantum.Tests
         {
           Assert.Equal(500, second.PageSize);
           Assert.Equal(2, second.PageNumber);
-          Assert.Equal(3, second.TotalCountFromPriorFetch);
+          Assert.Equal(501, second.TotalCountFromPriorFetch);
           Assert.True(second.IgnoreAttachments);
           Assert.True(second.IgnoreGeoLocation);
         });

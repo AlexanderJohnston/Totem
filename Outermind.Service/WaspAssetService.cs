@@ -61,7 +61,7 @@ namespace Outermind.Service
 
         totalCount = result.TotalRecordsLongCount;
 
-        if (!result.HasSuccessWithMoreDataRemaining)
+        if (!ShouldContinuePaging(pageNumber, AssetPageSize, result.Data?.Count ?? 0, totalCount ?? 0))
         {
           return assetIds;
         }
@@ -90,6 +90,21 @@ namespace Outermind.Service
       }
 
       return result;
+    }
+
+    static bool ShouldContinuePaging(int pageNumber, int pageSize, int fetchedCount, long totalCount)
+    {
+      if (fetchedCount == 0)
+      {
+        return false;
+      }
+
+      if (totalCount > 0)
+      {
+        return (long)pageNumber * pageSize < totalCount;
+      }
+
+      return fetchedCount >= pageSize;
     }
   }
 }

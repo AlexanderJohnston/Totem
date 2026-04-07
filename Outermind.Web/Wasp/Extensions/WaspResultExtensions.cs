@@ -45,13 +45,24 @@ public static class WaspResultExtensions
 
             totalCount = page.TotalRecordsLongCount;
 
-            if (!page.HasSuccessWithMoreDataRemaining)
+            if (!ShouldContinuePaging(baseParams.PageNumber, pageSize, page.Data?.Count ?? 0, totalCount ?? 0))
                 break;
 
             baseParams.PageNumber++;
         }
 
         return allResults;
+    }
+
+    static bool ShouldContinuePaging(int pageNumber, int pageSize, int fetchedCount, long totalCount)
+    {
+        if (fetchedCount == 0)
+            return false;
+
+        if (totalCount > 0)
+            return (long)pageNumber * pageSize < totalCount;
+
+        return fetchedCount >= pageSize;
     }
 }
 
