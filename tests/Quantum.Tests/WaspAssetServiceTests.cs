@@ -15,7 +15,7 @@ namespace Quantum.Tests
   public class WaspAssetServiceTests
   {
     [Fact]
-    public async Task GetAssetIdsAsync_FetchesAdditionalPagesWhenTotalCountExceedsCurrentPageWindow()
+    public async Task GetClientBatchAsync_FetchesAdditionalPagesWhenTotalCountExceedsCurrentPageWindow()
     {
       var requests = new List<AdvancedSearchParameters>();
       var responses = new Queue<WaspResult<List<AssetInfo>>>(new[]
@@ -25,18 +25,16 @@ namespace Quantum.Tests
           Data = new List<AssetInfo>
           {
             new() { AssetTag = "JOB-001-Box-1" },
-            new() { AssetTag = "JOB-001-Box-2" }
+            new() { AssetTag = "JOB-001-Box 1-APP-41" }
           },
-          HasSuccessWithMoreDataRemaining = false,
           TotalRecordsLongCount = 501
         },
         new WaspResult<List<AssetInfo>>
         {
           Data = new List<AssetInfo>
           {
-            new() { AssetTag = "JOB-001-Box-3" }
+            new() { AssetTag = "JOB-001-Box-2" }
           },
-          HasSuccessWithMoreDataRemaining = false,
           TotalRecordsLongCount = 501
         }
       });
@@ -57,9 +55,11 @@ namespace Quantum.Tests
 
       var service = new WaspAssetService(client);
 
-      var assetIds = await service.GetAssetIdsAsync();
+      var batch = await service.GetClientBatchAsync(0);
 
-      Assert.Equal(new[] { "JOB-001-Box-1", "JOB-001-Box-2", "JOB-001-Box-3" }, assetIds);
+      Assert.NotNull(batch);
+      Assert.Equal("JOB-001", batch.JobNumber);
+      Assert.Equal(new[] { "JOB-001-Box 1-APP-41", "JOB-001-Box-1", "JOB-001-Box-2" }, batch.AssetIds);
       Assert.Collection(requests,
         first =>
         {
@@ -80,7 +80,42 @@ namespace Quantum.Tests
     }
 
     [Fact]
-    public async Task GetAssetIdsAsync_ThrowsWhenWaspReturnsApplicationError()
+    public async Task GetClientBatchAsync_ReturnsUnknownPrefixBatchBeforeClientBatches()
+    {
+      using var client = new HttpClient(new StubHttpMessageHandler(_ => Task.FromResult(CreateJsonResponse(
+        new WaspResult<List<AssetInfo>>
+        {
+          Data = new List<AssetInfo>
+          {
+            new() { AssetTag = "LEGACY-ASSET" },
+            new() { AssetTag = "JOB-002-Box-2" },
+            new() { AssetTag = "JOB-001-Box-1" },
+            new() { AssetTag = "JOB-001-Box 1-APP-41" }
+          },
+          TotalRecordsLongCount = 4
+        }))))
+      {
+        BaseAddress = new Uri("https://example.test/")
+      };
+
+      var service = new WaspAssetService(client);
+
+      var unassigned = await service.GetClientBatchAsync(0);
+      var firstClient = await service.GetClientBatchAsync(1);
+      var secondClient = await service.GetClientBatchAsync(2);
+
+      Assert.Null(unassigned.JobNumber);
+      Assert.Equal(new[] { "LEGACY-ASSET" }, unassigned.AssetIds);
+
+      Assert.Equal("JOB-001", firstClient.JobNumber);
+      Assert.Equal(new[] { "JOB-001-Box 1-APP-41", "JOB-001-Box-1" }, firstClient.AssetIds);
+
+      Assert.Equal("JOB-002", secondClient.JobNumber);
+      Assert.Equal(new[] { "JOB-002-Box-2" }, secondClient.AssetIds);
+    }
+
+    [Fact]
+    public async Task GetClientBatchAsync_ThrowsWhenWaspReturnsApplicationError()
     {
       using var client = new HttpClient(new StubHttpMessageHandler(_ => Task.FromResult(CreateJsonResponse(
         new WaspResult<List<AssetInfo>>
@@ -97,7 +132,7 @@ namespace Quantum.Tests
 
       var service = new WaspAssetService(client);
 
-      var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetAssetIdsAsync());
+      var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetClientBatchAsync(0));
 
       Assert.Equal("Invalid search.", ex.Message);
     }

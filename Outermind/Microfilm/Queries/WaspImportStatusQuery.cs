@@ -31,16 +31,17 @@ namespace Outermind.Microfilm.Queries
 
     void Given(HourlyWaspImportEvent e)
     {
-      LastError = null;
-      LastFailureStep = null;
-      LastImportedAssetIds = new HashSet<string>();
+      ResetLastRun();
     }
 
     void Given(ManualWaspImportEvent e)
     {
-      LastError = null;
-      LastFailureStep = null;
-      LastImportedAssetIds = new HashSet<string>();
+      ResetLastRun();
+    }
+
+    void Given(WaspImportStarted e)
+    {
+      ResetLastRun();
     }
 
     void Given(WaspBoxIdentified e)
@@ -55,14 +56,43 @@ namespace Outermind.Microfilm.Queries
       LastImportedAssetIds.Add(e.AssetId);
     }
 
+    void Given(WaspClientAssetsAccepted e)
+    {
+      foreach (var box in e.Boxes)
+      {
+        ImportedAssetIds.Add(box.AssetId);
+        LastImportedAssetIds.Add(box.AssetId);
+      }
+
+      foreach (var roll in e.Rolls)
+      {
+        ImportedAssetIds.Add(roll.AssetId);
+        LastImportedAssetIds.Add(roll.AssetId);
+      }
+
+      LastImportedAssetCount += e.Boxes.Count + e.Rolls.Count;
+    }
+
     void Given(WaspLegacyAssetIgnored e)
     {
       IgnoredLegacyAssetIds.Add(e.AssetId);
+      LastIgnoredAssetCount++;
+    }
+
+    void Given(WaspLegacyAssetsIgnored e)
+    {
+      foreach (var asset in e.Assets)
+      {
+        IgnoredLegacyAssetIds.Add(asset.AssetId);
+      }
+
+      LastIgnoredAssetCount += e.Assets.Count;
     }
 
     void Given(WaspAssetDeferred e)
     {
       DeferredAssets.Add(e.Asset);
+      LastDeferredAssetCount++;
     }
 
     void Given(WaspAssetAlreadyImported e)
@@ -72,17 +102,42 @@ namespace Outermind.Microfilm.Queries
 
     void Given(WaspImportCompleted e)
     {
-      LastImportedAssetCount = e.ImportedAssetCount;
-      LastDeferredAssetCount = e.DeferredAssetCount;
-      LastIgnoredAssetCount = e.IgnoredAssetCount;
-      LastImportedAssetIds = new HashSet<string>(e.ImportedAssetIds);
-      LastError = null;
+      if (HasLegacyCompletionSummary(e))
+      {
+        LastImportedAssetCount = e.ImportedAssetCount;
+        LastDeferredAssetCount = e.DeferredAssetCount;
+        LastIgnoredAssetCount = e.IgnoredAssetCount;
+        LastImportedAssetIds = new HashSet<string>(e.ImportedAssetIds);
+        LastError = null;
+      }
     }
 
     void Given(WaspImportFailed e)
     {
       LastError = e.Error;
       LastFailureStep = e.Step;
+    }
+
+    void Given(WaspClientImportFailed e)
+    {
+      LastError = e.Error;
+      LastFailureStep = "ClientImport";
+    }
+
+    static bool HasLegacyCompletionSummary(WaspImportCompleted e) =>
+      e.ImportedAssetCount > 0
+      || e.DeferredAssetCount > 0
+      || e.IgnoredAssetCount > 0
+      || (e.ImportedAssetIds?.Count ?? 0) > 0;
+
+    void ResetLastRun()
+    {
+      LastError = null;
+      LastFailureStep = null;
+      LastImportedAssetIds = new HashSet<string>();
+      LastImportedAssetCount = 0;
+      LastDeferredAssetCount = 0;
+      LastIgnoredAssetCount = 0;
     }
   }
 }

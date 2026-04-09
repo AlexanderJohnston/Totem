@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Outermind.Microfilm
@@ -8,6 +7,6 @@ namespace Outermind.Microfilm
   /// </summary>
   public interface IWaspAssetService
   {
-    Task<List<string>> GetAssetIdsAsync();
+    Task<WaspImportClientBatch> GetClientBatchAsync(int clientPosition);
   }
 }

@@ -14,9 +14,15 @@ namespace Outermind.Microfilm.Topics
     readonly HashSet<KnownBox> _boxes = new();
 
     static Id RouteFirst(ClientCreated e) => e.Client.ClientId;
+    static Id RouteFirst(WaspClientAssetsAccepted e) => e.ClientId;
     static Id Route(CreateBox e) => e.ClientId;
     static Id Route(BoxCreated e) => e.Box.ClientId;
     static Id Route(WaspBoxIdentified e) => e.ClientId;
+    static Id Route(WaspClientAssetsAccepted e) => e.ClientId;
+
+    void Given(ClientCreated e)
+    {
+    }
 
     void Given(BoxCreated e)
     {
@@ -47,6 +53,39 @@ namespace Outermind.Microfilm.Topics
         var box = new KnownBox(e.BoxName, Id.FromGuid(), e.ClientId);
         Then(new BoxCreated(box));
       }
+    }
+
+    void When(WaspClientAssetsAccepted e)
+    {
+      var boxIdsByName = _boxes.ToDictionary(b => b.BoxName, b => b.BoxId, StringComparer.OrdinalIgnoreCase);
+
+      foreach (var box in e.Boxes)
+      {
+        if (boxIdsByName.ContainsKey(box.BoxName))
+        {
+          continue;
+        }
+
+        var createdBox = new KnownBox(box.BoxName, Id.FromGuid(), e.ClientId);
+        boxIdsByName[createdBox.BoxName] = createdBox.BoxId;
+        Then(new BoxCreated(createdBox));
+      }
+
+      foreach (var roll in e.Rolls)
+      {
+        if (!boxIdsByName.TryGetValue(roll.BoxName, out var boxId))
+        {
+          Then(new WaspClientImportFailed(
+            e.JobNumber,
+            $"Box '{roll.BoxName}' is not recognized for job number '{e.JobNumber}'."));
+          Then(new WaspImportClientHandled(e.JobNumber));
+          return;
+        }
+
+        Then(new WaspRollIdentified(roll.AssetId, e.JobNumber, roll.RollName, boxId, e.ClientId));
+      }
+
+      Then(new WaspImportClientHandled(e.JobNumber));
     }
   }
 }

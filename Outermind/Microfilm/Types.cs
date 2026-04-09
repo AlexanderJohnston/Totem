@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Totem;
 
 namespace Outermind.Microfilm
@@ -121,6 +122,74 @@ namespace Outermind.Microfilm
     public override int GetHashCode() => ServerId.GetHashCode();
   }
 
+  public class IgnoredWaspLegacyAsset : IEquatable<IgnoredWaspLegacyAsset>
+  {
+    public string AssetId { get; set; }
+    public string Reason { get; set; }
+
+    public IgnoredWaspLegacyAsset(string assetId, string reason)
+    {
+      AssetId = assetId;
+      Reason = reason;
+    }
+
+    public bool Equals(IgnoredWaspLegacyAsset other)
+    {
+      if (other is null) return false;
+      if (ReferenceEquals(this, other)) return true;
+      return AssetId == other.AssetId;
+    }
+
+    public override bool Equals(object obj) => Equals(obj as IgnoredWaspLegacyAsset);
+    public override int GetHashCode() => (AssetId ?? "").GetHashCode();
+  }
+
+  public class WaspAcceptedBoxAsset : IEquatable<WaspAcceptedBoxAsset>
+  {
+    public string AssetId { get; set; }
+    public string BoxName { get; set; }
+
+    public WaspAcceptedBoxAsset(string assetId, string boxName)
+    {
+      AssetId = assetId;
+      BoxName = boxName;
+    }
+
+    public bool Equals(WaspAcceptedBoxAsset other)
+    {
+      if (other is null) return false;
+      if (ReferenceEquals(this, other)) return true;
+      return AssetId == other.AssetId;
+    }
+
+    public override bool Equals(object obj) => Equals(obj as WaspAcceptedBoxAsset);
+    public override int GetHashCode() => (AssetId ?? "").GetHashCode();
+  }
+
+  public class WaspAcceptedRollAsset : IEquatable<WaspAcceptedRollAsset>
+  {
+    public string AssetId { get; set; }
+    public string BoxName { get; set; }
+    public string RollName { get; set; }
+
+    public WaspAcceptedRollAsset(string assetId, string boxName, string rollName)
+    {
+      AssetId = assetId;
+      BoxName = boxName;
+      RollName = rollName;
+    }
+
+    public bool Equals(WaspAcceptedRollAsset other)
+    {
+      if (other is null) return false;
+      if (ReferenceEquals(this, other)) return true;
+      return AssetId == other.AssetId;
+    }
+
+    public override bool Equals(object obj) => Equals(obj as WaspAcceptedRollAsset);
+    public override int GetHashCode() => (AssetId ?? "").GetHashCode();
+  }
+
   public class KnownWaspAsset : IEquatable<KnownWaspAsset>
   {
     public string AssetId { get; set; }
@@ -145,5 +214,27 @@ namespace Outermind.Microfilm
 
     public override bool Equals(object obj) => Equals(obj as KnownWaspAsset);
     public override int GetHashCode() => (AssetId ?? "").GetHashCode();
+  }
+
+  public class WaspImportClientBatch : IEquatable<WaspImportClientBatch>
+  {
+    public string JobNumber { get; set; }
+    public List<string> AssetIds { get; set; }
+
+    public WaspImportClientBatch(string jobNumber, List<string> assetIds)
+    {
+      JobNumber = jobNumber;
+      AssetIds = assetIds ?? new List<string>();
+    }
+
+    public bool Equals(WaspImportClientBatch other)
+    {
+      if (other is null) return false;
+      if (ReferenceEquals(this, other)) return true;
+      return string.Equals(JobNumber, other.JobNumber, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public override bool Equals(object obj) => Equals(obj as WaspImportClientBatch);
+    public override int GetHashCode() => (JobNumber ?? "").ToUpperInvariant().GetHashCode();
   }
 }

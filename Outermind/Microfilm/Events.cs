@@ -263,6 +263,11 @@ namespace Outermind.Microfilm
     public int IgnoredAssetCount { get; set; }
     public List<string> ImportedAssetIds { get; set; }
 
+    public WaspImportCompleted()
+      : this(0, 0, 0, new List<string>())
+    {
+    }
+
     public WaspImportCompleted(int importedAssetCount, int deferredAssetCount, int ignoredAssetCount, List<string> importedAssetIds)
     {
       ImportedAssetCount = importedAssetCount;
@@ -304,6 +309,26 @@ namespace Outermind.Microfilm
     }
   }
 
+  public class WaspImportStarted : Event
+  {
+    public int ClientPosition { get; set; }
+
+    public WaspImportStarted(int clientPosition)
+    {
+      ClientPosition = clientPosition;
+    }
+  }
+
+  public class WaspImportClientHandled : Event
+  {
+    public string JobNumber { get; set; }
+
+    public WaspImportClientHandled(string jobNumber)
+    {
+      JobNumber = jobNumber;
+    }
+  }
+
   public class WaspImportFailed : Event
   {
     public string Error { get; set; }
@@ -316,6 +341,48 @@ namespace Outermind.Microfilm
     }
   }
 
+  public class WaspClientAssetsImported : Event
+  {
+    public string JobNumber { get; set; }
+    public List<WaspAcceptedBoxAsset> Boxes { get; set; }
+    public List<WaspAcceptedRollAsset> Rolls { get; set; }
+
+    public WaspClientAssetsImported(string jobNumber, List<WaspAcceptedBoxAsset> boxes, List<WaspAcceptedRollAsset> rolls)
+    {
+      JobNumber = jobNumber;
+      Boxes = boxes ?? new List<WaspAcceptedBoxAsset>();
+      Rolls = rolls ?? new List<WaspAcceptedRollAsset>();
+    }
+  }
+
+  public class WaspClientAssetsAccepted : Event
+  {
+    public Id ClientId { get; set; }
+    public string JobNumber { get; set; }
+    public List<WaspAcceptedBoxAsset> Boxes { get; set; }
+    public List<WaspAcceptedRollAsset> Rolls { get; set; }
+
+    public WaspClientAssetsAccepted(Id clientId, string jobNumber, List<WaspAcceptedBoxAsset> boxes, List<WaspAcceptedRollAsset> rolls)
+    {
+      ClientId = clientId;
+      JobNumber = jobNumber;
+      Boxes = boxes ?? new List<WaspAcceptedBoxAsset>();
+      Rolls = rolls ?? new List<WaspAcceptedRollAsset>();
+    }
+  }
+
+  public class WaspClientImportFailed : Event
+  {
+    public string JobNumber { get; set; }
+    public string Error { get; set; }
+
+    public WaspClientImportFailed(string jobNumber, string error)
+    {
+      JobNumber = jobNumber;
+      Error = error;
+    }
+  }
+
   public class WaspLegacyAssetIgnored : Event
   {
     public string AssetId { get; set; }
@@ -325,6 +392,16 @@ namespace Outermind.Microfilm
     {
       AssetId = assetId;
       Reason = reason;
+    }
+  }
+
+  public class WaspLegacyAssetsIgnored : Event
+  {
+    public List<IgnoredWaspLegacyAsset> Assets { get; set; }
+
+    public WaspLegacyAssetsIgnored(List<IgnoredWaspLegacyAsset> assets)
+    {
+      Assets = assets ?? new List<IgnoredWaspLegacyAsset>();
     }
   }
 

@@ -13,7 +13,7 @@ namespace Quantum.Tests
 {
   public class WaspImportTopicTests : TopicTests<WaspImportTopic>
   {
-    readonly FakeWaspAssetService _waspService = new FakeWaspAssetService();
+    readonly FakeWaspAssetService _waspService = new();
 
     public WaspImportTopicTests()
     {
@@ -31,222 +31,258 @@ namespace Quantum.Tests
     }
 
     [Fact]
-    public async Task ForceImport_RunsImportWithoutSchedulingNextHourlyImport()
+    public async Task ForceImport_EmitsClientBatchAndCompletesWhenHandled()
     {
-      _waspService.AssetIds.Add("JOB-001-Box-1");
+      _waspService.Batches.Add(new WaspImportClientBatch("JOB-001", new List<string>
+      {
+        "JOB-001-Box-1",
+        "JOB-001-Box 1-APP-41"
+      }));
 
-      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
-
-      await Append(new ClientCreated(new KnownClient("Job 1", "JOB-001", clientId, Id.Unassigned)));
-      await Append(new WaspImportEnabledSet(true, "Enabled for test"));
       await Append(new ForceWaspImport("Operator requested"));
-
       await ExpectManualImportStarted();
 
-      var identified = await Expect<WaspBoxIdentified>();
-      Assert.Equal("JOB-001-Box-1", identified.AssetId);
+      var imported = await Expect<WaspClientAssetsImported>();
 
-      await Append(new BoxCreated(new KnownBox("Box 1", Id.From("00000000-0000-0000-0000-000000000201"), clientId)));
+      Assert.Equal("JOB-001", imported.JobNumber);
+      Assert.Collection(imported.Boxes, box =>
+      {
+        Assert.Equal("JOB-001-Box-1", box.AssetId);
+        Assert.Equal("1", box.BoxName);
+      });
+      Assert.Collection(imported.Rolls, roll =>
+      {
+        Assert.Equal("JOB-001-Box 1-APP-41", roll.AssetId);
+        Assert.Equal("1", roll.BoxName);
+        Assert.Equal("APP-41", roll.RollName);
+      });
 
-      var completed = await Expect<WaspImportCompleted>();
-      Assert.Equal(1, completed.ImportedAssetCount);
+      await Append(new WaspImportClientHandled("JOB-001"));
+
+      await Expect<WaspImportCompleted>();
+    }
+
+    [Fact]
+    public async Task ForceImport_EmitsIgnoredAssetsAlongsideAcceptedClientBatch()
+    {
+      _waspService.Batches.Add(new WaspImportClientBatch("JOB-001", new List<string>
+      {
+        "JOB-001-Box-1",
+        "JOB-001-Legacy"
+      }));
+
+      await Append(new ForceWaspImport("Operator requested"));
+      await ExpectManualImportStarted();
+
+      var ignored = await Expect<WaspLegacyAssetsIgnored>();
+      var ignoredAsset = Assert.Single(ignored.Assets);
+      Assert.Equal("JOB-001-Legacy", ignoredAsset.AssetId);
+      Assert.Contains("does not match the job-box or job-box-roll format", ignoredAsset.Reason);
+
+      var imported = await Expect<WaspClientAssetsImported>();
+      Assert.Equal("JOB-001", imported.JobNumber);
+      Assert.Single(imported.Boxes);
+      Assert.Empty(imported.Rolls);
+
+      await Append(new WaspImportClientHandled("JOB-001"));
+
+      await Expect<WaspImportCompleted>();
+    }
+
+    [Fact]
+    public async Task ForceImport_AdvancesOnlyAfterClientHandled()
+    {
+      _waspService.Batches.Add(new WaspImportClientBatch("JOB-001", new List<string> { "JOB-001-Box-1" }));
+      _waspService.Batches.Add(new WaspImportClientBatch("JOB-002", new List<string> { "JOB-002-Box-2" }));
+
+      await Append(new ForceWaspImport("Operator requested"));
+      await ExpectManualImportStarted();
+
+      var first = await Expect<WaspClientAssetsImported>();
+      Assert.Equal("JOB-001", first.JobNumber);
+
+      var ex = await Assert.ThrowsAsync<ExpectException>(async () => await Expect<WaspClientAssetsImported>(200));
+      Assert.IsType<TimeoutException>(ex.InnerException);
+
+      await Append(new WaspImportClientHandled("JOB-001"));
+
+      var second = await Expect<WaspClientAssetsImported>();
+      Assert.Equal("JOB-002", second.JobNumber);
+
+      await Append(new WaspImportClientHandled("JOB-002"));
+
+      await Expect<WaspImportCompleted>();
+    }
+
+    [Fact]
+    public async Task ForceImport_IgnoresUnbucketedAssetsWithoutAcceptedBatch()
+    {
+      _waspService.Batches.Add(new WaspImportClientBatch(null, new List<string> { "LEGACY-ASSET" }));
+
+      await Append(new ForceWaspImport("Operator requested"));
+      await ExpectManualImportStarted();
+
+      var ignored = await Expect<WaspLegacyAssetsIgnored>();
+      var ignoredAsset = Assert.Single(ignored.Assets);
+      Assert.Equal("LEGACY-ASSET", ignoredAsset.AssetId);
+      Assert.Contains("recognized client/job number prefix", ignoredAsset.Reason);
+
+      await Expect<WaspImportClientHandled>();
+      await Expect<WaspImportCompleted>();
+    }
+
+    [Fact]
+    public async Task ForceImport_RunsWithoutSchedulingNextHourlyImport()
+    {
+      _waspService.Batches.Add(new WaspImportClientBatch("JOB-001", new List<string> { "JOB-001-Box-1" }));
+
+      await Append(new WaspImportEnabledSet(true, "Enabled for test"));
+      await Append(new ForceWaspImport("Operator requested"));
+      await ExpectManualImportStarted();
+      await Expect<WaspClientAssetsImported>();
+      await Append(new WaspImportClientHandled("JOB-001"));
+      await Expect<WaspImportCompleted>();
+
       var ex = await Assert.ThrowsAsync<ExpectException>(async () => await ExpectScheduled<HourlyWaspImportEvent>(200));
       Assert.IsType<TimeoutException>(ex.InnerException);
     }
 
     [Fact]
-    public async Task ForceImport_RecognizesRollsWithoutCartridgeInTheName()
-    {
-      _waspService.AssetIds.Add("JOB-001-Box 1-APP-41");
-
-      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
-      var boxId = Id.From("00000000-0000-0000-0000-000000000201");
-
-      await Append(new ClientCreated(new KnownClient("Job 1", "JOB-001", clientId, Id.Unassigned)));
-      await Append(new BoxCreated(new KnownBox("Box 1", boxId, clientId)));
-      await Append(new ForceWaspImport("Operator requested"));
-
-      await ExpectManualImportStarted();
-
-      var identified = await Expect<WaspRollIdentified>();
-      Assert.Equal("JOB-001-Box 1-APP-41", identified.AssetId);
-      Assert.Equal("JOB-001", identified.JobNumber);
-      Assert.Equal("APP-41", identified.RollName);
-      Assert.Equal(boxId, identified.BoxId);
-      Assert.Equal(clientId, identified.ClientId);
-
-      await Append(new RollCreated(new KnownRoll("APP-41", Id.From("00000000-0000-0000-0000-000000000301"), boxId)));
-
-      var completed = await Expect<WaspImportCompleted>();
-      Assert.Equal(1, completed.ImportedAssetCount);
-      Assert.Equal(0, completed.IgnoredAssetCount);
-    }
-
-    [Fact]
-    public async Task ForceImport_StillRecognizesCartridgeRolls()
-    {
-      _waspService.AssetIds.Add("JOB-001-Box 1-Cartridge 1");
-
-      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
-      var boxId = Id.From("00000000-0000-0000-0000-000000000201");
-
-      await Append(new ClientCreated(new KnownClient("Job 1", "JOB-001", clientId, Id.Unassigned)));
-      await Append(new BoxCreated(new KnownBox("Box 1", boxId, clientId)));
-      await Append(new ForceWaspImport("Operator requested"));
-
-      await ExpectManualImportStarted();
-
-      var identified = await Expect<WaspRollIdentified>();
-      Assert.Equal("JOB-001-Box 1-Cartridge 1", identified.AssetId);
-      Assert.Equal("Cartridge 1", identified.RollName);
-      Assert.Equal(boxId, identified.BoxId);
-      Assert.Equal(clientId, identified.ClientId);
-
-      await Append(new RollCreated(new KnownRoll("Cartridge 1", Id.From("00000000-0000-0000-0000-000000000301"), boxId)));
-      await Expect<WaspImportCompleted>();
-    }
-
-    [Fact]
-    public async Task ForceImport_RecognizesRollWhenBoxAppearsLaterInSameBatch()
-    {
-      _waspService.AssetIds.Add("JOB-001-Box 1-APP-41");
-      _waspService.AssetIds.Add("JOB-001-Box-1");
-
-      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
-
-      await Append(new ClientCreated(new KnownClient("Job 1", "JOB-001", clientId, Id.Unassigned)));
-      await Append(new ForceWaspImport("Operator requested"));
-
-      await ExpectManualImportStarted();
-
-      await Expect<WaspImportAssetRequeued>();
-
-      var boxIdentified = await Expect<WaspBoxIdentified>();
-      Assert.Equal("JOB-001-Box-1", boxIdentified.AssetId);
-
-      var boxId = Id.From("00000000-0000-0000-0000-000000000201");
-      await Append(new BoxCreated(new KnownBox("Box 1", boxId, clientId)));
-
-      var rollIdentified = await Expect<WaspRollIdentified>();
-      Assert.Equal("JOB-001-Box 1-APP-41", rollIdentified.AssetId);
-      Assert.Equal("APP-41", rollIdentified.RollName);
-      Assert.Equal(boxId, rollIdentified.BoxId);
-
-      await Append(new RollCreated(new KnownRoll("APP-41", Id.From("00000000-0000-0000-0000-000000000301"), boxId)));
-
-      var completed = await Expect<WaspImportCompleted>();
-      Assert.Equal(2, completed.ImportedAssetCount);
-      Assert.Equal(0, completed.DeferredAssetCount);
-      Assert.Equal(0, completed.IgnoredAssetCount);
-    }
-
-    [Fact]
-    public async Task ForceImport_ReimportsAssetsWithoutUsingAlreadyImportedState()
-    {
-      _waspService.AssetIds.Add("JOB-001-Box-1");
-
-      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
-
-      await Append(new ClientCreated(new KnownClient("Job 1", "JOB-001", clientId, Id.Unassigned)));
-      await Append(new ForceWaspImport("First import"));
-
-      await ExpectManualImportStarted();
-      await Expect<WaspBoxIdentified>();
-      await Append(new BoxCreated(new KnownBox("Box 1", Id.From("00000000-0000-0000-0000-000000000201"), clientId)));
-      await Expect<WaspImportCompleted>();
-
-      await Append(new ForceWaspImport("Second import"));
-
-      await ExpectManualImportStarted();
-
-      var identifiedAgain = await Expect<WaspBoxIdentified>();
-      Assert.Equal("JOB-001-Box-1", identifiedAgain.AssetId);
-
-      await Append(new BoxAlreadyExists("Box 1", clientId));
-
-      var completedAgain = await Expect<WaspImportCompleted>();
-      Assert.Equal(1, completedAgain.ImportedAssetCount);
-
-      var ex = await Assert.ThrowsAsync<ExpectException>(async () => await Expect<WaspAssetAlreadyImported>(200));
-      Assert.IsType<TimeoutException>(ex.InnerException);
-    }
-
-    [Fact]
-    public async Task ForceImport_IgnoresAssetsForUnknownClients()
-    {
-      _waspService.AssetIds.Add("JOB-404-Box-1");
-
-      await Append(new ForceWaspImport("Operator requested"));
-
-      await ExpectManualImportStarted();
-
-      var ignored = await Expect<WaspLegacyAssetIgnored>();
-      Assert.Equal("JOB-404-Box-1", ignored.AssetId);
-      Assert.Contains("not registered to a known client", ignored.Reason);
-
-      var completed = await Expect<WaspImportCompleted>();
-      Assert.Equal(0, completed.ImportedAssetCount);
-      Assert.Equal(0, completed.DeferredAssetCount);
-      Assert.Equal(1, completed.IgnoredAssetCount);
-    }
-
-    [Fact]
-    public async Task ForceImport_DefersRollWhenBoxNeverBecomesKnown()
-    {
-      _waspService.AssetIds.Add("JOB-001-Box 1-APP-41");
-
-      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
-
-      await Append(new ClientCreated(new KnownClient("Job 1", "JOB-001", clientId, Id.Unassigned)));
-      await Append(new ForceWaspImport("Operator requested"));
-
-      await ExpectManualImportStarted();
-
-      await Expect<WaspImportAssetRequeued>();
-
-      var deferred = await Expect<WaspAssetDeferred>();
-      Assert.Equal("JOB-001-Box 1-APP-41", deferred.Asset.AssetId);
-      Assert.Equal("JOB-001", deferred.Asset.JobNumber);
-      Assert.Equal("Box 1", deferred.Asset.BoxName);
-      Assert.Equal("APP-41", deferred.Asset.RollName);
-
-      var completed = await Expect<WaspImportCompleted>();
-      Assert.Equal(0, completed.ImportedAssetCount);
-      Assert.Equal(1, completed.DeferredAssetCount);
-      Assert.Equal(0, completed.IgnoredAssetCount);
-    }
-
-    [Fact]
     public async Task HourlyImport_StillSchedulesNextRunWhenEnabled()
     {
-      _waspService.AssetIds.Add("JOB-001-Box-1");
+      _waspService.Batches.Add(new WaspImportClientBatch("JOB-001", new List<string> { "JOB-001-Box-1" }));
 
-      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
-
-      await Append(new ClientCreated(new KnownClient("Job 1", "JOB-001", clientId, Id.Unassigned)));
       await Append(new WaspImportEnabledSet(true, "Enabled for test"));
       await Append(new HourlyWaspImportEvent(true, "Scheduled run"));
 
-      await Expect<WaspImportBatchLoaded>();
+      await Expect<WaspImportStarted>();
+
       var scheduled = await ExpectScheduled<HourlyWaspImportEvent>();
       Assert.Equal("Scheduled recurring import", scheduled.Trigger);
-      await Expect<WaspBoxIdentified>();
-      await Append(new BoxCreated(new KnownBox("Box 1", Id.From("00000000-0000-0000-0000-000000000201"), clientId)));
+
+      await Expect<WaspClientAssetsImported>();
+      await Append(new WaspImportClientHandled("JOB-001"));
       await Expect<WaspImportCompleted>();
-    }
-
-    class FakeWaspAssetService : IWaspAssetService
-    {
-      public List<string> AssetIds { get; } = new();
-
-      public Task<List<string>> GetAssetIdsAsync() =>
-        Task.FromResult(new List<string>(AssetIds));
     }
 
     async Task ExpectManualImportStarted()
     {
       await Expect<ManualWaspImportEvent>();
-      await Expect<WaspImportBatchLoaded>();
+      await Expect<WaspImportStarted>();
+    }
+
+    class FakeWaspAssetService : IWaspAssetService
+    {
+      public List<WaspImportClientBatch> Batches { get; } = new();
+
+      public Task<WaspImportClientBatch> GetClientBatchAsync(int clientPosition)
+      {
+        if (clientPosition < 0 || clientPosition >= Batches.Count)
+        {
+          return Task.FromResult<WaspImportClientBatch>(null);
+        }
+
+        var batch = Batches[clientPosition];
+        return Task.FromResult(new WaspImportClientBatch(batch.JobNumber, new List<string>(batch.AssetIds)));
+      }
+    }
+  }
+
+  public class WaspImportClientTopicTests : TopicTests<WaspClientImportTopic>
+  {
+    [Fact]
+    public async Task ImportedBatch_ForKnownJobNumber_IsAcceptedForInternalClient()
+    {
+      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
+
+      await Append(new ClientCreated(new KnownClient("Job 1", "JOB-001", clientId, Id.Unassigned)));
+      await Append(new WaspClientAssetsImported(
+        "JOB-001",
+        new List<WaspAcceptedBoxAsset> { new("JOB-001-Box-1", "1") },
+        new List<WaspAcceptedRollAsset> { new("JOB-001-Box 1-APP-41", "1", "APP-41") }));
+
+      var accepted = await Expect<WaspClientAssetsAccepted>();
+
+      Assert.Equal(clientId, accepted.ClientId);
+      Assert.Equal("JOB-001", accepted.JobNumber);
+      Assert.Single(accepted.Boxes);
+      Assert.Single(accepted.Rolls);
+    }
+
+    [Fact]
+    public async Task ImportedBatch_ForUnknownJobNumber_IsIgnoredAndHandled()
+    {
+      await Append(new WaspClientAssetsImported(
+        "JOB-404",
+        new List<WaspAcceptedBoxAsset> { new("JOB-404-Box-1", "1") },
+        new List<WaspAcceptedRollAsset> { new("JOB-404-Box 1-APP-41", "1", "APP-41") }));
+
+      var ignored = await Expect<WaspLegacyAssetsIgnored>();
+
+      Assert.Collection(
+        ignored.Assets,
+        asset =>
+        {
+          Assert.Equal("JOB-404-Box-1", asset.AssetId);
+          Assert.Contains("not registered to a known client", asset.Reason);
+        },
+        asset =>
+        {
+          Assert.Equal("JOB-404-Box 1-APP-41", asset.AssetId);
+          Assert.Contains("not registered to a known client", asset.Reason);
+        });
+
+      var handled = await Expect<WaspImportClientHandled>();
+      Assert.Equal("JOB-404", handled.JobNumber);
+    }
+  }
+
+  public class WaspImportBoxManagerTopicTests : TopicTests<BoxManagerTopic>
+  {
+    [Fact]
+    public async Task AcceptedBatch_CreatesMissingBoxes_IdentifiesRolls_AndHandlesClient()
+    {
+      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
+
+      await Append(new ClientCreated(new KnownClient("Job 1", "JOB-001", clientId, Id.Unassigned)));
+      await Append(new WaspClientAssetsAccepted(
+        clientId,
+        "JOB-001",
+        new List<WaspAcceptedBoxAsset> { new("JOB-001-Box-1", "1") },
+        new List<WaspAcceptedRollAsset> { new("JOB-001-Box 1-APP-41", "1", "APP-41") }));
+
+      var boxCreated = await Expect<BoxCreated>();
+      Assert.Equal("1", boxCreated.Box.BoxName);
+      Assert.Equal(clientId, boxCreated.Box.ClientId);
+
+      var rollIdentified = await Expect<WaspRollIdentified>();
+      Assert.Equal("JOB-001-Box 1-APP-41", rollIdentified.AssetId);
+      Assert.Equal("APP-41", rollIdentified.RollName);
+      Assert.Equal(boxCreated.Box.BoxId, rollIdentified.BoxId);
+      Assert.Equal(clientId, rollIdentified.ClientId);
+
+      var handled = await Expect<WaspImportClientHandled>();
+      Assert.Equal("JOB-001", handled.JobNumber);
+    }
+
+    [Fact]
+    public async Task AcceptedBatch_FailsClientWhenRollBoxIsMissing()
+    {
+      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
+
+      await Append(new ClientCreated(new KnownClient("Job 1", "JOB-001", clientId, Id.Unassigned)));
+      await Append(new WaspClientAssetsAccepted(
+        clientId,
+        "JOB-001",
+        new List<WaspAcceptedBoxAsset>(),
+        new List<WaspAcceptedRollAsset> { new("JOB-001-Box 1-APP-41", "1", "APP-41") }));
+
+      var failed = await Expect<WaspClientImportFailed>();
+      Assert.Equal("JOB-001", failed.JobNumber);
+      Assert.Contains("not recognized", failed.Error);
+
+      var handled = await Expect<WaspImportClientHandled>();
+      Assert.Equal("JOB-001", handled.JobNumber);
     }
   }
 
@@ -255,8 +291,16 @@ namespace Quantum.Tests
     [Fact]
     public async Task ManualImportEvent_ResetsLastRunStatus()
     {
-      await Append(new WaspImportFailed("Error", "AssetImport"));
-      await Append(new WaspBoxIdentified("JOB-001-Box-1", "JOB-001", "Box 1", Id.From("00000000-0000-0000-0000-000000000101")));
+      await Append(new WaspClientAssetsAccepted(
+        Id.From("00000000-0000-0000-0000-000000000101"),
+        "JOB-001",
+        new List<WaspAcceptedBoxAsset> { new("JOB-001-Box-1", "1") },
+        new List<WaspAcceptedRollAsset>()));
+      await Append(new WaspLegacyAssetsIgnored(new List<IgnoredWaspLegacyAsset>
+      {
+        new("LEGACY-ASSET", "Unknown format")
+      }));
+      await Append(new WaspClientImportFailed("JOB-001", "Box missing"));
       await Append(new ManualWaspImportEvent("Operator requested"));
 
       var query = await GetQuery();
@@ -264,17 +308,60 @@ namespace Quantum.Tests
       Assert.Null(query.LastError);
       Assert.Null(query.LastFailureStep);
       Assert.Empty(query.LastImportedAssetIds);
+      Assert.Equal(0, query.LastImportedAssetCount);
+      Assert.Equal(0, query.LastIgnoredAssetCount);
     }
 
     [Fact]
-    public async Task ManualImportEvent_DoesNotChangeImportEnabled()
+    public async Task ClientBatchAccepted_UpdatesLastRunImportedCountsAndIds()
     {
-      await Append(new WaspImportEnabledSet(true, "Enabled for test"));
-      await Append(new ManualWaspImportEvent("Operator requested"));
+      await Append(new WaspClientAssetsAccepted(
+        Id.From("00000000-0000-0000-0000-000000000101"),
+        "JOB-001",
+        new List<WaspAcceptedBoxAsset> { new("JOB-001-Box-1", "1") },
+        new List<WaspAcceptedRollAsset> { new("JOB-001-Box 1-APP-41", "1", "APP-41") }));
 
       var query = await GetQuery();
 
-      Assert.True(query.ImportEnabled);
+      Assert.Equal(2, query.LastImportedAssetCount);
+      Assert.Contains("JOB-001-Box-1", query.LastImportedAssetIds);
+      Assert.Contains("JOB-001-Box 1-APP-41", query.LastImportedAssetIds);
+    }
+
+    [Fact]
+    public async Task CompletedImportWithEmptySummary_PreservesBatchAccumulatedStatus()
+    {
+      await Append(new ManualWaspImportEvent("Operator requested"));
+      await Append(new WaspClientAssetsAccepted(
+        Id.From("00000000-0000-0000-0000-000000000101"),
+        "JOB-001",
+        new List<WaspAcceptedBoxAsset> { new("JOB-001-Box-1", "1") },
+        new List<WaspAcceptedRollAsset>()));
+      await Append(new WaspClientImportFailed("JOB-001", "Box missing"));
+      await Append(new WaspImportCompleted());
+
+      var query = await GetQuery();
+
+      Assert.Equal(1, query.LastImportedAssetCount);
+      Assert.Contains("JOB-001-Box-1", query.LastImportedAssetIds);
+      Assert.Equal("Box missing", query.LastError);
+      Assert.Equal("ClientImport", query.LastFailureStep);
+    }
+
+    [Fact]
+    public async Task WaspLegacyAssetsIgnored_AddsAllIgnoredAssetIdsAndLastRunCount()
+    {
+      await Append(new WaspLegacyAssetsIgnored(new List<IgnoredWaspLegacyAsset>
+      {
+        new("JOB-404-Box-1", "Unknown client"),
+        new("LEGACY-ASSET", "Unknown format")
+      }));
+
+      var query = await GetQuery();
+
+      Assert.Contains("JOB-404-Box-1", query.IgnoredLegacyAssetIds);
+      Assert.Contains("LEGACY-ASSET", query.IgnoredLegacyAssetIds);
+      Assert.Equal(2, query.LastIgnoredAssetCount);
     }
   }
 }

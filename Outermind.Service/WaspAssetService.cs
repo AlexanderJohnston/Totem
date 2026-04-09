@@ -30,10 +30,51 @@ namespace Outermind.Service
       _http = http;
     }
 
-    public async Task<List<string>> GetAssetIdsAsync()
+    public async Task<WaspImportClientBatch> GetClientBatchAsync(int clientPosition)
+    {
+      if (clientPosition < 0)
+      {
+        return null;
+      }
+
+      var assetIds = await GetAssetIdsAsync();
+      var unassignedAssetIds = assetIds
+        .Where(assetId => !WaspAssetTagParser.TryGetJobNumber(assetId, out _))
+        .OrderBy(assetId => assetId, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+      if (unassignedAssetIds.Count > 0 && clientPosition == 0)
+      {
+        return new WaspImportClientBatch(null, unassignedAssetIds);
+      }
+
+      var jobNumbers = assetIds
+        .Select(assetId => WaspAssetTagParser.TryGetJobNumber(assetId, out var jobNumber) ? jobNumber : null)
+        .Where(jobNumber => !string.IsNullOrWhiteSpace(jobNumber))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(jobNumber => jobNumber, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+      var jobNumberPosition = clientPosition - (unassignedAssetIds.Count > 0 ? 1 : 0);
+
+      if (jobNumberPosition < 0 || jobNumberPosition >= jobNumbers.Count)
+      {
+        return null;
+      }
+
+      var jobNumber = jobNumbers[jobNumberPosition];
+      var clientAssetIds = assetIds
+        .Where(assetId => WaspAssetTagParser.StartsWithJobNumber(assetId, jobNumber))
+        .OrderBy(assetId => assetId, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+      return new WaspImportClientBatch(jobNumber, clientAssetIds);
+    }
+
+    async Task<List<string>> GetAssetIdsAsync()
     {
       var assetIds = new List<string>();
-      var seenAssetIds = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+      var seenAssetIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
       long? totalCount = null;
       var pageNumber = 1;
 
