@@ -127,17 +127,13 @@ namespace Outermind.Microfilm
     public string JobNumber { get; set; }
     public string BoxName { get; set; }
     public string RollName { get; set; }
-    public Id ClientId { get; set; }
-    public Id BoxId { get; set; }
 
-    public KnownWaspAsset(string assetId, string jobNumber, string boxName, string rollName, Id clientId, Id boxId)
+    public KnownWaspAsset(string assetId, string jobNumber, string boxName, string rollName)
     {
       AssetId = assetId;
       JobNumber = jobNumber;
       BoxName = boxName;
       RollName = rollName;
-      ClientId = clientId;
-      BoxId = boxId;
     }
 
     public bool Equals(KnownWaspAsset other)

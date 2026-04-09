@@ -13,7 +13,8 @@ namespace Outermind.Microfilm.Topics
   {
     readonly HashSet<KnownBox> _boxes = new();
 
-    static Id RouteFirst(CreateBox e) => e.ClientId;
+    static Id RouteFirst(ClientCreated e) => e.Client.ClientId;
+    static Id Route(CreateBox e) => e.ClientId;
     static Id Route(BoxCreated e) => e.Box.ClientId;
     static Id Route(WaspBoxIdentified e) => e.ClientId;
 

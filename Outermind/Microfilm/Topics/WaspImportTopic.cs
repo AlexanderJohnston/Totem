@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Totem;
@@ -16,7 +15,22 @@ namespace Outermind.Microfilm.Topics
     bool _importEnabled;
     readonly Dictionary<string, Id> _clientIdsByJobNumber = new(StringComparer.OrdinalIgnoreCase);
     readonly Dictionary<string, Id> _boxIdsByClientAndBoxName = new(StringComparer.OrdinalIgnoreCase);
-    readonly HashSet<string> _importedAssetIds = new(StringComparer.OrdinalIgnoreCase);
+
+    bool _importInProgress;
+    List<string> _remainingAssetIds = new();
+    readonly HashSet<string> _retriedAssetIds = new(StringComparer.OrdinalIgnoreCase);
+    readonly List<string> _importedAssetIdsInCurrentRun = new();
+    int _importedCount;
+    int _deferredCount;
+    int _ignoredCount;
+
+    ActiveAssetState _activeAssetState;
+    string _activeAssetId;
+    string _activeJobNumber;
+    string _activeBoxName;
+    string _activeRollName;
+    Id _activeClientId;
+    Id _activeBoxId;
 
     // Pattern: {JobNumber}-Box-{N} or {JobNumber}-Box {N}
     static readonly Regex BoxPattern = new(
@@ -27,6 +41,13 @@ namespace Outermind.Microfilm.Topics
     static readonly Regex RollPattern = new(
       @"^(.+?)-Box[\s-]+(.+?)\s*-\s*(.+)$",
       RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    enum ActiveAssetState
+    {
+      None,
+      AwaitingBoxResult,
+      AwaitingRollResult
+    }
 
     //
     // Given
@@ -49,18 +70,100 @@ namespace Outermind.Microfilm.Topics
 
     void Given(BoxCreated e)
     {
-      var key = MakeBoxKey(e.Box.ClientId, e.Box.BoxName);
-      _boxIdsByClientAndBoxName[key] = e.Box.BoxId;
+      _boxIdsByClientAndBoxName[MakeBoxKey(e.Box.ClientId, e.Box.BoxName)] = e.Box.BoxId;
+
+      if (IsAwaitingBoxResultFor(e.Box.ClientId, e.Box.BoxName))
+      {
+        RemoveAsset(_activeAssetId);
+      }
+    }
+
+    void Given(BoxAlreadyExists e)
+    {
+      if (IsAwaitingBoxResultFor(e.ClientId, e.BoxName))
+      {
+        RemoveAsset(_activeAssetId);
+      }
+    }
+
+    void Given(RollCreated e)
+    {
+      if (IsAwaitingRollResultFor(e.Roll.BoxId, e.Roll.RollName))
+      {
+        RemoveAsset(_activeAssetId);
+      }
+    }
+
+    void Given(RollAlreadyExists e)
+    {
+      if (IsAwaitingRollResultFor(e.BoxId, e.RollName))
+      {
+        RemoveAsset(_activeAssetId);
+      }
+    }
+
+    void Given(WaspImportBatchLoaded e)
+    {
+      ResetRunState();
+      _importInProgress = true;
+      _remainingAssetIds = new List<string>(e.AssetIds ?? new List<string>());
+    }
+
+    void Given(WaspImportAssetRequeued e)
+    {
+      RemoveAsset(e.AssetId);
+      _remainingAssetIds.Add(e.AssetId);
+      _retriedAssetIds.Add(e.AssetId);
     }
 
     void Given(WaspBoxIdentified e)
     {
-      _importedAssetIds.Add(e.AssetId);
+      _importedCount++;
+      _importedAssetIdsInCurrentRun.Add(e.AssetId);
+
+      _activeAssetState = ActiveAssetState.AwaitingBoxResult;
+      _activeAssetId = e.AssetId;
+      _activeJobNumber = e.JobNumber;
+      _activeBoxName = e.BoxName;
+      _activeRollName = null;
+      _activeClientId = e.ClientId;
+      _activeBoxId = Id.Unassigned;
     }
 
     void Given(WaspRollIdentified e)
     {
-      _importedAssetIds.Add(e.AssetId);
+      _importedCount++;
+      _importedAssetIdsInCurrentRun.Add(e.AssetId);
+
+      _activeAssetState = ActiveAssetState.AwaitingRollResult;
+      _activeAssetId = e.AssetId;
+      _activeJobNumber = e.JobNumber;
+      _activeBoxName = null;
+      _activeRollName = e.RollName;
+      _activeClientId = e.ClientId;
+      _activeBoxId = e.BoxId;
+    }
+
+    void Given(WaspAssetDeferred e)
+    {
+      _deferredCount++;
+      RemoveAsset(e.Asset.AssetId);
+    }
+
+    void Given(WaspLegacyAssetIgnored e)
+    {
+      _ignoredCount++;
+      RemoveAsset(e.AssetId);
+    }
+
+    void Given(WaspImportCompleted e)
+    {
+      ResetRunState();
+    }
+
+    void Given(WaspImportFailed e)
+    {
+      ResetRunState();
     }
 
     //
@@ -103,7 +206,7 @@ namespace Outermind.Microfilm.Topics
 
     async Task When(HourlyWaspImportEvent e, IWaspAssetService waspService)
     {
-      await RunImport(waspService);
+      await StartImport(waspService);
 
       if (_importEnabled)
       {
@@ -114,97 +217,69 @@ namespace Outermind.Microfilm.Topics
     }
 
     async Task When(ManualWaspImportEvent e, IWaspAssetService waspService) =>
-      await RunImport(waspService);
+      await StartImport(waspService);
 
-    async Task RunImport(IWaspAssetService waspService)
+    void When(WaspImportBatchLoaded e) =>
+      ContinueImport();
+
+    void When(WaspImportAssetRequeued e) =>
+      ContinueImport();
+
+    void When(WaspLegacyAssetIgnored e) =>
+      ContinueImport();
+
+    void When(WaspAssetDeferred e) =>
+      ContinueImport();
+
+    void When(BoxCreated e)
     {
-      var importedCount = 0;
-      var deferredCount = 0;
-      var ignoredCount = 0;
-      var importedAssetIds = new List<string>();
+      if (IsAwaitingBoxResultFor(e.Box.ClientId, e.Box.BoxName))
+      {
+        ClearActiveAsset();
+        ContinueImport();
+      }
+    }
+
+    void When(BoxAlreadyExists e)
+    {
+      if (IsAwaitingBoxResultFor(e.ClientId, e.BoxName))
+      {
+        ClearActiveAsset();
+        ContinueImport();
+      }
+    }
+
+    void When(RollCreated e)
+    {
+      if (IsAwaitingRollResultFor(e.Roll.BoxId, e.Roll.RollName))
+      {
+        ClearActiveAsset();
+        ContinueImport();
+      }
+    }
+
+    void When(RollAlreadyExists e)
+    {
+      if (IsAwaitingRollResultFor(e.BoxId, e.RollName))
+      {
+        ClearActiveAsset();
+        ContinueImport();
+      }
+    }
+
+    async Task StartImport(IWaspAssetService waspService)
+    {
+      if (_importInProgress)
+      {
+        Then(new WaspImportFailed("A WASP import is already in progress.", "AssetImport"));
+        return;
+      }
 
       try
       {
         var assetIds = await waspService.GetAssetIdsAsync();
 
-        // Collect box asset IDs from this import for roll resolution
-        var boxesInThisImport = new Dictionary<string, Id>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var assetId in assetIds)
-        {
-          if (_importedAssetIds.Contains(assetId))
-          {
-            Then(new WaspAssetAlreadyImported(assetId, $"Asset '{assetId}' has already been processed by a previous import."));
-            continue;
-          }
-
-          var rollMatch = RollPattern.Match(assetId);
-          if (rollMatch.Success)
-          {
-            // This is a roll: {JobNumber}-Box {N}-{Roll}
-            var jobNumber = rollMatch.Groups[1].Value.Trim();
-            var boxName = $"Box {rollMatch.Groups[2].Value.Trim()}";
-            var rollName = rollMatch.Groups[3].Value.Trim();
-
-            if (!_clientIdsByJobNumber.TryGetValue(jobNumber, out var clientId))
-            {
-              var asset = new KnownWaspAsset(assetId, jobNumber, boxName, rollName, Id.Unassigned, Id.Unassigned);
-              Then(new WaspAssetDeferred(asset, $"Job number '{jobNumber}' does not map to a known client."));
-              deferredCount++;
-              continue;
-            }
-
-            var boxKey = MakeBoxKey(clientId, boxName);
-            if (!_boxIdsByClientAndBoxName.TryGetValue(boxKey, out var boxId) &&
-                !boxesInThisImport.TryGetValue(boxKey, out boxId))
-            {
-              var asset = new KnownWaspAsset(assetId, jobNumber, boxName, rollName, clientId, Id.Unassigned);
-              Then(new WaspAssetDeferred(asset, $"Box '{boxName}' is not yet recognized for client '{clientId}' and was not created in this import."));
-              deferredCount++;
-              continue;
-            }
-
-            Then(new WaspRollIdentified(assetId, jobNumber, rollName, boxId, clientId));
-            importedAssetIds.Add(assetId);
-            importedCount++;
-            continue;
-          }
-
-          var boxMatch = BoxPattern.Match(assetId);
-          if (boxMatch.Success)
-          {
-            // This is a box: {JobNumber}-Box-{N}
-            var jobNumber = boxMatch.Groups[1].Value.Trim();
-            var boxName = $"Box {boxMatch.Groups[2].Value.Trim()}";
-
-            if (!_clientIdsByJobNumber.TryGetValue(jobNumber, out var clientId))
-            {
-              var asset = new KnownWaspAsset(assetId, jobNumber, boxName, null, Id.Unassigned, Id.Unassigned);
-              Then(new WaspAssetDeferred(asset, $"Job number '{jobNumber}' does not map to a known client."));
-              deferredCount++;
-              continue;
-            }
-
-            Then(new WaspBoxIdentified(assetId, jobNumber, boxName, clientId));
-
-            // Track for roll resolution within this import
-            var boxKey = MakeBoxKey(clientId, boxName);
-            if (!boxesInThisImport.ContainsKey(boxKey))
-            {
-              boxesInThisImport[boxKey] = Id.Unassigned;
-            }
-
-            importedAssetIds.Add(assetId);
-            importedCount++;
-            continue;
-          }
-
-          // No match — not a supported WASP box/roll asset shape
-          Then(new WaspLegacyAssetIgnored(assetId, $"Asset '{assetId}' does not match the job-box or job-box-roll format."));
-          ignoredCount++;
-        }
-
-        Then(new WaspImportCompleted(importedCount, deferredCount, ignoredCount, importedAssetIds));
+        Then(new WaspImportBatchLoaded(assetIds));
       }
       catch (Exception ex)
       {
@@ -212,7 +287,170 @@ namespace Outermind.Microfilm.Topics
       }
     }
 
+    void ContinueImport()
+    {
+      if (_remainingAssetIds.Count == 0)
+      {
+        Then(new WaspImportCompleted(
+          _importedCount,
+          _deferredCount,
+          _ignoredCount,
+          new List<string>(_importedAssetIdsInCurrentRun)));
+        return;
+      }
+
+      if (!_importInProgress || _activeAssetState != ActiveAssetState.None)
+      {
+        return;
+      }
+
+      var assetId = _remainingAssetIds[0];
+
+      if (TryParseRoll(assetId, out var rollJobNumber, out var rollBoxName, out var rollName))
+      {
+        ProcessRollAsset(assetId, rollJobNumber, rollBoxName, rollName);
+        return;
+      }
+
+      if (TryParseBox(assetId, out var boxJobNumber, out var boxName))
+      {
+        ProcessBoxAsset(assetId, boxJobNumber, boxName);
+        return;
+      }
+
+      Then(new WaspLegacyAssetIgnored(assetId, $"Asset '{assetId}' does not match the job-box or job-box-roll format."));
+    }
+
+    void ProcessBoxAsset(string assetId, string jobNumber, string boxName)
+    {
+      if (!_clientIdsByJobNumber.TryGetValue(jobNumber, out var clientId))
+      {
+        Then(new WaspLegacyAssetIgnored(assetId, $"Job number '{jobNumber}' is not registered to a known client."));
+        return;
+      }
+
+      Then(new WaspBoxIdentified(assetId, jobNumber, boxName, clientId));
+    }
+
+    void ProcessRollAsset(string assetId, string jobNumber, string boxName, string rollName)
+    {
+      if (!_clientIdsByJobNumber.TryGetValue(jobNumber, out var clientId))
+      {
+        Then(new WaspLegacyAssetIgnored(assetId, $"Job number '{jobNumber}' is not registered to a known client."));
+        return;
+      }
+
+      if (TryGetBoxId(clientId, boxName, out var boxId))
+      {
+        Then(new WaspRollIdentified(assetId, jobNumber, rollName, boxId, clientId));
+      }
+      else if (!_retriedAssetIds.Contains(assetId))
+      {
+        Then(new WaspImportAssetRequeued(assetId));
+      }
+      else
+      {
+        Then(new WaspAssetDeferred(
+          new KnownWaspAsset(assetId, jobNumber, boxName, rollName),
+          $"Box '{boxName}' is not yet recognized for job number '{jobNumber}'."));
+      }
+    }
+
     static string MakeBoxKey(Id clientId, string boxName) =>
       $"{clientId}|{boxName?.ToUpperInvariant()}";
+
+    static bool TryParseBox(string assetId, out string jobNumber, out string boxName)
+    {
+      var match = BoxPattern.Match(assetId);
+
+      if (match.Success)
+      {
+        jobNumber = match.Groups[1].Value.Trim();
+        boxName = $"Box {match.Groups[2].Value.Trim()}";
+        return true;
+      }
+
+      jobNumber = null;
+      boxName = null;
+      return false;
+    }
+
+    static bool TryParseRoll(string assetId, out string jobNumber, out string boxName, out string rollName)
+    {
+      var match = RollPattern.Match(assetId);
+
+      if (match.Success)
+      {
+        jobNumber = match.Groups[1].Value.Trim();
+        boxName = $"Box {match.Groups[2].Value.Trim()}";
+        rollName = match.Groups[3].Value.Trim();
+        return true;
+      }
+
+      jobNumber = null;
+      boxName = null;
+      rollName = null;
+      return false;
+    }
+
+    bool IsAwaitingBoxResultFor(Id clientId, string boxName) =>
+      _importInProgress &&
+      _activeAssetState == ActiveAssetState.AwaitingBoxResult &&
+      _activeClientId == clientId &&
+      string.Equals(_activeBoxName, boxName, StringComparison.OrdinalIgnoreCase);
+
+    bool IsAwaitingRollResultFor(Id boxId, string rollName) =>
+      _importInProgress &&
+      _activeAssetState == ActiveAssetState.AwaitingRollResult &&
+      _activeBoxId == boxId &&
+      string.Equals(_activeRollName, rollName, StringComparison.OrdinalIgnoreCase);
+
+    bool TryGetBoxId(Id clientId, string boxName, out Id boxId) =>
+      _boxIdsByClientAndBoxName.TryGetValue(MakeBoxKey(clientId, boxName), out boxId);
+
+    void RemoveAsset(string assetId)
+    {
+      if (string.IsNullOrWhiteSpace(assetId))
+      {
+        return;
+      }
+
+      if (_remainingAssetIds.Count > 0 &&
+          string.Equals(_remainingAssetIds[0], assetId, StringComparison.OrdinalIgnoreCase))
+      {
+        _remainingAssetIds.RemoveAt(0);
+        return;
+      }
+
+      var index = _remainingAssetIds.FindIndex(id => string.Equals(id, assetId, StringComparison.OrdinalIgnoreCase));
+
+      if (index >= 0)
+      {
+        _remainingAssetIds.RemoveAt(index);
+      }
+    }
+
+    void ClearActiveAsset()
+    {
+      _activeAssetState = ActiveAssetState.None;
+      _activeAssetId = null;
+      _activeJobNumber = null;
+      _activeBoxName = null;
+      _activeRollName = null;
+      _activeClientId = Id.Unassigned;
+      _activeBoxId = Id.Unassigned;
+    }
+
+    void ResetRunState()
+    {
+      _importInProgress = false;
+      _remainingAssetIds = new List<string>();
+      _retriedAssetIds.Clear();
+      _importedAssetIdsInCurrentRun.Clear();
+      _importedCount = 0;
+      _deferredCount = 0;
+      _ignoredCount = 0;
+      ClearActiveAsset();
+    }
   }
 }

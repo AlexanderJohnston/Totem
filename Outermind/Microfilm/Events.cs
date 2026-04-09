@@ -272,6 +272,26 @@ namespace Outermind.Microfilm
     }
   }
 
+  public class WaspImportAssetRequeued : Event
+  {
+    public string AssetId { get; set; }
+
+    public WaspImportAssetRequeued(string assetId)
+    {
+      AssetId = assetId;
+    }
+  }
+
+  public class WaspImportBatchLoaded : Event
+  {
+    public List<string> AssetIds { get; set; }
+
+    public WaspImportBatchLoaded(List<string> assetIds)
+    {
+      AssetIds = assetIds ?? new List<string>();
+    }
+  }
+
   public class WaspImportEnabledSet : Event
   {
     public bool ImportEnabled { get; set; }

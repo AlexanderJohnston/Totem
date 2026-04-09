@@ -13,7 +13,8 @@ namespace Outermind.Microfilm.Topics
   {
     readonly HashSet<KnownRoll> _rolls = new();
 
-    static Id RouteFirst(CreateRoll e) => e.BoxId;
+    static Id RouteFirst (BoxCreated e) => e.Box.BoxId;
+    static Id Route(CreateRoll e) => e.BoxId;
     static Id Route(RollCreated e) => e.Roll.BoxId;
     static Id Route(WaspRollIdentified e) => e.BoxId;
 
