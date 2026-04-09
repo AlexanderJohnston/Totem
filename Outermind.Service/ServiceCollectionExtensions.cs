@@ -36,6 +36,7 @@ namespace Outermind.Service
 
     public static IServiceCollection AddWaspAssetService(this IServiceCollection services)
     {
+      services.AddMemoryCache();
       services.AddHttpClient<IWaspAssetService, WaspAssetService>((sp, client) =>
       {
         var config = sp.GetRequiredService<IConfiguration>();

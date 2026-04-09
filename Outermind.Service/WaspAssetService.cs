@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Caching.Memory;
 using Outermind.Microfilm;
 using Quantum.Wasp.Models.Assets;
 using Quantum.Wasp.Models.Common;
@@ -17,17 +18,23 @@ namespace Outermind.Service
   public class WaspAssetService : IWaspAssetService
   {
     const int AssetPageSize = 500;
+    static readonly TimeSpan AssetCacheDuration = TimeSpan.FromMinutes(30);
+    const string AssetSnapshotCacheKey = "WaspAssetService.AssetSnapshot";
 
     readonly HttpClient _http;
+    readonly IMemoryCache _cache;
+    readonly TimeProvider _timeProvider;
 
     static readonly JsonSerializerOptions JsonOptions = new()
     {
       PropertyNameCaseInsensitive = true
     };
 
-    public WaspAssetService(HttpClient http)
+    public WaspAssetService(HttpClient http, IMemoryCache cache, TimeProvider timeProvider = null)
     {
       _http = http;
+      _cache = cache;
+      _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<WaspImportClientBatch> GetClientBatchAsync(int clientPosition)
@@ -37,38 +44,37 @@ namespace Outermind.Service
         return null;
       }
 
-      var assetIds = await GetAssetIdsAsync();
-      var unassignedAssetIds = assetIds
-        .Where(assetId => !WaspAssetTagParser.TryGetJobNumber(assetId, out _))
-        .OrderBy(assetId => assetId, StringComparer.OrdinalIgnoreCase)
-        .ToList();
+      var snapshot = await GetAssetSnapshotAsync(clientPosition);
 
-      if (unassignedAssetIds.Count > 0 && clientPosition == 0)
+      if (snapshot.HasUnassignedAssets && clientPosition == 0)
       {
-        return new WaspImportClientBatch(null, unassignedAssetIds);
+        return new WaspImportClientBatch(null, snapshot.GetUnassignedAssetIds());
       }
 
-      var jobNumbers = assetIds
-        .Select(assetId => WaspAssetTagParser.TryGetJobNumber(assetId, out var jobNumber) ? jobNumber : null)
-        .Where(jobNumber => !string.IsNullOrWhiteSpace(jobNumber))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(jobNumber => jobNumber, StringComparer.OrdinalIgnoreCase)
-        .ToList();
+      var jobNumberPosition = clientPosition - (snapshot.HasUnassignedAssets ? 1 : 0);
 
-      var jobNumberPosition = clientPosition - (unassignedAssetIds.Count > 0 ? 1 : 0);
-
-      if (jobNumberPosition < 0 || jobNumberPosition >= jobNumbers.Count)
+      if (jobNumberPosition < 0 || jobNumberPosition >= snapshot.JobNumbers.Count)
       {
         return null;
       }
 
-      var jobNumber = jobNumbers[jobNumberPosition];
-      var clientAssetIds = assetIds
-        .Where(assetId => WaspAssetTagParser.StartsWithJobNumber(assetId, jobNumber))
-        .OrderBy(assetId => assetId, StringComparer.OrdinalIgnoreCase)
-        .ToList();
+      var jobNumber = snapshot.JobNumbers[jobNumberPosition];
 
-      return new WaspImportClientBatch(jobNumber, clientAssetIds);
+      return new WaspImportClientBatch(jobNumber, snapshot.GetAssetIds(jobNumber));
+    }
+
+    async Task<CachedAssetSnapshot> GetAssetSnapshotAsync(int clientPosition)
+    {
+      if (_cache.TryGetValue<CachedAssetSnapshot>(AssetSnapshotCacheKey, out var snapshot)
+        && !ShouldRefreshSnapshot(snapshot, clientPosition))
+      {
+        return snapshot;
+      }
+
+      var assetIds = await GetAssetIdsAsync();
+      snapshot = BuildAssetSnapshot(assetIds);
+      _cache.Set(AssetSnapshotCacheKey, snapshot);
+      return snapshot;
     }
 
     async Task<List<string>> GetAssetIdsAsync()
@@ -146,6 +152,95 @@ namespace Outermind.Service
       }
 
       return fetchedCount >= pageSize;
+    }
+
+    bool ShouldRefreshSnapshot(CachedAssetSnapshot snapshot, int clientPosition)
+    {
+      if (snapshot is null)
+      {
+        return true;
+      }
+
+      if (clientPosition > 0)
+      {
+        return false;
+      }
+
+      return _timeProvider.GetUtcNow() - snapshot.CachedAt >= AssetCacheDuration;
+    }
+
+    CachedAssetSnapshot BuildAssetSnapshot(List<string> assetIds)
+    {
+      var unassignedAssetIds = new List<string>();
+      var assetIdsByJobNumber = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+      foreach (var assetId in assetIds ?? Enumerable.Empty<string>())
+      {
+        if (!WaspAssetTagParser.TryGetJobNumber(assetId, out var jobNumber))
+        {
+          unassignedAssetIds.Add(assetId);
+          continue;
+        }
+
+        if (!assetIdsByJobNumber.TryGetValue(jobNumber, out var groupedAssetIds))
+        {
+          groupedAssetIds = new List<string>();
+          assetIdsByJobNumber[jobNumber] = groupedAssetIds;
+        }
+
+        groupedAssetIds.Add(assetId);
+      }
+
+      unassignedAssetIds.Sort(StringComparer.OrdinalIgnoreCase);
+
+      foreach (var groupedAssetIds in assetIdsByJobNumber.Values)
+      {
+        groupedAssetIds.Sort(StringComparer.OrdinalIgnoreCase);
+      }
+
+      var jobNumbers = assetIdsByJobNumber.Keys
+        .OrderBy(jobNumber => jobNumber, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+      return new CachedAssetSnapshot(
+        _timeProvider.GetUtcNow(),
+        unassignedAssetIds,
+        jobNumbers,
+        assetIdsByJobNumber);
+    }
+
+    sealed class CachedAssetSnapshot
+    {
+      readonly Dictionary<string, List<string>> _assetIdsByJobNumber;
+
+      public DateTimeOffset CachedAt { get; }
+      public List<string> UnassignedAssetIds { get; }
+      public List<string> JobNumbers { get; }
+      public bool HasUnassignedAssets => UnassignedAssetIds.Count > 0;
+
+      public CachedAssetSnapshot(
+        DateTimeOffset cachedAt,
+        List<string> unassignedAssetIds,
+        List<string> jobNumbers,
+        Dictionary<string, List<string>> assetIdsByJobNumber)
+      {
+        CachedAt = cachedAt;
+        UnassignedAssetIds = unassignedAssetIds ?? new List<string>();
+        JobNumbers = jobNumbers ?? new List<string>();
+        _assetIdsByJobNumber = assetIdsByJobNumber ?? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+      }
+
+      public List<string> GetUnassignedAssetIds() => new(UnassignedAssetIds);
+
+      public List<string> GetAssetIds(string jobNumber)
+      {
+        if (_assetIdsByJobNumber.TryGetValue(jobNumber, out var assetIds))
+        {
+          return new List<string>(assetIds);
+        }
+
+        return new List<string>();
+      }
     }
   }
 }
