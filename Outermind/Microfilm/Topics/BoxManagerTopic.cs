@@ -71,18 +71,18 @@ namespace Outermind.Microfilm.Topics
         Then(new BoxCreated(createdBox));
       }
 
-      foreach (var roll in e.Rolls)
+      foreach (var rollGroup in e.Rolls.GroupBy(roll => roll.BoxName, StringComparer.OrdinalIgnoreCase))
       {
-        if (!boxIdsByName.TryGetValue(roll.BoxName, out var boxId))
+        if (!boxIdsByName.TryGetValue(rollGroup.Key, out var boxId))
         {
           Then(new WaspClientImportFailed(
             e.JobNumber,
-            $"Box '{roll.BoxName}' is not recognized for job number '{e.JobNumber}'."));
+            $"Box '{rollGroup.Key}' is not recognized for job number '{e.JobNumber}'."));
           Then(new WaspImportClientHandled(e.JobNumber));
           return;
         }
 
-        Then(new WaspRollIdentified(roll.AssetId, e.JobNumber, roll.RollName, boxId, e.ClientId));
+        Then(new WaspBoxRollsIdentified(e.JobNumber, e.ClientId, boxId, rollGroup.ToList()));
       }
 
       Then(new WaspImportClientHandled(e.JobNumber));

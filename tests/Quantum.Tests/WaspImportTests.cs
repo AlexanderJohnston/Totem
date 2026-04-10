@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Outermind.Microfilm;
@@ -240,7 +241,7 @@ namespace Quantum.Tests
   public class WaspImportBoxManagerTopicTests : TopicTests<BoxManagerTopic>
   {
     [Fact]
-    public async Task AcceptedBatch_CreatesMissingBoxes_IdentifiesRolls_AndHandlesClient()
+    public async Task AcceptedBatch_CreatesMissingBoxes_EmitsPerBoxRollBatch_AndHandlesClient()
     {
       var clientId = Id.From("00000000-0000-0000-0000-000000000101");
 
@@ -255,11 +256,73 @@ namespace Quantum.Tests
       Assert.Equal("1", boxCreated.Box.BoxName);
       Assert.Equal(clientId, boxCreated.Box.ClientId);
 
-      var rollIdentified = await Expect<WaspRollIdentified>();
-      Assert.Equal("JOB-001-Box 1-APP-41", rollIdentified.AssetId);
-      Assert.Equal("APP-41", rollIdentified.RollName);
-      Assert.Equal(boxCreated.Box.BoxId, rollIdentified.BoxId);
-      Assert.Equal(clientId, rollIdentified.ClientId);
+      var rollBatch = await Expect<WaspBoxRollsIdentified>();
+      Assert.Equal("JOB-001", rollBatch.JobNumber);
+      Assert.Equal(boxCreated.Box.BoxId, rollBatch.BoxId);
+      Assert.Equal(clientId, rollBatch.ClientId);
+      Assert.Collection(rollBatch.Rolls, roll =>
+      {
+        Assert.Equal("JOB-001-Box 1-APP-41", roll.AssetId);
+        Assert.Equal("1", roll.BoxName);
+        Assert.Equal("APP-41", roll.RollName);
+      });
+
+      var handled = await Expect<WaspImportClientHandled>();
+      Assert.Equal("JOB-001", handled.JobNumber);
+    }
+
+    [Fact]
+    public async Task AcceptedBatch_GroupsMultipleRollsIntoOneBatchPerBox()
+    {
+      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
+
+      await Append(new ClientCreated(new KnownClient("Job 1", "JOB-001", clientId, Id.Unassigned)));
+      await Append(new WaspClientAssetsAccepted(
+        clientId,
+        "JOB-001",
+        new List<WaspAcceptedBoxAsset>
+        {
+          new("JOB-001-Box-1", "1"),
+          new("JOB-001-Box-2", "2")
+        },
+        new List<WaspAcceptedRollAsset>
+        {
+          new("JOB-001-Box 1-APP-41", "1", "APP-41"),
+          new("JOB-001-Box 1-APP-42", "1", "APP-42"),
+          new("JOB-001-Box 2-APP-51", "2", "APP-51")
+        }));
+
+      var createdBoxes = new[]
+      {
+        await Expect<BoxCreated>(),
+        await Expect<BoxCreated>()
+      };
+      var boxIdsByName = createdBoxes.ToDictionary(created => created.Box.BoxName, created => created.Box.BoxId);
+
+      var batches = new[]
+      {
+        await Expect<WaspBoxRollsIdentified>(),
+        await Expect<WaspBoxRollsIdentified>()
+      }.ToDictionary(batch => batch.BoxId);
+
+      Assert.Collection(batches[boxIdsByName["1"]].Rolls,
+        roll =>
+        {
+          Assert.Equal("JOB-001-Box 1-APP-41", roll.AssetId);
+          Assert.Equal("APP-41", roll.RollName);
+        },
+        roll =>
+        {
+          Assert.Equal("JOB-001-Box 1-APP-42", roll.AssetId);
+          Assert.Equal("APP-42", roll.RollName);
+        });
+
+      Assert.Collection(batches[boxIdsByName["2"]].Rolls,
+        roll =>
+        {
+          Assert.Equal("JOB-001-Box 2-APP-51", roll.AssetId);
+          Assert.Equal("APP-51", roll.RollName);
+        });
 
       var handled = await Expect<WaspImportClientHandled>();
       Assert.Equal("JOB-001", handled.JobNumber);

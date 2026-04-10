@@ -405,6 +405,22 @@ namespace Outermind.Microfilm
     }
   }
 
+  public class WaspBoxRollsIdentified : Event
+  {
+    public string JobNumber { get; set; }
+    public Id ClientId { get; set; }
+    public Id BoxId { get; set; }
+    public List<WaspAcceptedRollAsset> Rolls { get; set; }
+
+    public WaspBoxRollsIdentified(string jobNumber, Id clientId, Id boxId, List<WaspAcceptedRollAsset> rolls)
+    {
+      JobNumber = jobNumber;
+      ClientId = clientId;
+      BoxId = boxId;
+      Rolls = rolls ?? new List<WaspAcceptedRollAsset>();
+    }
+  }
+
   public class WaspRollIdentified : Event
   {
     public string AssetId { get; set; }

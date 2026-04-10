@@ -17,6 +17,7 @@ namespace Outermind.Microfilm.Topics
     static Id RouteFirst (BoxCreated e) => e.Box.BoxId;
     static Id Route(CreateRoll e) => e.BoxId;
     static Id Route(RollCreated e) => e.Roll.BoxId;
+    static Id Route(WaspBoxRollsIdentified e) => e.BoxId;
     static Id Route(WaspRollIdentified e) => e.BoxId;
 
     void Given(BoxCreated e) => _boxId = e.Box.BoxId;
@@ -34,8 +35,23 @@ namespace Outermind.Microfilm.Topics
       }
       else
       {
-        var roll = new KnownRoll(command.RollName, Totem.Id.From(command.RollName), command.BoxId);
+        var roll = CreateRoll(command.ClientId, command.BoxId, command.RollName);
         Then(new RollCreated(roll));
+      }
+    }
+
+    void When(WaspBoxRollsIdentified e)
+    {
+      var knownRollNames = new HashSet<string>(_rolls.Select(r => r.RollName), StringComparer.OrdinalIgnoreCase);
+
+      foreach (var roll in e.Rolls)
+      {
+        if (!knownRollNames.Add(roll.RollName))
+        {
+          continue;
+        }
+
+        Then(new RollCreated(CreateRoll(e.ClientId, e.BoxId, roll.RollName)));
       }
     }
 
@@ -47,9 +63,12 @@ namespace Outermind.Microfilm.Topics
       }
       else
       {
-        var roll = new KnownRoll(e.RollName, Totem.Id.From(e.RollName), e.BoxId);
+        var roll = CreateRoll(e.ClientId, e.BoxId, e.RollName);
         Then(new RollCreated(roll));
       }
     }
+
+    static KnownRoll CreateRoll(Id clientId, Id boxId, string rollName) =>
+      new(rollName, RollIds.From(clientId, boxId, rollName), boxId);
   }
 }
