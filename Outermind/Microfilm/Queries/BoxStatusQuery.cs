@@ -13,6 +13,7 @@ namespace Outermind.Microfilm.Queries
     public HashSet<KnownRoll> Rolls { get; set; } = new();
 
     static Id RouteFirst(BoxCreated e) => e.Box.BoxId;
+
     static Id Route(RollCreated e) => e.Roll.BoxId;
 
     void Given(BoxCreated e)

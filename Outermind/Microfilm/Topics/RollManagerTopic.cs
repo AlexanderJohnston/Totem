@@ -11,12 +11,15 @@ namespace Outermind.Microfilm.Topics
   /// </summary>
   public class RollManagerTopic : Topic
   {
+    Id _boxId;
     readonly HashSet<KnownRoll> _rolls = new();
 
     static Id RouteFirst (BoxCreated e) => e.Box.BoxId;
     static Id Route(CreateRoll e) => e.BoxId;
     static Id Route(RollCreated e) => e.Roll.BoxId;
     static Id Route(WaspRollIdentified e) => e.BoxId;
+
+    void Given(BoxCreated e) => _boxId = e.Box.BoxId;
 
     void Given(RollCreated e)
     {
@@ -31,7 +34,7 @@ namespace Outermind.Microfilm.Topics
       }
       else
       {
-        var roll = new KnownRoll(command.RollName, Id.FromGuid(), command.BoxId);
+        var roll = new KnownRoll(command.RollName, Totem.Id.From(command.RollName), command.BoxId);
         Then(new RollCreated(roll));
       }
     }
@@ -44,7 +47,7 @@ namespace Outermind.Microfilm.Topics
       }
       else
       {
-        var roll = new KnownRoll(e.RollName, Id.FromGuid(), e.BoxId);
+        var roll = new KnownRoll(e.RollName, Totem.Id.From(e.RollName), e.BoxId);
         Then(new RollCreated(roll));
       }
     }

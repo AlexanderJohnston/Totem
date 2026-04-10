@@ -1,0 +1,188 @@
+ajohnston  net10.0  ➜ (feature/forcedWaspImport-deviation  1)  ♥ 11:10  .\Quantum.Service.exe
+[11:10:21 DBG] [timeline] Created projection resume
+[11:10:21 INF] Connected to EventStore via gRPC client
+[11:10:35 DBG] [timeline] #- ++ #0 NewServer
+[11:10:35 VRB] [timeline] #0 => ServerManagerTopic
+[11:10:35 DBG] [timeline] #0 ++ #1 ServerCreated (ServerManagerTopic G)
+[11:10:35 VRB] [timeline] #1 => ServerQuery
+[11:10:35 VRB] [timeline] #1 => ServerManagerTopic
+[11:10:43 DBG] [timeline] #- ++ #2 NewClient
+[11:10:43 VRB] [timeline] #2 => ServerManagerTopic
+[11:10:43 VRB] [timeline] #3 => ServerManagerTopic
+[11:10:43 DBG] [timeline] #2 ++ #3 ClientCreated (ServerManagerTopic G)
+[11:10:43 VRB] [timeline] #3 => RegisteredClientsQuery/caa08a7d-a712-4a68-983e-475b64331851
+[11:10:43 VRB] [timeline] #3 => WaspClientImportTopic/202618852
+[11:10:43 VRB] [timeline] #3 => BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0
+[11:10:43 VRB] [timeline] #3 => ClientManagerTopic/caa08a7d-a712-4a68-983e-475b64331851
+[11:10:46 DBG] [timeline] #- ++ #4 ForceWaspImport
+[11:10:46 VRB] [timeline] #4 => WaspImportTopic
+[11:10:46 DBG] [timeline] #4 ++ #5 ManualWaspImportEvent (WaspImportTopic G)
+[11:10:46 VRB] [timeline] #5 => WaspImportStatusQuery
+[11:10:46 VRB] [timeline] #5 => WaspImportTopic
+[11:10:46 VRB] [timeline] #6 => WaspImportTopic
+[11:10:46 DBG] [timeline] #5 ++ #6 WaspImportStarted (WaspImportTopic G)
+[11:10:46 VRB] [timeline] #6 => WaspImportStatusQuery
+[11:10:46 VRB] [timeline] #6 => WaspImportTopic
+[11:11:09 VRB] [timeline] #8 => WaspImportTopic
+[11:11:09 DBG] [timeline] #6 ++ #7 WaspLegacyAssetsIgnored (WaspImportTopic)
+[11:11:09 VRB] [timeline] #7 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #6 ++ #8 WaspImportClientHandled (WaspImportTopic G)
+[11:11:09 VRB] [timeline] #8 => WaspImportTopic
+[11:11:09 DBG] [timeline] #8 ++ #9 WaspClientAssetsImported (WaspImportTopic)
+[11:11:09 VRB] [timeline] #9 => WaspClientImportTopic/202214137
+[11:11:09 DBG] [timeline] #9 ++ #10 WaspLegacyAssetsIgnored (WaspClientImportTopic/202214137)
+[11:11:09 VRB] [timeline] #10 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #9 ++ #11 WaspImportClientHandled (WaspClientImportTopic/202214137)
+[11:11:09 VRB] [timeline] #11 => WaspImportTopic
+[11:11:09 DBG] [timeline] #11 ++ #12 WaspClientAssetsImported (WaspImportTopic)
+[11:11:09 VRB] [timeline] #12 => WaspClientImportTopic/202314890
+[11:11:09 DBG] [timeline] #12 ++ #13 WaspLegacyAssetsIgnored (WaspClientImportTopic/202314890)
+[11:11:09 VRB] [timeline] #13 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #12 ++ #14 WaspImportClientHandled (WaspClientImportTopic/202314890)
+[11:11:09 VRB] [timeline] #14 => WaspImportTopic
+[11:11:09 DBG] [timeline] #14 ++ #15 WaspClientAssetsImported (WaspImportTopic)
+[11:11:09 VRB] [timeline] #15 => WaspClientImportTopic/202415760
+[11:11:09 DBG] [timeline] #15 ++ #16 WaspLegacyAssetsIgnored (WaspClientImportTopic/202415760)
+[11:11:09 VRB] [timeline] #16 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #15 ++ #17 WaspImportClientHandled (WaspClientImportTopic/202415760)
+[11:11:09 VRB] [timeline] #17 => WaspImportTopic
+[11:11:09 DBG] [timeline] #17 ++ #18 WaspClientAssetsImported (WaspImportTopic)
+[11:11:09 VRB] [timeline] #18 => WaspClientImportTopic/202416038-2
+[11:11:09 DBG] [timeline] #18 ++ #19 WaspLegacyAssetsIgnored (WaspClientImportTopic/202416038-2)
+[11:11:09 VRB] [timeline] #19 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #18 ++ #20 WaspImportClientHandled (WaspClientImportTopic/202416038-2)
+[11:11:09 VRB] [timeline] #20 => WaspImportTopic
+[11:11:09 DBG] [timeline] #20 ++ #21 WaspClientAssetsImported (WaspImportTopic)
+[11:11:09 VRB] [timeline] #21 => WaspClientImportTopic/202416288
+[11:11:09 DBG] [timeline] #21 ++ #22 WaspLegacyAssetsIgnored (WaspClientImportTopic/202416288)
+[11:11:09 VRB] [timeline] #22 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #21 ++ #23 WaspImportClientHandled (WaspClientImportTopic/202416288)
+[11:11:09 VRB] [timeline] #23 => WaspImportTopic
+[11:11:09 DBG] [timeline] #23 ++ #24 WaspClientAssetsImported (WaspImportTopic)
+[11:11:09 VRB] [timeline] #24 => WaspClientImportTopic/202416535
+[11:11:09 DBG] [timeline] #24 ++ #25 WaspLegacyAssetsIgnored (WaspClientImportTopic/202416535)
+[11:11:09 VRB] [timeline] #25 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #24 ++ #26 WaspImportClientHandled (WaspClientImportTopic/202416535)
+[11:11:09 VRB] [timeline] #26 => WaspImportTopic
+[11:11:09 DBG] [timeline] #26 ++ #27 WaspClientAssetsImported (WaspImportTopic)
+[11:11:09 VRB] [timeline] #27 => WaspClientImportTopic/202416552
+[11:11:09 DBG] [timeline] #27 ++ #28 WaspLegacyAssetsIgnored (WaspClientImportTopic/202416552)
+[11:11:09 VRB] [timeline] #28 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #27 ++ #29 WaspImportClientHandled (WaspClientImportTopic/202416552)
+[11:11:09 VRB] [timeline] #29 => WaspImportTopic
+[11:11:09 DBG] [timeline] #29 ++ #30 WaspClientAssetsImported (WaspImportTopic)
+[11:11:09 VRB] [timeline] #30 => WaspClientImportTopic/202518239
+[11:11:09 DBG] [timeline] #30 ++ #31 WaspLegacyAssetsIgnored (WaspClientImportTopic/202518239)
+[11:11:09 VRB] [timeline] #31 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #30 ++ #32 WaspImportClientHandled (WaspClientImportTopic/202518239)
+[11:11:09 VRB] [timeline] #32 => WaspImportTopic
+[11:11:09 DBG] [timeline] #32 ++ #33 WaspClientAssetsImported (WaspImportTopic)
+[11:11:09 VRB] [timeline] #33 => WaspClientImportTopic/202618837
+[11:11:09 DBG] [timeline] #33 ++ #34 WaspLegacyAssetsIgnored (WaspClientImportTopic/202618837)
+[11:11:09 VRB] [timeline] #34 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #33 ++ #35 WaspImportClientHandled (WaspClientImportTopic/202618837)
+[11:11:09 VRB] [timeline] #35 => WaspImportTopic
+[11:11:09 DBG] [timeline] #35 ++ #36 WaspClientAssetsImported (WaspImportTopic)
+[11:11:09 VRB] [timeline] #36 => WaspClientImportTopic/202618852
+[11:11:09 DBG] [timeline] #36 ++ #37 WaspClientAssetsAccepted (WaspClientImportTopic/202618852)
+[11:11:09 VRB] [timeline] #37 => WaspImportStatusQuery
+[11:11:09 VRB] [timeline] #37 => BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0
+[11:11:09 DBG] [timeline] #37 ++ #38 BoxCreated (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0 G)
+[11:11:09 VRB] [timeline] #38 => BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0
+[11:11:09 DBG] [timeline] #37 ++ #39 BoxCreated (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0 G)
+[11:11:09 VRB] [timeline] #38 => BoxStatusQuery/ebe8b6b7-e48f-4c6e-8d11-9349c61944af
+[11:11:09 VRB] [timeline] #38 => ClientBoxesQuery/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0
+[11:11:09 VRB] [timeline] #38 => RollManagerTopic/ebe8b6b7-e48f-4c6e-8d11-9349c61944af
+[11:11:09 VRB] [timeline] #39 => BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0
+[11:11:09 DBG] [timeline] #37 ++ #40 BoxCreated (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0 G)
+[11:11:09 VRB] [timeline] #39 => RollManagerTopic/54215963-dfbc-42e3-b619-558aca036fe0
+[11:11:09 VRB] [timeline] #39 => BoxStatusQuery/54215963-dfbc-42e3-b619-558aca036fe0
+[11:11:09 VRB] [timeline] #39 => ClientBoxesQuery/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0
+[11:11:09 VRB] [timeline] #40 => BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0
+[11:11:09 DBG] [timeline] #37 ++ #41 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #40 => BoxStatusQuery/76ebc2ed-8260-4f95-a457-1f129ecbccdb
+[11:11:09 VRB] [timeline] #40 => RollManagerTopic/76ebc2ed-8260-4f95-a457-1f129ecbccdb
+[11:11:09 VRB] [timeline] #40 => ClientBoxesQuery/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0
+[11:11:09 VRB] [timeline] #41 => WaspImportStatusQuery
+[11:11:09 VRB] [timeline] #41 => RollManagerTopic/ebe8b6b7-e48f-4c6e-8d11-9349c61944af
+[11:11:09 DBG] [timeline] #37 ++ #42 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 DBG] [timeline] #37 ++ #43 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 DBG] [timeline] #37 ++ #44 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #71 => RollManagerTopic/ebe8b6b7-e48f-4c6e-8d11-9349c61944af
+[11:11:09 DBG] [timeline] #37 ++ #45 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #42 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #46 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #43 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #47 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #44 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #48 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #45 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #49 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #46 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #50 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #47 => WaspImportStatusQuery
+[11:11:09 VRB] [timeline] #50 => RollManagerTopic/54215963-dfbc-42e3-b619-558aca036fe0
+[11:11:09 DBG] [timeline] #37 ++ #51 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #48 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #52 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #49 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #53 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #50 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #54 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #51 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #55 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #52 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #56 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #53 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #57 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #54 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #58 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #55 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #59 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #56 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #60 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #57 => WaspImportStatusQuery
+[11:11:09 VRB] [timeline] #60 => RollManagerTopic/76ebc2ed-8260-4f95-a457-1f129ecbccdb
+[11:11:09 DBG] [timeline] #37 ++ #61 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #58 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #62 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #59 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #63 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #60 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #64 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #61 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #65 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #62 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #66 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #63 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #67 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #64 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #68 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #65 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #69 WaspRollIdentified (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #66 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #37 ++ #70 WaspImportClientHandled (BoxManagerTopic/e88dcd37-c8ea-4fb3-870b-6ce152d3aee0)
+[11:11:09 VRB] [timeline] #67 => WaspImportStatusQuery
+[11:11:09 VRB] [timeline] #70 => WaspImportTopic
+[11:11:09 DBG] [timeline] #41 ++ #71 RollCreated (RollManagerTopic/ebe8b6b7-e48f-4c6e-8d11-9349c61944af G)
+[11:11:09 VRB] [timeline] #68 => WaspImportStatusQuery
+[11:11:09 VRB] [timeline] #71 => BoxStatusQuery/ebe8b6b7-e48f-4c6e-8d11-9349c61944af
+[11:11:09 DBG] [timeline] #50 ++ #72 RollCreated (RollManagerTopic/54215963-dfbc-42e3-b619-558aca036fe0 G)
+[11:11:09 VRB] [timeline] #71 => RollStatusQuery/Cartridge 1
+[11:11:09 VRB] [timeline] #69 => WaspImportStatusQuery
+[11:11:09 VRB] [timeline] #72 => BoxStatusQuery/54215963-dfbc-42e3-b619-558aca036fe0
+[11:11:09 DBG] [timeline] #60 ++ #73 RollCreated (RollManagerTopic/76ebc2ed-8260-4f95-a457-1f129ecbccdb G)
+[11:11:09 VRB] [timeline] #72 => RollStatusQuery/Cartridge 10
+[11:11:09 VRB] [timeline] #72 => RollManagerTopic/54215963-dfbc-42e3-b619-558aca036fe0
+[11:11:09 VRB] [timeline] #73 => BoxStatusQuery/76ebc2ed-8260-4f95-a457-1f129ecbccdb
+[11:11:09 DBG] [timeline] #70 ++ #74 WaspClientAssetsImported (WaspImportTopic)
+[11:11:09 VRB] [timeline] #73 => RollStatusQuery/Cartridge 13
+[11:11:09 VRB] [timeline] #74 => WaspClientImportTopic/202618918
+[11:11:09 VRB] [timeline] #73 => RollManagerTopic/76ebc2ed-8260-4f95-a457-1f129ecbccdb
+[11:11:09 DBG] [timeline] #74 ++ #75 WaspLegacyAssetsIgnored (WaspClientImportTopic/202618918)
+[11:11:09 VRB] [timeline] #75 => WaspImportStatusQuery
+[11:11:09 DBG] [timeline] #74 ++ #76 WaspImportClientHandled (WaspClientImportTopic/202618918)
+[11:11:09 VRB] [timeline] #76 => WaspImportTopic
+[11:11:09 VRB] [timeline] #77 => WaspImportTopic
+[11:11:09 DBG] [timeline] #76 ++ #77 WaspImportCompleted (WaspImportTopic G)
+[11:11:09 VRB] [timeline] #77 => WaspImportStatusQuery
