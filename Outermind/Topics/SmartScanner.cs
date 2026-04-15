@@ -35,20 +35,24 @@ namespace Outermind.Topics
         var normalizedPath = TrimTrailingDirectorySeparators(path);
         var isRejectedPath = IsRejectedPath(path);
 
-        var isCaptureOnePath =
-          normalizedPath.Contains("captureone".AsSpan(), StringComparison.OrdinalIgnoreCase);
+        // This may be the cause for some data loss. We originally skipped these paths because the DB could
+        // not handle the load, and the streams were all long-lived. We switched to using TemporalUser keys {date}{username}
+        // which seems to have mitigated this.
+        //
+        //var isCaptureOnePath =
+        //  normalizedPath.Contains("captureone".AsSpan(), StringComparison.OrdinalIgnoreCase);
 
-        var shouldSkipPath = (
-            normalizedPath.EndsWith("strips".AsSpan(), StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.EndsWith("previews".AsSpan(), StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.EndsWith("thumbs".AsSpan(), StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.EndsWith("thumb".AsSpan(), StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.Contains("qptemp".AsSpan(), StringComparison.OrdinalIgnoreCase)
-          ) || isCaptureOnePath; // Include paths which contain junk files
-        if (shouldSkipPath)
-        {
-          continue;
-        }
+        //var shouldSkipPath = (
+        //    normalizedPath.EndsWith("strips".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        //    || normalizedPath.EndsWith("previews".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        //    || normalizedPath.EndsWith("thumbs".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        //    || normalizedPath.EndsWith("thumb".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        //    || normalizedPath.Contains("qptemp".AsSpan(), StringComparison.OrdinalIgnoreCase)
+        //  ) || isCaptureOnePath; // Include paths which contain junk files
+        //if (shouldSkipPath)
+        //{
+        //  continue;
+        //}
 
         if (isRejectedPath)
         {
