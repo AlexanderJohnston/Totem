@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Outermind;
 using Outermind.Queries;
 using Outermind.SmartScanning;
@@ -99,8 +100,11 @@ namespace Outermind.Controllers
       queries.Get<PalletBoxList>(id);
 
     [HttpGet("/api/boxes/{id}")]
-    public Task<IActionResult> GetBoxRolls(string id, [FromServices] IQueryServer queries) =>
-      queries.Get<BoxRollList>(id);
+    public Task<IActionResult> GetBoxRolls(
+      string id,
+      [FromServices] IQueryDb queryDb,
+      [FromServices] IOptions<JsonOptions> jsonOptions) =>
+      BoxRollListQueryResponder.Get(this, Id.From(id), queryDb, jsonOptions.Value);
 
     [HttpGet("/api/TimeOnTask/{id}")]
     public Task<IActionResult> UpdateTimeOnTask(string id, [FromServices] IQueryServer queries)

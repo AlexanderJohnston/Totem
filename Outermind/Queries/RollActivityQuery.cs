@@ -18,38 +18,38 @@ namespace Outermind.Queries
 
     void Given(ScanDetected e)
     {
-      var rollPath = e.Scan?.FolderPath ?? string.Empty;
-      if (string.IsNullOrWhiteSpace(rollPath))
-        return;
+    //  var rollPath = e.Scan?.FolderPath ?? string.Empty;
+    //  if (string.IsNullOrWhiteSpace(rollPath))
+    //    return;
 
-      var segments = rollPath.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
-      if (!rollPath.StartsWith(@"\\", StringComparison.Ordinal) || segments.Length < 4)
-        return;
+    //  var segments = rollPath.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
+    //  if (!rollPath.StartsWith(@"\\", StringComparison.Ordinal) || segments.Length < 4)
+    //    return;
 
-      // Prefix rule: \\server\share\project\oneMoreNode\
-      var prefix = $@"\\{segments[0]}\{segments[1]}\{segments[2]}\{segments[3]}\";
+    //  // Prefix rule: \\server\share\project\oneMoreNode\
+    //  var prefix = $@"\\{segments[0]}\{segments[1]}\{segments[2]}\{segments[3]}\";
 
-      var prefixIndex = -1;
-      for (var i = 0; i < PathPrefixes.Count; i++)
-      {
-        if (string.Equals(PathPrefixes[i], prefix, StringComparison.OrdinalIgnoreCase))
-        {
-          prefixIndex = i;
-          break;
-        }
-      }
+    //  var prefixIndex = -1;
+    //  for (var i = 0; i < PathPrefixes.Count; i++)
+    //  {
+    //    if (string.Equals(PathPrefixes[i], prefix, StringComparison.OrdinalIgnoreCase))
+    //    {
+    //      prefixIndex = i;
+    //      break;
+    //    }
+    //  }
 
-      if (prefixIndex < 0)
-      {
-        prefixIndex = PathPrefixes.Count;
-        PathPrefixes.Add(prefix);
-      }
+    //  if (prefixIndex < 0)
+    //  {
+    //    prefixIndex = PathPrefixes.Count;
+    //    PathPrefixes.Add(prefix);
+    //  }
 
-      var relativePath = segments.Length > 4
-        ? string.Join("\\", segments, 4, segments.Length - 4)
-        : string.Empty;
+    //  var relativePath = segments.Length > 4
+    //    ? string.Join("\\", segments, 4, segments.Length - 4)
+    //    : string.Empty;
 
-      FoldersWorked.Add($"{prefixIndex}|{relativePath}");
+    //  FoldersWorked.Add($"{prefixIndex}|{relativePath}");
     }
   }
 }

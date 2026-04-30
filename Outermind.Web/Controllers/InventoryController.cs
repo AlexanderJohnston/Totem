@@ -1,7 +1,9 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Quantum.Queries.Clients;
 using Totem;
+using Totem.Timeline.Client;
 using Totem.Timeline.Mvc;
 
 namespace Outermind.Controllers
@@ -27,9 +29,10 @@ namespace Outermind.Controllers
     // Step 3: List rolls in a box
     // GET /api/inventory/rolls/NARA202416724:Pallet 10:Box 01
     [HttpGet("/api/inventory/rolls/{id}")]
-    public Task<IActionResult> GetBoxRolls(
+    public async Task<IActionResult> GetBoxRolls(
       string id,
-      [FromServices] IQueryServer queries) =>
-      queries.Get<BoxRollList>(Id.From(id));
+      [FromServices] IQueryDb queryDb,
+      [FromServices] IOptions<JsonOptions> jsonOptions) =>
+      await BoxRollListQueryResponder.Get(this, Id.From(id), queryDb, jsonOptions.Value);
   }
 }
