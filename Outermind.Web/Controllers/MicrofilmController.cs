@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Outermind.Microfilm;
 using Outermind.Microfilm.Queries;
 using Totem;
+using Totem.Timeline;
+using Totem.Timeline.Client;
 using Totem.Timeline.Mvc;
 
 namespace Outermind.Controllers
@@ -13,11 +15,13 @@ namespace Outermind.Controllers
   {
     readonly ICommandServer _commands;
     readonly IQueryServer _queries;
+    readonly IQueryDb _queryDb;
 
-    public MicrofilmController(ICommandServer commands, IQueryServer queries)
+    public MicrofilmController(ICommandServer commands, IQueryServer queries, IQueryDb queryDb)
     {
       _commands = commands;
       _queries = queries;
+      _queryDb = queryDb;
     }
 
     //
@@ -89,8 +93,17 @@ namespace Outermind.Controllers
       _queries.Get<ServerQuery>();
 
     [HttpGet("clients/{serverId}")]
-    public Task<IActionResult> GetRegisteredClients(string serverId) =>
-      _queries.Get<RegisteredClientsQuery>(serverId);
+    public async Task<IActionResult> GetRegisteredClients(string serverId)
+    {
+      var id = Id.From(serverId);
+
+      if(!await ServerExists(id))
+      {
+        return NotFound(MicrofilmTableApiErrors.UnknownServer(id));
+      }
+
+      return await _queries.Get<RegisteredClientsQuery>(id);
+    }
 
     [HttpGet("operators")]
     public Task<IActionResult> GetOperators() =>
@@ -115,5 +128,103 @@ namespace Outermind.Controllers
     [HttpGet("wasp/import/status")]
     public Task<IActionResult> GetWaspImportStatus() =>
       _queries.Get<WaspImportStatusQuery>();
+
+    [HttpGet("columns/{clientId}")]
+    public Task<IActionResult> GetColumns(string clientId) =>
+      GetTableQuery<MicrofilmTableColumnsQuery>(clientId);
+
+    [HttpPut("columns/{clientId}")]
+    public Task<IActionResult> ReplaceColumns(string clientId, [FromBody] ReplaceMicrofilmTableColumnsRequest request)
+    {
+      if(request == null)
+      {
+        return Task.FromResult<IActionResult>(BadRequest(MicrofilmTableApiErrors.InvalidRequest("Column request body is required.")));
+      }
+
+      return _commands.Execute(
+        new ReplaceMicrofilmTableColumns(Id.From(clientId), request.Columns),
+        When<MicrofilmTableColumnsChanged>.Then(e => Ok(new { columns = e.Columns })),
+        When<MicrofilmTableClientNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownClient(e.ClientId))),
+        When<MicrofilmTableColumnSchemaRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidColumns(e))));
+    }
+
+    [HttpGet("rows/{clientId}")]
+    public Task<IActionResult> GetRows(string clientId) =>
+      GetTableQuery<MicrofilmRegularRowsQuery>(clientId);
+
+    [HttpPatch("rows/{clientId}/{rowId}")]
+    public Task<IActionResult> UpdateRegularRowCell(string clientId, string rowId, [FromBody] UpdateMicrofilmTableCellRequest request)
+    {
+      if(request == null)
+      {
+        return Task.FromResult<IActionResult>(BadRequest(MicrofilmTableApiErrors.InvalidRequest("Cell update request body is required.")));
+      }
+
+      return _commands.Execute(
+        new UpdateMicrofilmRegularRowCell(Id.From(clientId), rowId, request.ColumnId, request.Value),
+        When<MicrofilmRegularRowCellUpdated>.Then(e => Ok(new { row = e.Row })),
+        When<MicrofilmTableClientNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownClient(e.ClientId))),
+        When<MicrofilmTableRowNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRow(e.ClientId, e.RowId))),
+        When<MicrofilmTableColumnNotRecognized>.Then(e => BadRequest(MicrofilmTableApiErrors.UnknownColumn(e.ClientId, e.ColumnId))),
+        When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
+    }
+
+    [HttpGet("custom-rows/{clientId}")]
+    public Task<IActionResult> GetCustomRows(string clientId) =>
+      GetTableQuery<MicrofilmCustomRowsQuery>(clientId);
+
+    [HttpPost("custom-rows/{clientId}")]
+    public Task<IActionResult> CreateCustomRow(string clientId, [FromBody] CreateMicrofilmCustomRowRequest request)
+    {
+      return _commands.Execute(
+        new CreateMicrofilmCustomRow(Id.From(clientId), request?.Cells),
+        When<MicrofilmCustomRowCreated>.Then(e => Created($"/api/microfilm/custom-rows/{e.ClientId}/{e.Row.Id}", new { row = e.Row })),
+        When<MicrofilmTableClientNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownClient(e.ClientId))),
+        When<MicrofilmTableColumnNotRecognized>.Then(e => BadRequest(MicrofilmTableApiErrors.UnknownColumn(e.ClientId, e.ColumnId))),
+        When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
+    }
+
+    [HttpPatch("custom-rows/{clientId}/{rowId}")]
+    public Task<IActionResult> UpdateCustomRowCell(string clientId, string rowId, [FromBody] UpdateMicrofilmTableCellRequest request)
+    {
+      if(request == null)
+      {
+        return Task.FromResult<IActionResult>(BadRequest(MicrofilmTableApiErrors.InvalidRequest("Cell update request body is required.")));
+      }
+
+      return _commands.Execute(
+        new UpdateMicrofilmCustomRowCell(Id.From(clientId), rowId, request.ColumnId, request.Value),
+        When<MicrofilmCustomRowCellUpdated>.Then(e => Ok(new { row = e.Row })),
+        When<MicrofilmTableClientNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownClient(e.ClientId))),
+        When<MicrofilmTableRowNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRow(e.ClientId, e.RowId))),
+        When<MicrofilmTableColumnNotRecognized>.Then(e => BadRequest(MicrofilmTableApiErrors.UnknownColumn(e.ClientId, e.ColumnId))),
+        When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
+    }
+
+    async Task<IActionResult> GetTableQuery<TQuery>(string clientId) where TQuery : Query
+    {
+      var id = Id.From(clientId);
+
+      if(!await ClientExists(id))
+      {
+        return NotFound(MicrofilmTableApiErrors.UnknownClient(id));
+      }
+
+      return await _queries.Get<TQuery>(id);
+    }
+
+    async Task<bool> ServerExists(Id serverId)
+    {
+      var lookup = await _queryDb.ReadQuery<MicrofilmClientLookupQuery>();
+
+      return lookup.HasServer(serverId);
+    }
+
+    async Task<bool> ClientExists(Id clientId)
+    {
+      var lookup = await _queryDb.ReadQuery<MicrofilmClientLookupQuery>();
+
+      return lookup.HasClient(clientId);
+    }
   }
 }
