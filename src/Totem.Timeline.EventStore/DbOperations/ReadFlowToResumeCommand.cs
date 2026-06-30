@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using EventStore.Client;
+using Totem.Runtime;
 using Totem.Timeline.Runtime;
 
 namespace Totem.Timeline.EventStore.DbOperations
@@ -10,7 +11,7 @@ namespace Totem.Timeline.EventStore.DbOperations
   /// <summary>
   /// Reads the <see cref="FlowResumeInfo"/> for a particular flow
   /// </summary>
-  internal sealed class ReadFlowToResumeCommand
+  internal sealed class ReadFlowToResumeCommand : Notion
   {
     readonly Many<TimelinePoint> _points = new Many<TimelinePoint>();
     readonly EventStoreContext _context;
@@ -65,7 +66,21 @@ namespace Totem.Timeline.EventStore.DbOperations
 
       if(_points.Count == 0)
       {
-        throw new Exception($"Flow was specified to resume but has no pending routes");
+        Log.Warning(
+          "[timeline] Flow {Key} was specified to resume but route stream {RoutesStream} had no pending routes after checkpoint {Checkpoint}; scanning timeline",
+          _key,
+          _routesStream,
+          flow.Context.CheckpointPosition);
+
+        await ReadPointsFromTimeline();
+      }
+
+      if(_points.Count == 0)
+      {
+        Log.Warning(
+          "[timeline] Flow {Key} was specified to resume but no pending routes were found after checkpoint {Checkpoint}; treating as caught up",
+          _key,
+          flow.Context.CheckpointPosition);
       }
 
       return new FlowResumeInfo(flow, _points);
@@ -155,6 +170,67 @@ namespace Totem.Timeline.EventStore.DbOperations
       if(await result.ReadState == ReadState.StreamNotFound)
       {
         throw new Exception($"Unexpected result when reading {_routesStream} to resume: stream not found");
+      }
+
+      var events = new List<ResolvedEvent>();
+      await foreach(var e in result) events.Add(e);
+      return events;
+    }
+
+    async Task ReadPointsFromTimeline()
+    {
+      var batchIndex = 0;
+      var startPosition = _areaCheckpoint == null
+        ? new StreamPosition(0)
+        : new StreamPosition((ulong)(_areaCheckpoint.Value + 1));
+
+      while(true)
+      {
+        var result = await ReadNextTimelineBatch(startPosition, batchIndex);
+
+        if(!result.HasMore)
+        {
+          break;
+        }
+
+        startPosition = result.NextPosition;
+        batchIndex++;
+      }
+    }
+
+    async Task<(bool HasMore, StreamPosition NextPosition)> ReadNextTimelineBatch(StreamPosition startPosition, int batchIndex)
+    {
+      var batchSize = _key.Type.ResumeAlgorithm.GetNextBatchSize(batchIndex);
+      var batch = await ReadTimelineBatch(startPosition, batchSize);
+
+      var nextPosition = startPosition;
+
+      foreach(var e in batch)
+      {
+        var point = _context.ReadAreaPoint(e);
+
+        nextPosition = new StreamPosition((ulong)(point.Position.ToInt64() + 1));
+
+        if(point.Routes.Contains(_key))
+        {
+          _points.Write.Add(point);
+        }
+      }
+
+      return (batch.Count >= batchSize, nextPosition);
+    }
+
+    async Task<List<ResolvedEvent>> ReadTimelineBatch(StreamPosition startPosition, int batchSize)
+    {
+      var result = _context.Client.ReadStreamAsync(
+        Direction.Forwards,
+        TimelineStreams.Timeline,
+        startPosition,
+        maxCount: batchSize);
+
+      if(await result.ReadState == ReadState.StreamNotFound)
+      {
+        return new List<ResolvedEvent>();
       }
 
       var events = new List<ResolvedEvent>();

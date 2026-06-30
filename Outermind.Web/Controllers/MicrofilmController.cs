@@ -129,6 +129,50 @@ namespace Outermind.Controllers
     public Task<IActionResult> GetWaspImportStatus() =>
       _queries.Get<WaspImportStatusQuery>();
 
+    [HttpGet("client-profiles")]
+    public Task<IActionResult> GetClientProfiles() =>
+      _queries.Get<MicrofilmClientProfilesQuery>();
+
+    [HttpPost("client-profiles")]
+    public Task<IActionResult> CreateClientProfile([FromBody] SaveMicrofilmClientProfileRequest request)
+    {
+      if(request == null)
+      {
+        return Task.FromResult<IActionResult>(BadRequest(MicrofilmTableApiErrors.InvalidRequest("Profile request body is required.")));
+      }
+
+      return _commands.Execute(
+        new CreateMicrofilmClientProfile(request.Name, request.Description, request.Columns),
+        When<MicrofilmClientProfileCreated>.Then(e => Created($"/api/microfilm/client-profiles/{e.Profile.Id}", new { profile = e.Profile })),
+        When<MicrofilmClientProfileNameRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidProfileName(e))),
+        When<MicrofilmClientProfileNameDuplicated>.Then(e => Conflict(MicrofilmTableApiErrors.DuplicateProfileName(e))),
+        When<MicrofilmClientProfileColumnsRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidProfileColumns(e))));
+    }
+
+    [HttpPut("client-profiles/{profileId}")]
+    public Task<IActionResult> ReplaceClientProfile(string profileId, [FromBody] SaveMicrofilmClientProfileRequest request)
+    {
+      if(request == null)
+      {
+        return Task.FromResult<IActionResult>(BadRequest(MicrofilmTableApiErrors.InvalidRequest("Profile request body is required.")));
+      }
+
+      return _commands.Execute(
+        new ReplaceMicrofilmClientProfile(profileId, request.Name, request.Description, request.Columns),
+        When<MicrofilmClientProfileReplaced>.Then(e => Ok(new { profile = e.Profile })),
+        When<MicrofilmClientProfileNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownProfile(e.ProfileId))),
+        When<MicrofilmClientProfileNameRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidProfileName(e))),
+        When<MicrofilmClientProfileNameDuplicated>.Then(e => Conflict(MicrofilmTableApiErrors.DuplicateProfileName(e))),
+        When<MicrofilmClientProfileColumnsRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidProfileColumns(e))));
+    }
+
+    [HttpDelete("client-profiles/{profileId}")]
+    public Task<IActionResult> DeleteClientProfile(string profileId) =>
+      _commands.Execute(
+        new DeleteMicrofilmClientProfile(profileId),
+        When<MicrofilmClientProfileDeleted>.Then(e => NoContent()),
+        When<MicrofilmClientProfileNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownProfile(e.ProfileId))));
+
     [HttpGet("columns/{clientId}")]
     public Task<IActionResult> GetColumns(string clientId) =>
       GetTableQuery<MicrofilmTableColumnsQuery>(clientId);
@@ -151,6 +195,16 @@ namespace Outermind.Controllers
     [HttpGet("rows/{clientId}")]
     public Task<IActionResult> GetRows(string clientId) =>
       GetTableQuery<MicrofilmRegularRowsQuery>(clientId);
+
+    [HttpPost("rows/{clientId}")]
+    public Task<IActionResult> CreateRegularRow(string clientId, [FromBody] CreateMicrofilmRegularRowRequest request) =>
+      _commands.Execute(
+        new CreateMicrofilmRegularRow(Id.From(clientId), request?.RowId, request?.Cells),
+        When<MicrofilmRegularRowCreated>.Then(e => Created($"/api/microfilm/rows/{e.ClientId}/{e.Row.Id}", new { row = e.Row })),
+        When<MicrofilmTableClientNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownClient(e.ClientId))),
+        When<MicrofilmTableRowConflict>.Then(e => Conflict(MicrofilmTableApiErrors.RowConflict(e))),
+        When<MicrofilmTableColumnNotRecognized>.Then(e => BadRequest(MicrofilmTableApiErrors.UnknownColumn(e.ClientId, e.ColumnId))),
+        When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
 
     [HttpPatch("rows/{clientId}/{rowId}")]
     public Task<IActionResult> UpdateRegularRowCell(string clientId, string rowId, [FromBody] UpdateMicrofilmTableCellRequest request)

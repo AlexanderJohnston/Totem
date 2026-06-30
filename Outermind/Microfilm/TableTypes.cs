@@ -213,6 +213,65 @@ namespace Outermind.Microfilm
     public override int GetHashCode() => (Id ?? "").GetHashCode();
   }
 
+  public class MicrofilmClientProfile : IEquatable<MicrofilmClientProfile>
+  {
+    public string Id { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public List<MicrofilmTableColumn> Columns { get; set; } = new();
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public MicrofilmClientProfile()
+    {
+    }
+
+    public MicrofilmClientProfile(
+      string id,
+      string name,
+      string description,
+      List<MicrofilmTableColumn> columns,
+      DateTimeOffset createdAt,
+      DateTimeOffset updatedAt)
+    {
+      Id = id;
+      Name = name;
+      Description = description;
+      Columns = columns ?? new List<MicrofilmTableColumn>();
+      CreatedAt = createdAt;
+      UpdatedAt = updatedAt;
+    }
+
+    public MicrofilmClientProfile Clone() =>
+      new(
+        Id,
+        Name,
+        Description,
+        (Columns ?? new List<MicrofilmTableColumn>()).Select(column => column.Clone()).ToList(),
+        CreatedAt,
+        UpdatedAt);
+
+    public bool Equals(MicrofilmClientProfile other)
+    {
+      if(other is null) return false;
+      if(ReferenceEquals(this, other)) return true;
+
+      var columns = Columns ?? new List<MicrofilmTableColumn>();
+      var otherColumns = other.Columns ?? new List<MicrofilmTableColumn>();
+
+      return Id == other.Id
+        && Name == other.Name
+        && Description == other.Description
+        && CreatedAt == other.CreatedAt
+        && UpdatedAt == other.UpdatedAt
+        && columns.Count == otherColumns.Count
+        && columns.SequenceEqual(otherColumns);
+    }
+
+    public override bool Equals(object obj) => Equals(obj as MicrofilmClientProfile);
+    public override int GetHashCode() => (Id ?? "").GetHashCode();
+  }
+
   public static class MicrofilmTableRules
   {
     public static bool TryNormalizeColumns(
@@ -437,10 +496,23 @@ namespace Outermind.Microfilm
     public List<MicrofilmTableColumn> Columns { get; set; } = new();
   }
 
+  public class SaveMicrofilmClientProfileRequest
+  {
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public List<MicrofilmTableColumn> Columns { get; set; } = new();
+  }
+
   public class UpdateMicrofilmTableCellRequest
   {
     public string ColumnId { get; set; }
     public MicrofilmCellValue Value { get; set; }
+  }
+
+  public class CreateMicrofilmRegularRowRequest
+  {
+    public string RowId { get; set; }
+    public Dictionary<string, MicrofilmCellValue> Cells { get; set; } = new();
   }
 
   public class CreateMicrofilmCustomRowRequest

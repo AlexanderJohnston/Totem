@@ -10,6 +10,210 @@ using Xunit;
 
 namespace Quantum.Tests
 {
+  public class MicrofilmClientProfileTopicTests : TopicTests<MicrofilmClientProfileTopic>
+  {
+    [Fact]
+    public async Task CreateProfile_AcceptsNormalizedNameDescriptionAndColumns()
+    {
+      await Append(new CreateMicrofilmClientProfile("  WASP Import  ", "  Imported rows  ", StarterColumns()));
+
+      var created = await Expect<MicrofilmClientProfileCreated>();
+
+      Assert.False(string.IsNullOrWhiteSpace(created.Profile.Id));
+      Assert.Equal("WASP Import", created.Profile.Name);
+      Assert.Equal("Imported rows", created.Profile.Description);
+      Assert.Equal(new[] { "boxName", "rollName", "status", "reviewed" }, created.Profile.Columns.Select(column => column.Id));
+      Assert.Equal(created.Profile.CreatedAt, created.Profile.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task CreateProfile_RejectsEmptyName()
+    {
+      await Append(new CreateMicrofilmClientProfile("  ", null, StarterColumns()));
+
+      var rejected = await Expect<MicrofilmClientProfileNameRejected>();
+
+      Assert.Equal("INVALID_PROFILE_NAME", rejected.Code);
+    }
+
+    [Fact]
+    public async Task CreateProfile_RejectsDuplicateNameCaseInsensitively()
+    {
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-1", "WASP Import")));
+
+      await Append(new CreateMicrofilmClientProfile("wasp import", null, StarterColumns()));
+
+      var duplicated = await Expect<MicrofilmClientProfileNameDuplicated>();
+
+      Assert.Equal("wasp import", duplicated.Name);
+    }
+
+    [Fact]
+    public async Task CreateProfile_RejectsInvalidColumns()
+    {
+      await Append(new CreateMicrofilmClientProfile("Invalid", null, new List<MicrofilmTableColumn>
+      {
+        new("boxName", "Box", MicrofilmTableColumnTypes.Text, 160),
+        new("boxName", "Duplicate", MicrofilmTableColumnTypes.Text, 160)
+      }));
+
+      var rejected = await Expect<MicrofilmClientProfileColumnsRejected>();
+
+      Assert.Equal("DUPLICATE_COLUMN_ID", rejected.Code);
+      Assert.Equal("boxName", rejected.ColumnId);
+    }
+
+    [Fact]
+    public async Task ReplaceProfile_UpdatesSnapshotAndPreservesCreatedAt()
+    {
+      var profile = Profile("profile-1", "WASP Import");
+      await Append(new MicrofilmClientProfileCreated(profile));
+
+      await Append(new ReplaceMicrofilmClientProfile("profile-1", "  Miller Default  ", "  ", new List<MicrofilmTableColumn>
+      {
+        new("boxName", "Box", MicrofilmTableColumnTypes.Text, 160)
+      }));
+
+      var replaced = await Expect<MicrofilmClientProfileReplaced>();
+
+      Assert.Equal("profile-1", replaced.Profile.Id);
+      Assert.Equal("Miller Default", replaced.Profile.Name);
+      Assert.Null(replaced.Profile.Description);
+      Assert.Single(replaced.Profile.Columns);
+      Assert.Equal(profile.CreatedAt, replaced.Profile.CreatedAt);
+      Assert.True(replaced.Profile.UpdatedAt >= replaced.Profile.CreatedAt);
+    }
+
+    [Fact]
+    public async Task ReplaceProfile_AllowsExistingProfileName()
+    {
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-1", "WASP Import")));
+
+      await Append(new ReplaceMicrofilmClientProfile("profile-1", "wasp import", null, StarterColumns()));
+
+      var replaced = await Expect<MicrofilmClientProfileReplaced>();
+
+      Assert.Equal("wasp import", replaced.Profile.Name);
+    }
+
+    [Fact]
+    public async Task ReplaceProfile_RejectsUnknownProfile()
+    {
+      await Append(new ReplaceMicrofilmClientProfile("missing", "WASP Import", null, StarterColumns()));
+
+      var rejected = await Expect<MicrofilmClientProfileNotRecognized>();
+
+      Assert.Equal("missing", rejected.ProfileId);
+    }
+
+    [Fact]
+    public async Task ReplaceProfile_RejectsDuplicateNameOwnedByAnotherProfile()
+    {
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-1", "WASP Import")));
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-2", "Miller Default")));
+
+      await Append(new ReplaceMicrofilmClientProfile("profile-2", "wasp import", null, StarterColumns()));
+
+      var duplicated = await Expect<MicrofilmClientProfileNameDuplicated>();
+
+      Assert.Equal("wasp import", duplicated.Name);
+    }
+
+    [Fact]
+    public async Task DeleteProfile_RemovesNameFromCatalog()
+    {
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-1", "WASP Import")));
+
+      await Append(new DeleteMicrofilmClientProfile("profile-1"));
+      await Expect<MicrofilmClientProfileDeleted>();
+
+      await Append(new CreateMicrofilmClientProfile("WASP Import", null, StarterColumns()));
+      var created = await Expect<MicrofilmClientProfileCreated>();
+
+      Assert.Equal("WASP Import", created.Profile.Name);
+    }
+
+    [Fact]
+    public async Task DeleteUnknownProfile_ReturnsUnknownProfile()
+    {
+      await Append(new DeleteMicrofilmClientProfile("missing"));
+
+      var rejected = await Expect<MicrofilmClientProfileNotRecognized>();
+
+      Assert.Equal("missing", rejected.ProfileId);
+    }
+
+    static MicrofilmClientProfile Profile(string id, string name) =>
+      new(
+        id,
+        name,
+        null,
+        StarterColumns(),
+        new System.DateTimeOffset(2026, 6, 10, 0, 0, 0, System.TimeSpan.FromHours(-4)),
+        new System.DateTimeOffset(2026, 6, 10, 0, 0, 0, System.TimeSpan.FromHours(-4)));
+
+    static List<MicrofilmTableColumn> StarterColumns() =>
+      MicrofilmTableTopicTestsStarter.Columns();
+  }
+
+  public class MicrofilmClientProfilesQueryTests : QueryTests<MicrofilmClientProfilesQuery>
+  {
+    [Fact]
+    public async Task CreatedProfiles_AppearOrderedByNameThenId()
+    {
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-b", "Zulu")));
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-a", "Alpha")));
+
+      var query = await GetQuery();
+
+      Assert.Equal(new[] { "profile-a", "profile-b" }, query.Profiles.Select(profile => profile.Id));
+    }
+
+    [Fact]
+    public async Task ReplacedProfiles_UpdateInPlaceAndResort()
+    {
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-a", "Alpha")));
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-z", "Zulu")));
+      await Append(new MicrofilmClientProfileReplaced(Profile("profile-z", "Aardvark")));
+
+      var query = await GetQuery();
+
+      Assert.Equal(new[] { "profile-z", "profile-a" }, query.Profiles.Select(profile => profile.Id));
+      Assert.Equal("Aardvark", query.Profiles[0].Name);
+    }
+
+    [Fact]
+    public async Task DeletedProfiles_Disappear()
+    {
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-a", "Alpha")));
+      await Append(new MicrofilmClientProfileDeleted("profile-a"));
+
+      var query = await GetQuery();
+
+      Assert.Empty(query.Profiles);
+    }
+
+    [Fact]
+    public async Task OrderingTieBreaksById()
+    {
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-b", "Same")));
+      await Append(new MicrofilmClientProfileCreated(Profile("profile-a", "same")));
+
+      var query = await GetQuery();
+
+      Assert.Equal(new[] { "profile-a", "profile-b" }, query.Profiles.Select(profile => profile.Id));
+    }
+
+    static MicrofilmClientProfile Profile(string id, string name) =>
+      new(
+        id,
+        name,
+        null,
+        MicrofilmTableTopicTestsStarter.Columns(),
+        new System.DateTimeOffset(2026, 6, 10, 0, 0, 0, System.TimeSpan.FromHours(-4)),
+        new System.DateTimeOffset(2026, 6, 10, 0, 0, 0, System.TimeSpan.FromHours(-4)));
+  }
+
   public class MicrofilmTableTopicTests : TopicTests<MicrofilmTableTopic>
   {
     static readonly Id ClientId = Id.From("00000000-0000-0000-0000-000000000101");
@@ -64,6 +268,48 @@ namespace Quantum.Tests
       Assert.Equal(MicrofilmTableRowOrigins.Regular, updated.Row.Origin);
       Assert.Equal("Done", updated.Row.Cells["status"].Text);
       Assert.Equal("Box 01", updated.Row.Cells["boxName"].Text);
+    }
+
+    [Fact]
+    public async Task CreateRegularRow_AcceptsFrontendStableRowId()
+    {
+      await Append(ClientCreated());
+      await Append(new ReplaceMicrofilmTableColumns(ClientId, StarterColumns()));
+      await Expect<MicrofilmTableColumnsChanged>();
+
+      await Append(new CreateMicrofilmRegularRow(ClientId, "wasp-box-1", new Dictionary<string, MicrofilmCellValue>
+      {
+        ["boxName"] = MicrofilmCellValue.FromText("Box 01"),
+        ["status"] = MicrofilmCellValue.FromText("New")
+      }));
+
+      var created = await Expect<MicrofilmRegularRowCreated>();
+
+      Assert.Equal(ClientId, created.ClientId);
+      Assert.Equal("wasp-box-1", created.Row.Id);
+      Assert.Equal(MicrofilmTableRowOrigins.Regular, created.Row.Origin);
+      Assert.Equal("Box 01", created.Row.Cells["boxName"].Text);
+      Assert.Equal("New", created.Row.Cells["status"].Text);
+      Assert.Equal(MicrofilmCellValueKind.Null, created.Row.Cells["rollName"].Kind);
+      Assert.False(created.Row.Cells["reviewed"].Checkbox);
+    }
+
+    [Fact]
+    public async Task CreateRegularRow_RejectsDuplicateRowId()
+    {
+      await Append(ClientCreated());
+      await Append(new SeedMicrofilmTable(ClientId, "demo", StarterColumns(), StarterRows()));
+      await Expect<MicrofilmTableSeeded>();
+
+      await Append(new CreateMicrofilmRegularRow(ClientId, "row-1", new Dictionary<string, MicrofilmCellValue>
+      {
+        ["boxName"] = MicrofilmCellValue.FromText("Duplicate")
+      }));
+
+      var conflict = await Expect<MicrofilmTableRowConflict>();
+
+      Assert.Equal(ClientId, conflict.ClientId);
+      Assert.Equal("row-1", conflict.RowId);
     }
 
     [Fact]
@@ -176,6 +422,27 @@ namespace Quantum.Tests
       var query = await GetQuery(ClientId);
       var row = Assert.Single(query.Rows);
 
+      Assert.Equal(MicrofilmTableRowOrigins.Regular, row.Origin);
+      Assert.Equal("Box 01", row.Cells["boxName"].Text);
+    }
+
+    [Fact]
+    public async Task CreatedRegularRow_ProjectsInRows()
+    {
+      await Append(new ClientCreated(new KnownClient("Job", "JOB-001", ClientId, Id.Unassigned)));
+      await Append(new MicrofilmRegularRowCreated(ClientId, new MicrofilmTableRow(
+        "wasp-box-1",
+        MicrofilmTableRowOrigins.Regular,
+        new Dictionary<string, MicrofilmCellValue>
+        {
+          ["boxName"] = MicrofilmCellValue.FromText("Box 01"),
+          ["status"] = MicrofilmCellValue.FromText("New")
+        })));
+
+      var query = await GetQuery(ClientId);
+      var row = Assert.Single(query.Rows);
+
+      Assert.Equal("wasp-box-1", row.Id);
       Assert.Equal(MicrofilmTableRowOrigins.Regular, row.Origin);
       Assert.Equal("Box 01", row.Cells["boxName"].Text);
     }

@@ -15,6 +15,6 @@ namespace Totem.Timeline
     }
 
     public int GetNextBatchSize(int batchIndex) =>
-      _sizes[Math.Max(batchIndex, _sizes.Length - 1)];
+      _sizes[Math.Min(batchIndex, _sizes.Length - 1)];
   }
 }

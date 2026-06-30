@@ -48,6 +48,29 @@ namespace Outermind.Controllers
           ["columnId"] = e.ColumnId ?? ""
         });
 
+    public static MicrofilmTableErrorEnvelope UnknownProfile(string profileId) =>
+      new(
+        "UNKNOWN_PROFILE",
+        "Profile was not recognized.",
+        new Dictionary<string, string> { ["profileId"] = profileId ?? "" });
+
+    public static MicrofilmTableErrorEnvelope InvalidProfileName(MicrofilmClientProfileNameRejected e) =>
+      new(
+        e.Code ?? "INVALID_PROFILE_NAME",
+        e.Message ?? "Profile name is invalid.");
+
+    public static MicrofilmTableErrorEnvelope DuplicateProfileName(MicrofilmClientProfileNameDuplicated e) =>
+      new(
+        "DUPLICATE_PROFILE_NAME",
+        "Profile name already exists.",
+        new Dictionary<string, string> { ["name"] = e.Name ?? "" });
+
+    public static MicrofilmTableErrorEnvelope InvalidProfileColumns(MicrofilmClientProfileColumnsRejected e) =>
+      new(
+        e.Code ?? "INVALID_PROFILE_COLUMNS",
+        e.Message ?? "Profile columns are invalid.",
+        new Dictionary<string, string> { ["columnId"] = e.ColumnId ?? "" });
+
     public static MicrofilmTableErrorEnvelope InvalidCell(MicrofilmTableCellValueRejected e) =>
       new(
         "INVALID_CELL_VALUE",

@@ -2,7 +2,7 @@
 
 This handoff describes the backend APIs now available for the Miller Showcase table workflow at `/#/miller-showcase`.
 
-The backend keeps the existing Microfilm selector payload shapes for successful responses and adds the missing table APIs for columns, regular rows, custom rows, and cell persistence. Unknown selector/table IDs now return JSON error envelopes instead of plain/default query responses.
+The backend keeps the existing Microfilm selector payload shapes for successful responses and adds the missing table APIs for columns, regular rows, custom rows, client profiles, and cell persistence. Unknown selector/table/profile IDs now return JSON error envelopes instead of plain/default query responses.
 
 ## Integration summary
 
@@ -10,12 +10,14 @@ Use the existing selector-first flow:
 
 1. Load servers with `GET /api/microfilm/servers`.
 2. After server selection, load clients with `GET /api/microfilm/clients/{serverId}`.
-3. After client selection, load table data:
+3. Load reusable client profiles independently with `GET /api/microfilm/client-profiles`.
+4. After client selection, load table data:
    - `GET /api/microfilm/columns/{clientId}`
    - `GET /api/microfilm/rows/{clientId}`
    - `GET /api/microfilm/custom-rows/{clientId}`
-4. Render regular rows first and custom rows after regular rows.
-5. Persist table edits through the write APIs below and trust the returned payload as the authoritative updated state.
+5. Render regular rows first and custom rows after regular rows.
+6. After WASP refresh, reconcile imported boxes into regular rows with `POST /api/microfilm/rows/{clientId}` as needed.
+7. Persist table edits through the write APIs below and trust the returned payload as the authoritative updated state.
 
 Base path:
 
@@ -34,6 +36,8 @@ The backend blocker/open-question items are resolved for this integration:
 | Schema storage | Column schemas are stored as durable Totem timeline state per client. `PUT /columns/{clientId}` replaces the full persisted schema and returns the authoritative schema. |
 | Regular row source/mapping | Regular rows are generic backend table rows for this feature, independent of Box/Roll domain rows. Do not infer Box/Roll meaning from row IDs or cells unless a future backend importer explicitly adds that mapping. |
 | Custom row persistence | Custom rows are persisted separately from regular rows as durable table state. They use backend-issued stable IDs and are returned through `customRows`. |
+| Client profiles | Reusable Miller profiles are stored in one global Microfilm profile catalog. Profiles are not tied to a server, client, user, or tenant in this MVP. |
+| Apply profile behavior | No backend apply command exists. Apply by copying a selected profile's `columns` into `PUT /api/microfilm/columns/{clientId}`. |
 | Seed data | The current Miller demo client is configured with durable seed data: starter columns and one regular row. Known clients without seed data return empty arrays, not 404. |
 
 Completion criteria for this stage are met from the frontend contract perspective:
@@ -168,6 +172,40 @@ Unknown server returns `404`:
 
 ## Table read endpoints
 
+### `GET /api/microfilm/client-profiles`
+
+Returns all active reusable Miller client profiles from the global catalog. Profiles are ordered deterministically by `name`, then `id`.
+
+Response `200`:
+
+```json
+{
+  "profiles": [
+    {
+      "id": "backend-issued-id",
+      "name": "WASP Import",
+      "description": "Columns used for imported WASP rows",
+      "columns": [
+        { "id": "boxName", "name": "Box", "type": "text", "dropdownOptions": [], "width": 160 },
+        { "id": "rollName", "name": "Roll", "type": "text", "dropdownOptions": [], "width": 160 }
+      ],
+      "createdAt": "2026-06-10T00:00:00-04:00",
+      "updatedAt": "2026-06-10T00:00:00-04:00"
+    }
+  ]
+}
+```
+
+Empty catalog:
+
+```json
+{
+  "profiles": []
+}
+```
+
+This endpoint is served as the `MicrofilmClientProfilesQuery`, so normal Totem query ETag and QueryHub change notification behavior applies.
+
 ### `GET /api/microfilm/columns/{clientId}`
 
 Returns the current authoritative column schema.
@@ -275,6 +313,91 @@ Unknown client returns `404` with `UNKNOWN_CLIENT`.
 
 Write responses should be treated as authoritative. Update frontend local state from the returned `columns` or `row` payload rather than assuming the request body is exactly what persisted.
 
+### `POST /api/microfilm/client-profiles`
+
+Creates a reusable global profile. The backend issues the `id`; the frontend should store/use that returned ID for later profile updates/deletes.
+
+Request:
+
+```json
+{
+  "name": "WASP Import",
+  "description": "Columns used for imported WASP rows",
+  "columns": [
+    { "id": "boxName", "name": "Box", "type": "text", "dropdownOptions": [], "width": 160 },
+    { "id": "rollName", "name": "Roll", "type": "text", "dropdownOptions": [], "width": 160 }
+  ]
+}
+```
+
+Response `201` with `Location: /api/microfilm/client-profiles/{profileId}`:
+
+```json
+{
+  "profile": {
+    "id": "backend-issued-id",
+    "name": "WASP Import",
+    "description": "Columns used for imported WASP rows",
+    "columns": [
+      { "id": "boxName", "name": "Box", "type": "text", "dropdownOptions": [], "width": 160 },
+      { "id": "rollName", "name": "Roll", "type": "text", "dropdownOptions": [], "width": 160 }
+    ],
+    "createdAt": "2026-06-10T00:00:00-04:00",
+    "updatedAt": "2026-06-10T00:00:00-04:00"
+  }
+}
+```
+
+### `PUT /api/microfilm/client-profiles/{profileId}`
+
+Replaces a profile snapshot: `name`, `description`, and the full ordered `columns` array are replaced. `id` and `createdAt` stay unchanged; `updatedAt` changes.
+
+Request:
+
+```json
+{
+  "name": "Miller Default",
+  "description": null,
+  "columns": []
+}
+```
+
+Response `200`:
+
+```json
+{
+  "profile": {
+    "id": "backend-issued-id",
+    "name": "Miller Default",
+    "description": null,
+    "columns": [],
+    "createdAt": "2026-06-10T00:00:00-04:00",
+    "updatedAt": "2026-06-10T00:05:00-04:00"
+  }
+}
+```
+
+### `DELETE /api/microfilm/client-profiles/{profileId}`
+
+Deletes a profile from the active global catalog.
+
+Response `204` with no body.
+
+Profile rules:
+
+- `name` is required, trimmed before storage, and unique case-insensitively.
+- `description` is trimmed; empty/whitespace descriptions persist as `null`.
+- `columns` use the exact same `MicrofilmTableColumn` shape and validation as `PUT /api/microfilm/columns/{clientId}`.
+- Profile column order is persisted and should be used when applying the profile.
+
+Expected profile errors:
+
+- Missing request body: `400 INVALID_REQUEST`
+- Unknown profile: `404 UNKNOWN_PROFILE`
+- Empty/missing name: `400 INVALID_PROFILE_NAME`
+- Duplicate name: `409 DUPLICATE_PROFILE_NAME`
+- Invalid profile columns: `400 INVALID_COLUMN_ID`, `400 DUPLICATE_COLUMN_ID`, `400 UNSUPPORTED_COLUMN_TYPE`, or `400 INVALID_COLUMN_WIDTH`
+
 ### `PUT /api/microfilm/columns/{clientId}`
 
 Replaces the full column schema for the client.
@@ -341,6 +464,55 @@ Expected errors:
 - Empty/missing column ID: `400 INVALID_COLUMN_ID`
 - Unsupported type: `400 UNSUPPORTED_COLUMN_TYPE`
 - Invalid width: `400 INVALID_COLUMN_WIDTH`
+
+### `POST /api/microfilm/rows/{clientId}`
+
+Creates a regular row. This is the write endpoint the frontend should use after it reconciles imported WASP boxes against existing regular rows.
+
+Request body may be omitted. If sent, it may include a stable `rowId` and initial cells:
+
+```json
+{
+  "rowId": "wasp-box-1",
+  "cells": {
+    "boxName": "Box 01",
+    "status": "New"
+  }
+}
+```
+
+Response `201`:
+
+```json
+{
+  "row": {
+    "id": "wasp-box-1",
+    "origin": "regular",
+    "cells": {
+      "boxName": "Box 01",
+      "rollName": null,
+      "status": "New",
+      "reviewed": false
+    }
+  }
+}
+```
+
+Rules:
+
+- `rowId` is optional. If omitted or blank, the backend assigns one.
+- For WASP reconciliation, prefer sending a deterministic stable `rowId` derived from the imported box identity so repeated reconciliation attempts cannot create duplicates.
+- Missing cells are initialized from the current column schema.
+- Unknown initial cell columns are rejected.
+- This endpoint creates regular rows only. Use `POST /api/microfilm/custom-rows/{clientId}` for custom rows.
+- WASP import still populates the boxes read model first; frontend reconciliation is responsible for creating regular rows from imported boxes.
+
+Expected errors:
+
+- Unknown client: `404 UNKNOWN_CLIENT`
+- Duplicate row ID: `409 ROW_CONFLICT`
+- Unknown initial cell column: `400 UNKNOWN_COLUMN`
+- Invalid initial value/type: `400 INVALID_CELL_VALUE`
 
 ### `PATCH /api/microfilm/rows/{clientId}/{rowId}`
 
@@ -534,9 +706,12 @@ Known error codes:
 | --- | --- | --- |
 | `UNKNOWN_SERVER` | 404 | Server ID is not known. |
 | `UNKNOWN_CLIENT` | 404 | Client ID is not known. |
+| `UNKNOWN_PROFILE` | 404 | Profile ID is not known. |
 | `UNKNOWN_ROW` | 404 | Row ID is not known for the requested row collection. |
 | `UNKNOWN_COLUMN` | 400 | Column ID is not in the current schema. |
 | `INVALID_REQUEST` | 400 | Required request body was missing. |
+| `INVALID_PROFILE_NAME` | 400 | Profile name was missing/empty. |
+| `DUPLICATE_PROFILE_NAME` | 409 | Profile name already exists case-insensitively. |
 | `INVALID_COLUMN_ID` | 400 | Column ID was missing/empty. |
 | `DUPLICATE_COLUMN_ID` | 400 | Column ID appears more than once in a schema PUT. |
 | `UNSUPPORTED_COLUMN_TYPE` | 400 | Column type is not supported. |
@@ -550,11 +725,14 @@ Known error codes:
 - For custom row creation, optimistic temporary IDs are fine, but replace the temp row with the backend `row.id` from the `POST` response.
 - For cell edits, update local state from the returned full `row`, not just the edited value.
 - For column edits, update local state from the returned full `columns` array.
+- For profile edits, update local state from the returned full `profile`, or refetch `GET /client-profiles` if another profile list view needs to reconcile.
+- To apply a profile, confirm with the user, then send `{ "columns": selectedProfile.columns }` to `PUT /api/microfilm/columns/{clientId}`. Applying a profile does not directly mutate rows, custom rows, WASP boxes, or WASP-imported regular rows.
 - Debounced column reorder/resize saves should still send the full column array.
 - Avoid sending writes before `columns` has loaded; writes validate against the current backend schema.
 - If a schema PUT removes or renames columns, refetch or reconcile row data because backend row projections will only include current schema columns.
 - Since strict optimistic concurrency is not implemented yet, treat this iteration as last-write-wins. Avoid firing overlapping writes for the same row/column if possible.
 - GET responses may include ETags from Totem query serving. Browser/proxy caching can use them, but frontend logic should not require ETags for writes in this iteration.
+- `GET /client-profiles` is backed by `MicrofilmClientProfilesQuery`; profile writes should trigger QueryHub change notifications for that query.
 - Regular rows are generic backend table rows for this feature. Do not assume they are Box/Roll domain rows unless a future backend importer explicitly maps them.
 - No delete endpoint is currently exposed for columns, regular rows, or custom rows. Column removal is done by sending a replacement columns array without the removed column.
 
@@ -573,6 +751,10 @@ Known error codes:
 11. `POST /custom-rows` returns a backend-issued stable row ID and full initialized row.
 12. Refresh after successful column rename/reorder/resize preserves backend-returned schema.
 13. Refresh after successful regular/custom cell edit preserves backend-returned row state.
+14. Empty profile catalog returns `200` and `{ "profiles": [] }`.
+15. Duplicate profile names are rejected case-insensitively with `409 DUPLICATE_PROFILE_NAME`.
+16. Invalid profile columns return the same column validation codes as `PUT /columns`.
+17. Applying a profile through `PUT /columns/{clientId}` reconciles visible row cells to the selected profile columns.
 
 ## Recommended live smoke test
 
@@ -589,6 +771,8 @@ Known error codes:
 11. Toggle Reviewed and refresh.
 12. Add a custom row and refresh.
 13. Rename/reorder/resize a column and refresh.
+14. Create a client profile, refresh the profile list, update it, and delete it.
+15. Apply a profile by sending its `columns` through `PUT /api/microfilm/columns/{clientId}`, then refetch columns/rows.
 
 ## Implementation notes for frontend maintainers
 

@@ -30,6 +30,8 @@ Use the `api/microfilm` endpoints for the frontend integration flow below. This 
 | `GET` | `/api/microfilm/wasp/import/status` | Read current or last import status | none | `200 OK` with fields such as `importEnabled`, `lastImportedAssetCount`, `lastDeferredAssetCount`, `lastIgnoredAssetCount`, `lastError`, and `lastFailureStep` |
 | `GET` | `/api/microfilm/boxes/by-client/{clientId}` | List boxes for a client | none | `200 OK` with `boxes[]` containing `boxName`, `boxId`, and `clientId` |
 | `GET` | `/api/microfilm/boxes/{boxId}` | Read one box and its rolls | none | `200 OK` with `box` and `rolls[]`; each roll includes `rollName`, `rollId`, and `boxId` |
+| `GET` | `/api/microfilm/rows/{clientId}` | List Miller regular rows for a client | none | `200 OK` with `rows[]` |
+| `POST` | `/api/microfilm/rows/{clientId}` | Create a Miller regular row | optional `{ "rowId": "...", "cells": { ... } }` | `201 Created` with `row`; `409 Conflict` if `rowId` already exists |
 
 ## Example requests
 
@@ -74,3 +76,4 @@ Content-Type: application/json
 - Query endpoints support `ETag` and `If-None-Match`, so polling clients can use conditional requests and handle `304 Not Modified`.
 - For this integration, prefer `api/microfilm` over `api/inventory`. The inventory endpoints are a separate navigation surface that use composite scan IDs instead of the microfilm entity IDs.
 - If you need roll details by roll ID later, there is also `GET /api/microfilm/rolls/{rollId}`.
+- WASP import populates the boxes read model first. If Miller needs imported boxes as regular rows, the frontend should compare `/boxes/by-client/{clientId}` with `/rows/{clientId}` and create missing rows through `POST /api/microfilm/rows/{clientId}`.
