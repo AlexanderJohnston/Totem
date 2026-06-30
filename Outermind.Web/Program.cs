@@ -12,6 +12,7 @@ using Totem;
 using Totem.App.Web;
 using Totem.Timeline;
 using Quantum.Web.Wasp;
+using Quantum.Web.IdentityTracking;
 using static Totem.Timeline.FlowCall;
 
 namespace Quantum.Web
@@ -60,6 +61,8 @@ namespace Quantum.Web
             });
           });
           services.AddWaspApi(context.Configuration);
+          services.Configure<InteractionIdentityOptions>(context.Configuration.GetSection("InteractionIdentity"));
+          services.AddSingleton<IInteractionIdentityResolver, InteractionIdentityResolver>();
           services.AddCors(options =>
             options.AddPolicy(CorsPolicyName, policy =>
               ConfigureCors(policy, context.Configuration)));

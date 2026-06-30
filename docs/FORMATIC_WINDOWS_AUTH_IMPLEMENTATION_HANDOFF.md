@@ -1,3 +1,9 @@
+# Phase 1 Tracking-Only Supersession Note
+
+This handoff is superseded for Phase 1 backend work by `docs/product_backlog.md`, `docs/design.md`, and `backend-integration-guide.md`. The implemented Phase 1 contract is tracking-only: `GET /api/session` returns `200 OK` for `identified`, `unmapped`, and `unidentified`; no `401/403` normal-state semantics, permission checks, QueryHub auth, login screens, or command blocking are part of this phase. Manual/delegated `ProcessUserID` override remains unsupported.
+
+---
+
 # Formatic Windows Auth Implementation Handoff
 
 ## Goal

@@ -79,6 +79,36 @@ This is a [monorepo](https://en.wikipedia.org/wiki/Monorepo) containing the Tote
 
 *[under construction] This will describe how to create a timeline solution from a template via `dotnet new`. See the [App](#app) section for a description of solution structure. Example apps are also in the works.*
 
+## Repository Quick Start
+
+Prerequisite: install the .NET SDK pinned by [`global.json`](global.json). From the repository root:
+
+```powershell
+dotnet restore .\Totem.sln
+dotnet build .\Totem.sln -c Release
+dotnet test .\tests\Quantum.Tests\Quantum.Tests.csproj -c Release
+```
+
+To start the Quantum web host locally on a deterministic URL:
+
+```powershell
+$env:ASPNETCORE_ENVIRONMENT = 'Development'
+$env:Wasp__Token = '<local development WASP token or non-production stub>'
+dotnet run --project .\Outermind.Web\Quantum.Web.csproj -c Release --urls http://127.0.0.1:5057
+```
+
+Phase 1 backend session tracking exposes `GET http://127.0.0.1:5057/api/session` as tracking-only context; it does not authorize requests or block commands.
+
+## SDLC Artifacts
+
+- [Vision](docs/vision.md)
+- [Product backlog](docs/product_backlog.md)
+- [Design notes](docs/design.md)
+- [Execution log](docs/execution_log.md)
+- [QA plan](docs/qa_plan.md)
+- [Governance traceability](docs/governance_traceability.md)
+- [Backend integration guide](backend-integration-guide.md)
+
 # Help & Support
 
 Questions and feedback are welcome in the [#totem](https://ddd-cqrs-es.slack.com/channels/totem) channel of the [ddd-cqrs-es slack](https://t.co/MRxpx0rLH2).
