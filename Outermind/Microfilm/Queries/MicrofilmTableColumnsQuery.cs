@@ -15,6 +15,7 @@ namespace Outermind.Microfilm.Queries
     static Id RouteFirst(ClientCreated e) => e.Client.ClientId;
     static Id Route(MicrofilmTableSeeded e) => e.ClientId;
     static Id Route(MicrofilmTableColumnsChanged e) => e.ClientId;
+    static Id Route(RollMicrofilmTableColumnsChanged e) => e.ClientId;
 
     void Given(ClientCreated e)
     {
@@ -26,6 +27,11 @@ namespace Outermind.Microfilm.Queries
     }
 
     void Given(MicrofilmTableColumnsChanged e)
+    {
+      Columns = e.Columns.Select(column => column.Clone()).ToList();
+    }
+
+    void Given(RollMicrofilmTableColumnsChanged e)
     {
       Columns = e.Columns.Select(column => column.Clone()).ToList();
     }

@@ -31,15 +31,49 @@ Normal tracking states return `200 OK` with camelCase JSON:
 | `windowsAccount` | Nullable canonical `DOMAIN\\user` value when the request principal exposes one |
 | `userPrincipalName` | Nullable UPN when the request principal exposes one |
 | `processUserId` | Nullable mapped Formatic/process user id; populated only for `identified` |
-| `trackingSource` | `windows-integrated-auth` when a principal is observed, `none` when unidentified |
+| `trackingSource` | `backend-cookie` for backend-owned cookie identity, `windows-integrated-auth` when a host principal is observed, `none` when unidentified |
 
 Status behavior:
 
-- `identified`: a server-observed principal matched an `InteractionIdentity` account mapping.
-- `unmapped`: a server-observed principal was present, but no configured process-user mapping matched; `processUserId` is `null`.
+- `identified`: a backend cookie user has a server-generated `processUserId`, or a server-observed host principal matched an `InteractionIdentity` account mapping.
+- `unmapped`: a backend cookie or server-observed principal was present, but no server-owned process-user value was available; `processUserId` is `null`.
 - `unidentified`: no request identity was observed; `windowsAccount`, `userPrincipalName`, and `processUserId` are `null`, and `trackingSource` is `none`.
 
-Phase 1 intentionally does **not** add QueryHub auth, login screens, permission checks, command blocking, `[Authorize]` gates, or `401/403` responses for normal unmapped/unidentified states. Manual/delegated `ProcessUserID` override is unsupported for tracking-sensitive workflows; current Miller/Microfilm write DTOs do not expose actor fields and extra client identity-like JSON properties are not persisted by those DTOs.
+Backend cookie identity intentionally does **not** add QueryHub auth, permission checks, command blocking, `[Authorize]` gates, or `401/403` responses for normal unmapped/unidentified session states. Manual/delegated `ProcessUserID` override is unsupported for tracking-sensitive workflows; current Miller/Microfilm write DTOs do not expose actor fields and extra client identity-like JSON properties are not persisted by those DTOs.
+
+## Backend-owned cookie identity
+
+The backend owns registration, login, logout, cookie issuance, and tracking identity assignment. The frontend must not send `processUserId`, `ProcessUserID`, operator IDs, or delegated actor fields to choose the tracking actor.
+
+| Method | Route | Purpose | Request body | Response |
+|---|---|---|---|---|
+| `GET` | `/api/auth/csrf` | Issue a CSRF token for cookie-backed unsafe requests | none | `200 OK` with `{ "token": "...", "headerName": "X-CSRF-TOKEN" }` and a readable `Totem.Csrf` cookie |
+| `POST` | `/api/auth/register` | Open self-registration and immediate sign-in | `{ "userName": "ajohnston", "displayName": "Alex Johnston", "password": "..." }` | `200 OK` with `InteractionSession`; `400` validation; `409` duplicate username |
+| `POST` | `/api/auth/login` | Validate credentials and issue backend auth cookie | `{ "userName": "ajohnston", "password": "..." }` | `200 OK` with `InteractionSession`; `401` generic invalid credentials |
+| `POST` | `/api/auth/logout` | Clear backend auth cookie | none | `200 OK` with unidentified `InteractionSession` |
+| `GET` | `/api/session` | Current canonical tracking state | none | `200 OK` with `identified`, `unmapped`, or `unidentified` |
+
+MVP account policy:
+
+- User store: minimal file-backed backend store at `InteractionAuth:UserStorePath`, defaulting to `App_Data\interaction-users.json`; this path is ignored by git.
+- Passwords: hashed with ASP.NET Core `IPasswordHasher<ApplicationUser>`; plaintext passwords are not stored or returned.
+- Username: required, unique case-insensitively, 3-64 characters; allowed characters are letters, numbers, `.`, `_`, `-`, and `@`.
+- Display name: optional; when omitted, the username is used as the session display label.
+- `processUserId`: generated server-side from the normalized username. It is not accepted from the client.
+
+Cookie and CSRF policy:
+
+- Auth cookie name defaults to `Totem.Auth`, is `HttpOnly`, `SameSite=Lax`, 8-hour sliding, non-persistent, and `Secure` outside development. Frontend code reads identity through `GET /api/session`, not by reading the auth cookie.
+- Cookie redirects are suppressed for APIs; invalid/missing cookies do not redirect to HTML login pages.
+- Fetch `/api/auth/csrf` before authenticated unsafe methods and send the returned token in the `X-CSRF-TOKEN` header. The same token is also set in the readable `Totem.Csrf` cookie for double-submit validation.
+- Unsafe methods validate `Origin`/`Referer` when present. Credentialed CORS is allowed only for explicitly configured `Cors:AllowedOrigins`; otherwise CORS remains wildcard without credentials.
+- `POST /api/auth/logout` requires the CSRF header when a backend cookie identity is present. Existing unauthenticated tracking behavior remains ungated.
+
+### Frontend live QA quick guide
+
+Start Quantum Web and Quantum Service together, wait about 10 seconds for ESDB connection, then test with browser credentials/cookie jar enabled. On app boot call `GET /api/session`, then `GET /api/auth/csrf`; send the returned `X-CSRF-TOKEN` on cookie-backed unsafe requests.
+
+Validate this flow: register -> `/api/session` refresh shows `backend-cookie`; logout -> `/api/session` refresh shows `unidentified`; login -> `/api/session` refresh shows `backend-cookie`; logout again. Also record negative cases in `docs\execution_log.md`: `400` invalid register payload, `401` bad login, `403` missing/invalid CSRF on authenticated unsafe request, and `409` duplicate register username. Capture status, response body, relevant `Set-Cookie`/CSRF headers, and whether cookies were included.
 
 Local QA mapping should use user secrets, environment variables, or deployment configuration rather than committed personal values, for example:
 
@@ -63,6 +97,32 @@ If local hosting does not populate `HttpContext.User`, `/api/session` should ret
 8. `GET /api/microfilm/boxes/by-client/{clientId}` to retrieve the client's boxes and their `boxId` values.
 9. `GET /api/microfilm/boxes/{boxId}` to retrieve the box plus its associated rolls.
 
+## Roll-scoped table resources and audit
+
+Roll-scoped routes are the preferred Phase 2 table contract. They coexist with legacy client-wide routes during migration.
+
+| Method | Route | Purpose | Request body | Response |
+|---|---|---|---|---|
+| `GET` | `/api/microfilm/rolls/{rollId}/columns` | Read effective column definitions for one roll | none | `200 OK` with roll-scoped columns query |
+| `PUT` | `/api/microfilm/rolls/{rollId}/columns` | Replace effective roll column definitions | `{ "columns": [...] }` | `200 OK` with `{ rollId, columns }` |
+| `GET` | `/api/microfilm/rolls/{rollId}/rows` | Read roll-scoped rows, including audit metadata when present | none | `200 OK` with `rows[]` |
+| `GET` | `/api/microfilm/rolls/{rollId}/rows/{rowId}` | Read one row addressed by `rollId + rowId` | none | `200 OK` with row query or `404` |
+| `GET` | `/api/microfilm/rolls/{rollId}/table` | Convenience aggregate for roll columns + rows | none | `200 OK` with `columns[]` and `rows[]` |
+| `POST` | `/api/microfilm/rolls/{rollId}/rows` | Create a regular roll row | optional `{ "rowId": "...", "cells": { ... } }` | `201 Created` with `row` |
+| `POST` | `/api/microfilm/rolls/{rollId}/custom-rows` | Create a custom roll row | optional `{ "rowId": "...", "cells": { ... } }` | `201 Created` with `row` |
+| `PATCH` | `/api/microfilm/rolls/{rollId}/rows/{rowId}/cells/{columnId}` | Change one regular-row cell | `{ "value": ... }` | `200 OK` with targeted cell result and audit |
+| `PATCH` | `/api/microfilm/rolls/{rollId}/custom-rows/{rowId}/cells/{columnId}` | Change one custom-row cell | `{ "value": ... }` | `200 OK` with targeted cell result and audit |
+
+Rows are addressed canonically by `rollId + rowId`. New roll-scoped rows include `rollId`, `origin` (`regular` or `custom`), `cells`, and `cellAudits`. Newly created cells start with `auditState: "notTrackedYet"`; targeted cell updates record `auditState: "tracked"`, `lastChangedAt`, and `lastChangedBy` from the server-resolved session actor.
+
+Legacy compatibility:
+
+- Existing client-wide routes remain available.
+- `POST /api/microfilm/rows/{clientId}` and `POST /api/microfilm/custom-rows/{clientId}` may include `rollId` in the body to create through the roll-scoped model during migration. The roll must belong to the same `{clientId}` route.
+- Legacy PATCH routes consult the roll-scoped routing index first; if a matching roll-scoped row exists, they dispatch the same targeted roll cell command and keep the legacy `{ row }` response envelope. Otherwise they fall back to the pre-existing client-wide table behavior.
+- Regular-row and custom-row patch routes enforce the route row kind. A custom row cannot be changed through the regular-row route, and a regular row cannot be changed through the custom-row route.
+- The frontend must still not send actor identity fields; actor stamping uses backend `/api/session` resolution.
+
 ## Endpoint reference
 
 | Method | Route | Purpose | Request body | Response |
@@ -76,7 +136,7 @@ If local hosting does not populate `HttpContext.User`, `/api/session` should ret
 | `GET` | `/api/microfilm/boxes/by-client/{clientId}` | List boxes for a client | none | `200 OK` with `boxes[]` containing `boxName`, `boxId`, and `clientId` |
 | `GET` | `/api/microfilm/boxes/{boxId}` | Read one box and its rolls | none | `200 OK` with `box` and `rolls[]`; each roll includes `rollName`, `rollId`, and `boxId` |
 | `GET` | `/api/microfilm/rows/{clientId}` | List Miller regular rows for a client | none | `200 OK` with `rows[]` |
-| `POST` | `/api/microfilm/rows/{clientId}` | Create a Miller regular row | optional `{ "rowId": "...", "cells": { ... } }` | `201 Created` with `row`; `409 Conflict` if `rowId` already exists |
+| `POST` | `/api/microfilm/rows/{clientId}` | Create a Miller regular row; optional migration path to roll-scoped create when body includes `rollId` | optional `{ "rollId": "...", "rowId": "...", "cells": { ... } }` | `201 Created` with `row`; `409 Conflict` if `rowId` already exists |
 
 ## Example requests
 

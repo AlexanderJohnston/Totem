@@ -28,3 +28,4 @@ nuget.exe
 /*.vspx
 *.metaproj*
 copilot-session-*.md
+App_Data/

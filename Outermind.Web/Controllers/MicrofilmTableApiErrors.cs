@@ -18,6 +18,12 @@ namespace Outermind.Controllers
         "Client was not recognized.",
         new Dictionary<string, string> { ["clientId"] = clientId.ToString() });
 
+    public static MicrofilmTableErrorEnvelope UnknownRoll(Id rollId) =>
+      new(
+        "UNKNOWN_ROLL",
+        "Roll was not recognized.",
+        new Dictionary<string, string> { ["rollId"] = rollId.ToString() });
+
     public static MicrofilmTableErrorEnvelope UnknownColumn(Id clientId, string columnId) =>
       new(
         "UNKNOWN_COLUMN",
@@ -28,6 +34,17 @@ namespace Outermind.Controllers
           ["columnId"] = columnId ?? ""
         });
 
+    public static MicrofilmTableErrorEnvelope UnknownColumn(Id clientId, Id rollId, string columnId) =>
+      new(
+        "UNKNOWN_COLUMN",
+        "Column was not recognized.",
+        new Dictionary<string, string>
+        {
+          ["clientId"] = clientId.ToString(),
+          ["rollId"] = rollId.ToString(),
+          ["columnId"] = columnId ?? ""
+        });
+
     public static MicrofilmTableErrorEnvelope UnknownRow(Id clientId, string rowId) =>
       new(
         "UNKNOWN_ROW",
@@ -35,6 +52,17 @@ namespace Outermind.Controllers
         new Dictionary<string, string>
         {
           ["clientId"] = clientId.ToString(),
+          ["rowId"] = rowId ?? ""
+        });
+
+    public static MicrofilmTableErrorEnvelope UnknownRow(Id clientId, Id rollId, string rowId) =>
+      new(
+        "UNKNOWN_ROW",
+        "Row was not recognized.",
+        new Dictionary<string, string>
+        {
+          ["clientId"] = clientId.ToString(),
+          ["rollId"] = rollId.ToString(),
           ["rowId"] = rowId ?? ""
         });
 
@@ -90,6 +118,30 @@ namespace Outermind.Controllers
         {
           ["clientId"] = e.ClientId.ToString(),
           ["rowId"] = e.RowId ?? ""
+        });
+
+    public static MicrofilmTableErrorEnvelope InvalidRowKind(RollMicrofilmTableRowKindRejected e) =>
+      new(
+        "INVALID_ROW_KIND",
+        "Row kind must be regular or custom.",
+        new Dictionary<string, string>
+        {
+          ["clientId"] = e.ClientId.ToString(),
+          ["rollId"] = e.RollId.ToString(),
+          ["rowKind"] = e.RowKind ?? ""
+        });
+
+    public static MicrofilmTableErrorEnvelope RowKindMismatch(RollMicrofilmTableRowKindMismatch e) =>
+      new(
+        "ROW_KIND_MISMATCH",
+        "Row route does not match the stored row kind.",
+        new Dictionary<string, string>
+        {
+          ["clientId"] = e.ClientId.ToString(),
+          ["rollId"] = e.RollId.ToString(),
+          ["rowId"] = e.RowId ?? "",
+          ["expectedRowKind"] = e.ExpectedRowKind ?? "",
+          ["actualRowKind"] = e.ActualRowKind ?? ""
         });
 
     public static MicrofilmTableErrorEnvelope InvalidRequest(string message) =>

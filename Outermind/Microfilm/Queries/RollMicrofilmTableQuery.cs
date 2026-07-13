@@ -1,0 +1,68 @@
+using System.Collections.Generic;
+using System.Linq;
+using Totem;
+using Totem.Timeline;
+
+namespace Outermind.Microfilm.Queries
+{
+  /// <summary>
+  /// Convenience aggregate for one roll-scoped table.
+  /// </summary>
+  public class RollMicrofilmTableQuery : Query
+  {
+    public Id RollId { get; set; }
+    public List<MicrofilmTableColumn> Columns { get; set; } = new();
+    public List<MicrofilmTableRow> Rows { get; set; } = new();
+
+    static Id RouteFirst(RollCreated e) => e.Roll.RollId;
+    static Id Route(RollMicrofilmTableColumnsChanged e) => e.RollId;
+    static Id Route(RollMicrofilmRowCreated e) => e.RollId;
+    static Id Route(RollMicrofilmRowCellChanged e) => e.RollId;
+
+    void Given(RollCreated e)
+    {
+      RollId = e.Roll.RollId;
+      Columns = MicrofilmDefaultColumns.RollScoped();
+    }
+
+    void Given(RollMicrofilmTableColumnsChanged e)
+    {
+      RollId = e.RollId;
+      Columns = e.Columns.Select(column => column.Clone()).ToList();
+
+      foreach(var row in Rows)
+      {
+        row.Cells = MicrofilmTableRules.ReconcileCells(Columns, row.Cells);
+        row.CellAudits = MicrofilmTableRules.ReconcileCellAudits(Columns, row.CellAudits);
+      }
+    }
+
+    void Given(RollMicrofilmRowCreated e)
+    {
+      RollId = e.RollId;
+      Upsert(e.Row.Clone());
+    }
+
+    void Given(RollMicrofilmRowCellChanged e)
+    {
+      RollId = e.RollId;
+      var row = Rows.FirstOrDefault(existing => existing.Id == e.RowId);
+
+      if(row == null)
+      {
+        return;
+      }
+
+      var updated = row.Clone();
+      updated.Cells[e.ColumnId] = e.Value?.Clone() ?? MicrofilmCellValue.Null();
+      updated.CellAudits[e.ColumnId] = MicrofilmCellAudit.Tracked(e.When, e.Actor);
+      Upsert(updated);
+    }
+
+    void Upsert(MicrofilmTableRow row)
+    {
+      Rows.RemoveAll(existing => existing.Id == row.Id);
+      Rows.Add(row);
+    }
+  }
+}

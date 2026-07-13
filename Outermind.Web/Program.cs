@@ -11,6 +11,7 @@ using Scalar.AspNetCore;
 using Totem;
 using Totem.App.Web;
 using Totem.Timeline;
+using Quantum.Web.Identity;
 using Quantum.Web.Wasp;
 using Quantum.Web.IdentityTracking;
 using static Totem.Timeline.FlowCall;
@@ -61,6 +62,7 @@ namespace Quantum.Web
             });
           });
           services.AddWaspApi(context.Configuration);
+          services.AddInteractionAuth(context.Configuration, context.HostingEnvironment);
           services.Configure<InteractionIdentityOptions>(context.Configuration.GetSection("InteractionIdentity"));
           services.AddSingleton<IInteractionIdentityResolver, InteractionIdentityResolver>();
           services.AddCors(options =>
@@ -68,7 +70,10 @@ namespace Quantum.Web
               ConfigureCors(policy, context.Configuration)));
         })
         .BeforeMvcApp(app =>
-          app.UseCors(CorsPolicyName))
+        {
+          app.UseCors(CorsPolicyName);
+          app.UseAuthentication();
+        })
         .AfterSignalRRoutes(routes =>
         {
           routes.MapOpenApi();
@@ -87,7 +92,8 @@ namespace Quantum.Web
         policy
           .WithOrigins(allowedOrigins)
           .AllowAnyHeader()
-          .AllowAnyMethod();
+          .AllowAnyMethod()
+          .AllowCredentials();
         return;
       }
 

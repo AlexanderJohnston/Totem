@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Outermind.Microfilm;
@@ -6,6 +7,7 @@ using Totem;
 using Totem.Timeline;
 using Totem.Timeline.Client;
 using Totem.Timeline.Mvc;
+using Quantum.Web.IdentityTracking;
 
 namespace Outermind.Controllers
 {
@@ -16,12 +18,18 @@ namespace Outermind.Controllers
     readonly ICommandServer _commands;
     readonly IQueryServer _queries;
     readonly IQueryDb _queryDb;
+    readonly IInteractionIdentityResolver _identity;
 
-    public MicrofilmController(ICommandServer commands, IQueryServer queries, IQueryDb queryDb)
+    public MicrofilmController(
+      ICommandServer commands,
+      IQueryServer queries,
+      IQueryDb queryDb,
+      IInteractionIdentityResolver identity)
     {
       _commands = commands;
       _queries = queries;
       _queryDb = queryDb;
+      _identity = identity;
     }
 
     //
@@ -177,6 +185,19 @@ namespace Outermind.Controllers
     public Task<IActionResult> GetColumns(string clientId) =>
       GetTableQuery<MicrofilmTableColumnsQuery>(clientId);
 
+    [HttpGet("rolls/{rollId}/columns")]
+    public async Task<IActionResult> GetRollColumns(string rollId)
+    {
+      var roll = Id.From(rollId);
+
+      if(!await RollExists(roll))
+      {
+        return NotFound(MicrofilmTableApiErrors.UnknownRoll(roll));
+      }
+
+      return await _queries.Get<RollMicrofilmColumnsQuery>(roll);
+    }
+
     [HttpPut("columns/{clientId}")]
     public Task<IActionResult> ReplaceColumns(string clientId, [FromBody] ReplaceMicrofilmTableColumnsRequest request)
     {
@@ -192,19 +213,100 @@ namespace Outermind.Controllers
         When<MicrofilmTableColumnSchemaRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidColumns(e))));
     }
 
+    [HttpPut("rolls/{rollId}/columns")]
+    public async Task<IActionResult> ReplaceRollColumns(string rollId, [FromBody] ReplaceMicrofilmTableColumnsRequest request)
+    {
+      if(request == null)
+      {
+        return BadRequest(MicrofilmTableApiErrors.InvalidRequest("Column request body is required."));
+      }
+
+      var roll = Id.From(rollId);
+      var lookup = await GetRollLookup(roll);
+
+      if(lookup == null)
+      {
+        return NotFound(MicrofilmTableApiErrors.UnknownRoll(roll));
+      }
+
+      return await _commands.Execute(
+        new ReplaceRollMicrofilmTableColumns(roll, lookup.ClientId, request.Columns),
+        When<RollMicrofilmTableColumnsChanged>.Then(e => Ok(new { rollId = e.RollId, columns = e.Columns })),
+        When<RollMicrofilmTableRollNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRoll(e.RollId))),
+        When<MicrofilmTableColumnSchemaRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidColumns(e))));
+    }
+
     [HttpGet("rows/{clientId}")]
     public Task<IActionResult> GetRows(string clientId) =>
       GetTableQuery<MicrofilmRegularRowsQuery>(clientId);
 
+    [HttpGet("rolls/{rollId}/rows")]
+    public async Task<IActionResult> GetRollRows(string rollId)
+    {
+      var roll = Id.From(rollId);
+
+      if(!await RollExists(roll))
+      {
+        return NotFound(MicrofilmTableApiErrors.UnknownRoll(roll));
+      }
+
+      return await _queries.Get<RollMicrofilmRowsQuery>(roll);
+    }
+
+    [HttpGet("rolls/{rollId}/rows/{rowId}")]
+    public async Task<IActionResult> GetRollRow(string rollId, string rowId)
+    {
+      var roll = Id.From(rollId);
+
+      if(!await RollExists(roll))
+      {
+        return NotFound(MicrofilmTableApiErrors.UnknownRoll(roll));
+      }
+
+      var query = await _queryDb.ReadQuery<RollMicrofilmRowQuery>(RollMicrofilmRowQuery.CreateId(roll, rowId));
+
+      return query.Row == null
+        ? NotFound(MicrofilmTableApiErrors.UnknownRow(Id.Unassigned, roll, rowId))
+        : Ok(query);
+    }
+
+    [HttpGet("rolls/{rollId}/table")]
+    public async Task<IActionResult> GetRollTable(string rollId)
+    {
+      var roll = Id.From(rollId);
+
+      if(!await RollExists(roll))
+      {
+        return NotFound(MicrofilmTableApiErrors.UnknownRoll(roll));
+      }
+
+      return await _queries.Get<RollMicrofilmTableQuery>(roll);
+    }
+
     [HttpPost("rows/{clientId}")]
-    public Task<IActionResult> CreateRegularRow(string clientId, [FromBody] CreateMicrofilmRegularRowRequest request) =>
-      _commands.Execute(
+    public Task<IActionResult> CreateRegularRow(string clientId, [FromBody] CreateMicrofilmRegularRowRequest request)
+    {
+      if(!string.IsNullOrWhiteSpace(request?.RollId))
+      {
+        return CreateRollRow(request.RollId, MicrofilmTableRowOrigins.Regular, new CreateRollMicrofilmRowRequest
+        {
+          RowId = request.RowId,
+          Cells = request.Cells
+        }, Id.From(clientId));
+      }
+
+      return _commands.Execute(
         new CreateMicrofilmRegularRow(Id.From(clientId), request?.RowId, request?.Cells),
         When<MicrofilmRegularRowCreated>.Then(e => Created($"/api/microfilm/rows/{e.ClientId}/{e.Row.Id}", new { row = e.Row })),
         When<MicrofilmTableClientNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownClient(e.ClientId))),
         When<MicrofilmTableRowConflict>.Then(e => Conflict(MicrofilmTableApiErrors.RowConflict(e))),
         When<MicrofilmTableColumnNotRecognized>.Then(e => BadRequest(MicrofilmTableApiErrors.UnknownColumn(e.ClientId, e.ColumnId))),
         When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
+    }
+
+    [HttpPost("rolls/{rollId}/rows")]
+    public Task<IActionResult> CreateRollRegularRow(string rollId, [FromBody] CreateRollMicrofilmRowRequest request) =>
+      CreateRollRow(rollId, MicrofilmTableRowOrigins.Regular, request);
 
     [HttpPatch("rows/{clientId}/{rowId}")]
     public Task<IActionResult> UpdateRegularRowCell(string clientId, string rowId, [FromBody] UpdateMicrofilmTableCellRequest request)
@@ -214,7 +316,21 @@ namespace Outermind.Controllers
         return Task.FromResult<IActionResult>(BadRequest(MicrofilmTableApiErrors.InvalidRequest("Cell update request body is required.")));
       }
 
-      return _commands.Execute(
+      return PatchLegacyOrClientRegularRow(clientId, rowId, request);
+    }
+
+    async Task<IActionResult> PatchLegacyOrClientRegularRow(string clientId, string rowId, UpdateMicrofilmTableCellRequest request)
+    {
+      var client = Id.From(clientId);
+
+      var route = await GetLegacyRoute(client, rowId, MicrofilmTableRowOrigins.Regular);
+
+      if(route != null)
+      {
+        return await ExecuteLegacyRollCellUpdate(route, request);
+      }
+
+      return await _commands.Execute(
         new UpdateMicrofilmRegularRowCell(Id.From(clientId), rowId, request.ColumnId, request.Value),
         When<MicrofilmRegularRowCellUpdated>.Then(e => Ok(new { row = e.Row })),
         When<MicrofilmTableClientNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownClient(e.ClientId))),
@@ -223,6 +339,14 @@ namespace Outermind.Controllers
         When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
     }
 
+    [HttpPatch("rolls/{rollId}/rows/{rowId}/cells/{columnId}")]
+    public Task<IActionResult> UpdateRollRegularRowCell(
+      string rollId,
+      string rowId,
+      string columnId,
+      [FromBody] UpdateMicrofilmTableCellRequest request) =>
+      UpdateRollRowCell(rollId, rowId, MicrofilmTableRowOrigins.Regular, columnId, request);
+
     [HttpGet("custom-rows/{clientId}")]
     public Task<IActionResult> GetCustomRows(string clientId) =>
       GetTableQuery<MicrofilmCustomRowsQuery>(clientId);
@@ -230,6 +354,14 @@ namespace Outermind.Controllers
     [HttpPost("custom-rows/{clientId}")]
     public Task<IActionResult> CreateCustomRow(string clientId, [FromBody] CreateMicrofilmCustomRowRequest request)
     {
+      if(!string.IsNullOrWhiteSpace(request?.RollId))
+      {
+        return CreateRollRow(request.RollId, MicrofilmTableRowOrigins.Custom, new CreateRollMicrofilmRowRequest
+        {
+          Cells = request.Cells
+        }, Id.From(clientId));
+      }
+
       return _commands.Execute(
         new CreateMicrofilmCustomRow(Id.From(clientId), request?.Cells),
         When<MicrofilmCustomRowCreated>.Then(e => Created($"/api/microfilm/custom-rows/{e.ClientId}/{e.Row.Id}", new { row = e.Row })),
@@ -237,6 +369,10 @@ namespace Outermind.Controllers
         When<MicrofilmTableColumnNotRecognized>.Then(e => BadRequest(MicrofilmTableApiErrors.UnknownColumn(e.ClientId, e.ColumnId))),
         When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
     }
+
+    [HttpPost("rolls/{rollId}/custom-rows")]
+    public Task<IActionResult> CreateRollCustomRow(string rollId, [FromBody] CreateRollMicrofilmRowRequest request) =>
+      CreateRollRow(rollId, MicrofilmTableRowOrigins.Custom, request);
 
     [HttpPatch("custom-rows/{clientId}/{rowId}")]
     public Task<IActionResult> UpdateCustomRowCell(string clientId, string rowId, [FromBody] UpdateMicrofilmTableCellRequest request)
@@ -246,13 +382,138 @@ namespace Outermind.Controllers
         return Task.FromResult<IActionResult>(BadRequest(MicrofilmTableApiErrors.InvalidRequest("Cell update request body is required.")));
       }
 
-      return _commands.Execute(
+      return PatchLegacyOrClientCustomRow(clientId, rowId, request);
+    }
+
+    async Task<IActionResult> PatchLegacyOrClientCustomRow(string clientId, string rowId, UpdateMicrofilmTableCellRequest request)
+    {
+      var client = Id.From(clientId);
+
+      var route = await GetLegacyRoute(client, rowId, MicrofilmTableRowOrigins.Custom);
+
+      if(route != null)
+      {
+        return await ExecuteLegacyRollCellUpdate(route, request);
+      }
+
+      return await _commands.Execute(
         new UpdateMicrofilmCustomRowCell(Id.From(clientId), rowId, request.ColumnId, request.Value),
         When<MicrofilmCustomRowCellUpdated>.Then(e => Ok(new { row = e.Row })),
         When<MicrofilmTableClientNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownClient(e.ClientId))),
         When<MicrofilmTableRowNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRow(e.ClientId, e.RowId))),
         When<MicrofilmTableColumnNotRecognized>.Then(e => BadRequest(MicrofilmTableApiErrors.UnknownColumn(e.ClientId, e.ColumnId))),
         When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
+    }
+
+    [HttpPatch("rolls/{rollId}/custom-rows/{rowId}/cells/{columnId}")]
+    public Task<IActionResult> UpdateRollCustomRowCell(
+      string rollId,
+      string rowId,
+      string columnId,
+      [FromBody] UpdateMicrofilmTableCellRequest request) =>
+      UpdateRollRowCell(rollId, rowId, MicrofilmTableRowOrigins.Custom, columnId, request);
+
+    async Task<IActionResult> CreateRollRow(string rollId, string rowKind, CreateRollMicrofilmRowRequest request, Id? expectedClientId = null)
+    {
+      if(request == null)
+      {
+        return BadRequest(MicrofilmTableApiErrors.InvalidRequest("Row request body is required."));
+      }
+
+      var roll = Id.From(rollId);
+      var lookup = await GetRollLookup(roll);
+
+      if(lookup == null)
+      {
+        return NotFound(MicrofilmTableApiErrors.UnknownRoll(roll));
+      }
+
+      if(expectedClientId.HasValue && lookup.ClientId != expectedClientId.Value)
+      {
+        return BadRequest(MicrofilmTableApiErrors.InvalidRequest("Roll does not belong to the client route."));
+      }
+
+      return await _commands.Execute(
+        new CreateRollMicrofilmRow(roll, lookup.ClientId, request.RowId, rowKind, request.Cells, ResolveAuditActor()),
+        When<RollMicrofilmRowCreated>.Then(e => Created($"/api/microfilm/rolls/{e.RollId}/rows/{e.Row.Id}", new { row = e.Row })),
+        When<RollMicrofilmTableRollNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRoll(e.RollId))),
+        When<RollMicrofilmTableRowKindRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidRowKind(e))),
+        When<MicrofilmTableRowConflict>.Then(e => Conflict(MicrofilmTableApiErrors.RowConflict(e))),
+        When<MicrofilmTableColumnNotRecognized>.Then(e => BadRequest(MicrofilmTableApiErrors.UnknownColumn(e.ClientId, roll, e.ColumnId))),
+        When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
+    }
+
+    async Task<IActionResult> UpdateRollRowCell(
+      string rollId,
+      string rowId,
+      string rowKind,
+      string columnId,
+      UpdateMicrofilmTableCellRequest request)
+    {
+      if(request == null)
+      {
+        return BadRequest(MicrofilmTableApiErrors.InvalidRequest("Cell update request body is required."));
+      }
+
+      var roll = Id.From(rollId);
+      var lookup = await GetRollLookup(roll);
+
+      if(lookup == null)
+      {
+        return NotFound(MicrofilmTableApiErrors.UnknownRoll(roll));
+      }
+
+      return await _commands.Execute(
+        new UpdateRollMicrofilmRowCell(roll, lookup.ClientId, rowId, rowKind, columnId, request.Value, ResolveAuditActor()),
+        When<RollMicrofilmRowCellChanged>.Then(e => Ok(new
+        {
+          rollId = e.RollId,
+          rowId = e.RowId,
+          rowKind = e.RowKind,
+          columnId = e.ColumnId,
+          value = e.Value,
+          audit = MicrofilmCellAudit.Tracked(e.When, e.Actor)
+        })),
+        When<RollMicrofilmTableRollNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRoll(e.RollId))),
+        When<RollMicrofilmTableRowKindRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidRowKind(e))),
+        When<RollMicrofilmTableRowKindMismatch>.Then(e => BadRequest(MicrofilmTableApiErrors.RowKindMismatch(e))),
+        When<MicrofilmTableRowNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRow(e.ClientId, roll, e.RowId))),
+        When<MicrofilmTableColumnNotRecognized>.Then(e => BadRequest(MicrofilmTableApiErrors.UnknownColumn(e.ClientId, roll, e.ColumnId))),
+        When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
+    }
+
+    async Task<LegacyRowRoute> GetLegacyRoute(Id clientId, string rowId, string rowKind)
+    {
+      var index = await _queryDb.ReadQuery<LegacyRowRoutingIndexQuery>();
+
+      if(index.TryGetRoute(clientId, rowId, out var route) && route.RowKind == rowKind)
+      {
+        return route;
+      }
+
+      return null;
+    }
+
+    Task<IActionResult> ExecuteLegacyRollCellUpdate(LegacyRowRoute route, UpdateMicrofilmTableCellRequest request) =>
+      _commands.Execute(
+        new UpdateRollMicrofilmRowCell(route.RollId, route.ClientId, route.RowId, route.RowKind, request.ColumnId, request.Value, ResolveAuditActor()),
+        When<RollMicrofilmRowCellChanged>.ThenAsync(CreateLegacyRollCellUpdateResponse),
+        When<RollMicrofilmTableRollNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRoll(e.RollId))),
+        When<RollMicrofilmTableRowKindRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidRowKind(e))),
+        When<RollMicrofilmTableRowKindMismatch>.Then(e => BadRequest(MicrofilmTableApiErrors.RowKindMismatch(e))),
+        When<MicrofilmTableRowNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRow(e.ClientId, route.RollId, e.RowId))),
+        When<MicrofilmTableColumnNotRecognized>.Then(e => BadRequest(MicrofilmTableApiErrors.UnknownColumn(e.ClientId, route.RollId, e.ColumnId))),
+        When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
+
+    async Task<IActionResult> CreateLegacyRollCellUpdateResponse(RollMicrofilmRowCellChanged e)
+    {
+      var query = await _queryDb.ReadQuery<RollMicrofilmRowQuery>(RollMicrofilmRowQuery.CreateId(e.RollId, e.RowId));
+      var row = query.Row?.Clone(e.RowKind) ?? new MicrofilmTableRow(e.RowId, e.RollId.ToString(), e.RowKind, new Dictionary<string, MicrofilmCellValue>());
+
+      row.Cells[e.ColumnId] = e.Value?.Clone() ?? MicrofilmCellValue.Null();
+      row.CellAudits[e.ColumnId] = MicrofilmCellAudit.Tracked(e.When, e.Actor);
+
+      return Ok(new { row });
     }
 
     async Task<IActionResult> GetTableQuery<TQuery>(string clientId) where TQuery : Query
@@ -279,6 +540,27 @@ namespace Outermind.Controllers
       var lookup = await _queryDb.ReadQuery<MicrofilmClientLookupQuery>();
 
       return lookup.HasClient(clientId);
+    }
+
+    async Task<bool> RollExists(Id rollId) =>
+      await GetRollLookup(rollId) != null;
+
+    async Task<RollMicrofilmLookup> GetRollLookup(Id rollId)
+    {
+      var lookup = await _queryDb.ReadQuery<RollMicrofilmLookupQuery>();
+
+      return lookup.TryGetRoll(rollId, out var roll) ? roll : null;
+    }
+
+    MicrofilmAuditActorStamp ResolveAuditActor()
+    {
+      var session = _identity.Resolve(HttpContext.User);
+
+      return new MicrofilmAuditActorStamp(
+        session.Status,
+        session.DisplayLabel,
+        session.ProcessUserId,
+        session.TrackingSource);
     }
   }
 }

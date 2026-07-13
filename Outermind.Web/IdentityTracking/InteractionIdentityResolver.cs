@@ -24,6 +24,11 @@ namespace Quantum.Web.IdentityTracking
         return Unidentified(options);
       }
 
+      if(IsBackendCookiePrincipal(principal))
+      {
+        return ResolveBackendCookiePrincipal(principal, options);
+      }
+
       var observed = ObservedIdentity.From(principal);
 
       if(!observed.Candidates.Any())
@@ -57,6 +62,61 @@ namespace Quantum.Web.IdentityTracking
         UserPrincipalName = observed.UserPrincipalName,
         ProcessUserId = null,
         TrackingSource = PrincipalTrackingSource(options)
+      };
+    }
+
+    static bool IsBackendCookiePrincipal(ClaimsPrincipal principal) =>
+      string.Equals(
+        principal.FindFirstValue(InteractionAuthClaims.TrackingSource),
+        InteractionTrackingSources.BackendCookie,
+        StringComparison.OrdinalIgnoreCase);
+
+    static InteractionSession ResolveBackendCookiePrincipal(ClaimsPrincipal principal, InteractionIdentityOptions options)
+    {
+      var userId = NormalizeText(principal.FindFirstValue(ClaimTypes.NameIdentifier));
+      var userName = NormalizeText(principal.FindFirstValue(InteractionAuthClaims.UserName));
+      var processUserId = NormalizeText(principal.FindFirstValue(InteractionAuthClaims.ProcessUserId));
+      var displayLabel = FirstNonBlank(
+        principal.FindFirstValue(ClaimTypes.Name),
+        userName,
+        principal.Identity?.Name,
+        userId,
+        "Backend user");
+
+      if(string.IsNullOrWhiteSpace(userId) && string.IsNullOrWhiteSpace(processUserId))
+      {
+        return new InteractionSession
+        {
+          Status = InteractionTrackingStatus.Unmapped,
+          DisplayLabel = displayLabel,
+          WindowsAccount = null,
+          UserPrincipalName = null,
+          ProcessUserId = null,
+          TrackingSource = InteractionTrackingSources.BackendCookie
+        };
+      }
+
+      if(string.IsNullOrWhiteSpace(processUserId))
+      {
+        return new InteractionSession
+        {
+          Status = InteractionTrackingStatus.Unmapped,
+          DisplayLabel = displayLabel,
+          WindowsAccount = null,
+          UserPrincipalName = null,
+          ProcessUserId = null,
+          TrackingSource = InteractionTrackingSources.BackendCookie
+        };
+      }
+
+      return new InteractionSession
+      {
+        Status = InteractionTrackingStatus.Identified,
+        DisplayLabel = displayLabel,
+        WindowsAccount = null,
+        UserPrincipalName = null,
+        ProcessUserId = processUserId,
+        TrackingSource = InteractionTrackingSources.BackendCookie
       };
     }
 

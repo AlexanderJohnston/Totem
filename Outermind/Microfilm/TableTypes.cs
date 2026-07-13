@@ -22,10 +22,109 @@ namespace Outermind.Microfilm
       (type ?? "").Trim().ToLowerInvariant();
   }
 
+  public static class MicrofilmDefaultColumns
+  {
+    public static List<MicrofilmTableColumn> RollScoped() =>
+      new()
+      {
+        new("boxName", "Box", MicrofilmTableColumnTypes.Text, 160),
+        new("rollName", "Roll", MicrofilmTableColumnTypes.Text, 160)
+      };
+  }
+
   public static class MicrofilmTableRowOrigins
   {
     public const string Regular = "regular";
     public const string Custom = "custom";
+
+    public static bool IsSupported(string origin) =>
+      origin == Regular || origin == Custom;
+
+    public static string Normalize(string origin) =>
+      (origin ?? "").Trim().ToLowerInvariant();
+  }
+
+  public static class MicrofilmCellAuditStates
+  {
+    public const string Tracked = "tracked";
+    public const string NotTrackedYet = "notTrackedYet";
+  }
+
+  public class MicrofilmAuditActorStamp : IEquatable<MicrofilmAuditActorStamp>
+  {
+    public string Status { get; set; }
+    public string DisplayLabel { get; set; }
+    public string ProcessUserId { get; set; }
+    public string TrackingSource { get; set; }
+
+    public MicrofilmAuditActorStamp()
+    {
+    }
+
+    public MicrofilmAuditActorStamp(string status, string displayLabel, string processUserId, string trackingSource)
+    {
+      Status = status;
+      DisplayLabel = displayLabel;
+      ProcessUserId = processUserId;
+      TrackingSource = trackingSource;
+    }
+
+    public MicrofilmAuditActorStamp Clone() =>
+      new(Status, DisplayLabel, ProcessUserId, TrackingSource);
+
+    public bool Equals(MicrofilmAuditActorStamp other)
+    {
+      if(other is null) return false;
+      if(ReferenceEquals(this, other)) return true;
+
+      return Status == other.Status
+        && DisplayLabel == other.DisplayLabel
+        && ProcessUserId == other.ProcessUserId
+        && TrackingSource == other.TrackingSource;
+    }
+
+    public override bool Equals(object obj) => Equals(obj as MicrofilmAuditActorStamp);
+    public override int GetHashCode() => System.HashCode.Combine(Status, DisplayLabel, ProcessUserId, TrackingSource);
+  }
+
+  public class MicrofilmCellAudit : IEquatable<MicrofilmCellAudit>
+  {
+    public string State { get; set; } = MicrofilmCellAuditStates.NotTrackedYet;
+    public DateTimeOffset? LastChangedAt { get; set; }
+    public MicrofilmAuditActorStamp LastChangedBy { get; set; }
+
+    public MicrofilmCellAudit()
+    {
+    }
+
+    public MicrofilmCellAudit(string state, DateTimeOffset? lastChangedAt, MicrofilmAuditActorStamp lastChangedBy)
+    {
+      State = state;
+      LastChangedAt = lastChangedAt;
+      LastChangedBy = lastChangedBy;
+    }
+
+    public static MicrofilmCellAudit NotTrackedYet() =>
+      new(MicrofilmCellAuditStates.NotTrackedYet, null, null);
+
+    public static MicrofilmCellAudit Tracked(DateTimeOffset lastChangedAt, MicrofilmAuditActorStamp lastChangedBy) =>
+      new(MicrofilmCellAuditStates.Tracked, lastChangedAt, lastChangedBy?.Clone());
+
+    public MicrofilmCellAudit Clone() =>
+      new(State, LastChangedAt, LastChangedBy?.Clone());
+
+    public bool Equals(MicrofilmCellAudit other)
+    {
+      if(other is null) return false;
+      if(ReferenceEquals(this, other)) return true;
+
+      return State == other.State
+        && LastChangedAt == other.LastChangedAt
+        && Equals(LastChangedBy, other.LastChangedBy);
+    }
+
+    public override bool Equals(object obj) => Equals(obj as MicrofilmCellAudit);
+    public override int GetHashCode() => System.HashCode.Combine(State, LastChangedAt, LastChangedBy);
   }
 
   public class MicrofilmTableColumn : IEquatable<MicrofilmTableColumn>
@@ -178,25 +277,41 @@ namespace Outermind.Microfilm
   public class MicrofilmTableRow : IEquatable<MicrofilmTableRow>
   {
     public string Id { get; set; }
+    public string RollId { get; set; }
     public string Origin { get; set; }
     public Dictionary<string, MicrofilmCellValue> Cells { get; set; } = new();
+    public Dictionary<string, MicrofilmCellAudit> CellAudits { get; set; } = new();
 
     public MicrofilmTableRow()
     {
     }
 
     public MicrofilmTableRow(string id, string origin, Dictionary<string, MicrofilmCellValue> cells)
+      : this(id, null, origin, cells, null)
+    {
+    }
+
+    public MicrofilmTableRow(
+      string id,
+      string rollId,
+      string origin,
+      Dictionary<string, MicrofilmCellValue> cells,
+      Dictionary<string, MicrofilmCellAudit> cellAudits = null)
     {
       Id = id;
+      RollId = rollId;
       Origin = origin;
       Cells = cells ?? new Dictionary<string, MicrofilmCellValue>();
+      CellAudits = cellAudits ?? new Dictionary<string, MicrofilmCellAudit>();
     }
 
     public MicrofilmTableRow Clone(string origin = null) =>
       new(
         Id,
+        RollId,
         origin ?? Origin,
-        Cells.ToDictionary(cell => cell.Key, cell => cell.Value?.Clone() ?? MicrofilmCellValue.Null()));
+        Cells.ToDictionary(cell => cell.Key, cell => cell.Value?.Clone() ?? MicrofilmCellValue.Null()),
+        CellAudits.ToDictionary(cell => cell.Key, cell => cell.Value?.Clone() ?? MicrofilmCellAudit.NotTrackedYet()));
 
     public bool Equals(MicrofilmTableRow other)
     {
@@ -204,9 +319,12 @@ namespace Outermind.Microfilm
       if(ReferenceEquals(this, other)) return true;
 
       return Id == other.Id
+        && RollId == other.RollId
         && Origin == other.Origin
         && Cells.Count == other.Cells.Count
-        && Cells.All(cell => other.Cells.TryGetValue(cell.Key, out var value) && Equals(cell.Value, value));
+        && Cells.All(cell => other.Cells.TryGetValue(cell.Key, out var value) && Equals(cell.Value, value))
+        && CellAudits.Count == other.CellAudits.Count
+        && CellAudits.All(cell => other.CellAudits.TryGetValue(cell.Key, out var audit) && Equals(cell.Value, audit));
     }
 
     public override bool Equals(object obj) => Equals(obj as MicrofilmTableRow);
@@ -407,6 +525,16 @@ namespace Outermind.Microfilm
       return reconciled;
     }
 
+    public static Dictionary<string, MicrofilmCellAudit> ReconcileCellAudits(
+      IEnumerable<MicrofilmTableColumn> columns,
+      IDictionary<string, MicrofilmCellAudit> existingAudits) =>
+      (columns ?? Enumerable.Empty<MicrofilmTableColumn>())
+        .ToDictionary(
+          column => column.Id,
+          column => existingAudits != null && existingAudits.TryGetValue(column.Id, out var audit)
+            ? audit?.Clone() ?? MicrofilmCellAudit.NotTrackedYet()
+            : MicrofilmCellAudit.NotTrackedYet());
+
     public static bool TryNormalizeCell(MicrofilmTableColumn column, MicrofilmCellValue value, out MicrofilmCellValue normalized, out string message)
     {
       normalized = null;
@@ -511,12 +639,20 @@ namespace Outermind.Microfilm
 
   public class CreateMicrofilmRegularRowRequest
   {
+    public string RollId { get; set; }
     public string RowId { get; set; }
     public Dictionary<string, MicrofilmCellValue> Cells { get; set; } = new();
   }
 
   public class CreateMicrofilmCustomRowRequest
   {
+    public string RollId { get; set; }
+    public Dictionary<string, MicrofilmCellValue> Cells { get; set; } = new();
+  }
+
+  public class CreateRollMicrofilmRowRequest
+  {
+    public string RowId { get; set; }
     public Dictionary<string, MicrofilmCellValue> Cells { get; set; } = new();
   }
 

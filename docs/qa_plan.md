@@ -1,9 +1,9 @@
-# QA Plan: Phase 1 Backend Session Tracking and Next-Phase Cookie Identity
+# QA Plan: Backend Session Tracking, Cookie Identity, and Roll-Scoped Tables
 
 Last updated: 2026-06-30 13:58 EDT
 QA owner: QA Agent
 Lifecycle: Intake → Product → Design → Execution → QA → Governance
-Recommendation: Phase 1 conditional pass remains; QA planning is current for next-phase backend-owned cookie identity
+Recommendation: Phase 1 conditional pass remains; backend cookie identity and roll-scoped table Phase 2 have focused implementation evidence
 
 ## 1. Test Strategy & Approach
 
@@ -13,7 +13,7 @@ Recommendation: Phase 1 conditional pass remains; QA planning is current for nex
 
 [Execution → QA] Use focused automated tests plus documented Execution HTTP evidence. Expensive full-suite rerun was intentionally not performed because Governance has already waived the unrelated baseline failure for this feature gate.
 
-[Vision → QA] [Product → QA] [Design → QA] This 2026-06-30 13:58 EDT update is planning-only for the next identity initiative: backend-owned ASP.NET Core cookie register/login/logout integrated with `/api/session`. No code was implemented and no tests were run for this document refresh. Phase 1 evidence below remains preserved as the accepted baseline; P2 cookie identity requires new implementation evidence.
+[Vision → QA] [Product → QA] [Design → QA] This plan now includes implementation evidence for backend-owned cookie identity and Product P3 / table Phase 2 roll-scoped Microfilm resources. Phase 1 evidence below remains preserved as the accepted baseline.
 
 Re-validation scope on 2026-06-30:
 - Reviewed `docs/vision.md`, `docs/product_backlog.md`, `docs/design.md`, `docs/execution_log.md`, `docs/governance_traceability.md`, `docs/qa_plan.md`, and `readme.md`.
@@ -90,6 +90,18 @@ Planning status: future test plan only. These scenarios are not Phase 1 regressi
 | QA-P2-S7-002 | Rate limiting, lockout, or explicit risk acceptance | [Product → QA: P2-S2, P2-S7] [Design → QA] | Design/config review and targeted tests if scoped | Before non-local exposure, login/register abuse controls are implemented or risk-accepted in Product/Governance. |
 | QA-P2-S7-003 | Build and automated test evidence for P2 | [Product → QA: P2-S7] [Execution → QA] | `dotnet build` plus focused auth/session tests; full suite per release policy | Implementation compiles and targeted tests cover register/login/logout/session transitions; unrelated baseline failures are fixed or explicitly waived by release owner. |
 
+### Roll-scoped Microfilm table QA evidence (Product P3 / table Phase 2)
+
+| ID | Scenario | Traceability | Method | Result |
+| --- | --- | --- | --- | --- |
+| QA-P3-S1-001 | Roll-scoped topic uses `rollId + rowId` and initializes per-cell audit state | [Product → QA: P3-S1, P3-S2] [Design → QA] | `RollMicrofilmTableTopicTests` | Pass |
+| QA-P3-S2-001 | Targeted cell updates emit cell-level facts with server-resolved actor metadata | [Product → QA: P3-S2, P3-S4] [Design → QA] | `RollMicrofilmTableTopicTests`, roll row query tests | Pass |
+| QA-P3-S2-002 | Regular/custom route kind mismatch is rejected before a cell changes | [Product → QA: P3-S2] [Design → QA] | `RollMicrofilmTableTopicTests.UpdateRollRowCell_RejectsMismatchedRouteRowKind` | Pass |
+| QA-P3-S3-001 | Roll lookup resolves roll ownership and legacy routing index maps migrated rows | [Product → QA: P3-S3] [Design → QA] | `RollMicrofilmLookupQueryTests`, `LegacyRowRoutingIndexQueryTests` | Pass |
+| QA-P3-S3-002 | Legacy client projections continue receiving roll-scoped row/cell facts during migration | [Product → QA: P3-S3] [Design → QA] | `RollMicrofilmLegacyProjectionTests` and focused Microfilm filter | Pass |
+| QA-P3-S4-001 | Tracking remains non-authorization; no `[Authorize]`, `UseAuthorization`, QueryHub auth, role gates, or command blocking added | [Product → QA: P3-S4] [Design → QA] | Static scan and implementation review | Pass |
+| QA-P3-S5-001 | Legacy compatibility keeps client-wide routes available while documenting roll-scoped preferred routes | [Product → QA: P3-S5] [Design → QA] | `backend-integration-guide.md` review plus focused tests | Pass |
+
 Draft automation approach for Execution consideration:
 - Add a lightweight ASP.NET Core Web/API integration harness, preferably `WebApplicationFactory`/`TestServer` with an isolated test user store and cookie container.
 - Candidate tests: `Register_SignsInOrEnablesLogin_AndSessionReflectsUser`, `DuplicateRegistration_ReturnsValidationWithoutPlaintextSecrets`, `Login_SetsHttpOnlyCookie_ThenSessionIdentified`, `FailedLogin_DoesNotIssueCookie`, `Logout_ClearsCookie_ThenSessionUnidentified`, `CookieFlags_MatchConfiguredEnvironment`, `Session_WithUnmappedCookieUser_ReturnsUnmapped200`, and `ExistingRoutes_AreNotNewlyAuthorizationGated`.
@@ -122,6 +134,8 @@ No P2 cookie identity implementation bugs are reported because this is a plannin
 | Metric | Value | Notes |
 | --- | --- | --- |
 | Focused new tests | 6 passed, 0 failed | QA rerun on 2026-06-30: `InteractionIdentityResolverTests` filter. |
+| Focused auth/session tests | 17 passed, 0 failed | Execution evidence: `InteractionIdentityResolverTests|ApplicationUserManagerTests|AuthControllerTests|CookieBackedCsrfFilterTests`. |
+| Focused Microfilm roll-scoped tests | 38 passed, 0 failed | Execution evidence: `FullyQualifiedName~Microfilm` filter after Phase 2 roll-scoped changes. |
 | Resolver state coverage | Identified, unmapped, unidentified covered | Includes Windows account, UPN, no observed identity, duplicate mapping. |
 | Manual HTTP evidence | Passed for default `unidentified` | Recorded in `docs/execution_log.md`: `200`, JSON, `Cache-Control: no-store`, camelCase body. |
 | Static forbidden-auth scan | Pass by prior QA/Governance evidence | No Phase 1 evidence of `[Authorize]`, auth middleware, Negotiate, Challenge, Forbid, QueryHub auth, login, or command blocking. |
@@ -166,6 +180,14 @@ Additional P2 cookie identity regression gate when implementation begins:
 7. If rate limiting/lockout is scoped, run targeted tests for lockout thresholds and recovery. If not scoped, require Product/Governance risk acceptance before non-local exposure.
 8. Update frontend-facing docs with final endpoint shapes, session refresh timing, and local QA account setup before QA signoff.
 
+Additional roll-scoped table regression gate:
+
+1. Run `dotnet test .\tests\Quantum.Tests\Quantum.Tests.csproj -c Release --filter "FullyQualifiedName~Microfilm" --no-restore`.
+2. Verify roll-scoped rows are created/read by `rollId + rowId`, custom rows remain roll-scoped, and legacy client projections continue to update during migration.
+3. Verify targeted cell updates stamp audit metadata from the backend-resolved session actor and reject route row-kind mismatches.
+4. Verify legacy create requests with body `rollId` cannot cross the `{clientId}` route boundary.
+5. Re-run static no-authorization/no-client-actor scans when touching Microfilm controllers, topics, commands, events, or QueryHub behavior.
+
 ## 6. Documentation Verification
 
 | Artifact | Status | Notes |
@@ -176,12 +198,12 @@ Additional P2 cookie identity regression gate when implementation begins:
 | `/docs` | Present | Planning docs directory exists. |
 | `/docs/vision.md` | Present / Pass | Includes Phase 1 baseline and next P2 backend-owned cookie login/register direction with QA handoff. |
 | `/docs/product_backlog.md` | Present / Pass | P1 baseline and P2 cookie identity stories P2-S1 through P2-S7 include QA acceptance labels. |
-| `/docs/design.md` | Present / Pass | Documents Phase 1 resolver design and next-phase cookie auth architecture/security considerations. |
-| `/docs/execution_log.md` | Present / Pass | Includes build/test evidence, HTTP rerun evidence, technical debt, and process-stop note. |
-| `/docs/qa_plan.md` | Present / Updated | This document preserves Phase 1 QA results and adds P2 cookie identity QA planning. |
-| `/docs/governance_traceability.md` | Present / Phase 1 pass; P2 Governance update pending | Governance closed the Phase 1 loopback. It should add next-phase cookie identity traceability during its own current-goal review. |
+| `/docs/design.md` | Present / Pass | Documents Phase 1 resolver design, cookie auth architecture/security considerations, and roll-scoped table design. |
+| `/docs/execution_log.md` | Present / Pass | Includes build/test evidence, HTTP rerun evidence, cookie identity evidence, roll-scoped Microfilm evidence, technical debt, and process-stop note. |
+| `/docs/qa_plan.md` | Present / Updated | This document preserves Phase 1 QA results and adds P2 cookie identity plus Product P3/table Phase 2 roll-scoped QA evidence. |
+| `/docs/governance_traceability.md` | Present / Updated | Governance traceability should include cookie identity and roll-scoped table implementation evidence before release signoff. |
 | README/docs index | Pass | Quick start/build/test/start guidance exists and links Vision, Product, Design, Execution, QA, Governance, and backend guide artifacts. |
-| Frontend-facing contract docs | Present / Phase 1 pass; P2 update pending | `backend-integration-guide.md` covers Phase 1; register/login/logout endpoint shapes and frontend QA setup should be added after Design finalizes P2 contracts. |
+| Frontend-facing contract docs | Present / Pass | `backend-integration-guide.md` covers session tracking, register/login/logout, cookie/CSRF expectations, and roll-scoped table routes. |
 
 ## 7. Acceptance Criteria Coverage Summary
 
@@ -205,17 +227,25 @@ Additional P2 cookie identity regression gate when implementation begins:
 - HTTP validation gap: Closed for the required default `unidentified` route/header/serialization evidence.
 - Full focused validation: Pass. Full suite remains waived/conditional due unrelated failure.
 
-### P2 cookie identity planning coverage (not execution evidence)
+### P2 cookie identity implementation coverage
 
 [Product → QA]
 
-- P2-S1 registration: Planned coverage for successful, invalid, duplicate, minimal-field, no-client-`processUserId`, password hashing, user-store, and response semantics.
-- P2-S2 login: Planned coverage for success cookie issuance, generic failure, no client actor override, and rate limiting/lockout or risk acceptance.
-- P2-S3 logout: Planned coverage for cookie clearing/invalidation, idempotent logged-out behavior, post-logout `/api/session`, and CSRF consistency.
-- P2-S4 `/api/session` cookie integration: Planned coverage for cookie-principal preference, backward-compatible fields, `identified`/`unmapped`/`unidentified`, `Cache-Control: no-store`, expired/tampered cookies, and no 401/403 for normal tracking states.
-- P2-S5 cookie security: Planned coverage for `HttpOnly`, `Secure`, `SameSite`, lifetime/sliding expiration, no credentialed CORS broadening, anti-forgery strategy, and no sensitive auth logging.
-- P2-S6 frontend handoff: Planned coverage for final endpoint documentation, session refresh timing after register/login/logout, and no manual/delegated `ProcessUserID` fallback.
-- P2-S7 validation/no authorization expansion: Planned coverage for build/test evidence, auth/session automated or manual evidence, existing-route/QueryHub no-gate regression checks, and domain tests only if actor metadata enters commands/events/topics/queries.
+- P2-S1 registration: Pass by backend register endpoint, file-backed user store, password hashing, duplicate validation, no client `processUserId`, and focused auth tests.
+- P2-S2 login: Pass by backend login endpoint, generic invalid credential response, server-issued cookie, and no client actor override.
+- P2-S3 logout: Pass by backend logout endpoint, cookie sign-out behavior, unidentified session response, and CSRF enforcement coverage.
+- P2-S4 `/api/session` cookie integration: Pass by resolver preference for backend cookie claims and focused session resolver/controller tests.
+- P2-S5 cookie security: Pass for implemented MVP by configured `HttpOnly`, `Secure` outside development, `SameSite`, redirect suppression, CSRF token/header, and explicit-origin credentialed CORS.
+- P2-S6 frontend handoff: Pass by `backend-integration-guide.md` and frontend questionnaire response documentation.
+- P2-S7 validation/no authorization expansion: Pass by focused auth/session tests, solution build evidence, static no-authz scan, no QueryHub auth, and no command blocking by default.
+
+### Product P3 / table Phase 2 roll-scoped implementation coverage
+
+- P3-S1 roll-scoped resources: Pass by roll topic, roll queries, roll API routes, and focused Microfilm tests.
+- P3-S2 targeted cell audit: Pass by targeted `RollMicrofilmRowCellChanged` facts, `MicrofilmCellAudit` projection, actor stamping from backend session resolver, and focused tests.
+- P3-S3 legacy migration compatibility: Pass by legacy projection updates, `LegacyRowRoutingIndexQuery`, legacy create route ownership validation, and compatibility docs.
+- P3-S4 tracking-not-authorization: Pass by static no-authz scan and implementation review; no QueryHub auth or command blocking added.
+- P3-S5 frontend/backend handoff: Pass by `backend-integration-guide.md` roll-scoped route and migration notes.
 
 ## 8. Recommendation
 
@@ -225,7 +255,7 @@ Phase 1 backend session tracking remains conditionally passed for the scoped fea
 
 [QA → Product/Design/Execution]
 
-QA documentation is current for the next backend-owned ASP.NET Core cookie login/register planning goal. Before P2 execution/release signoff, QA expects Product/Design/Execution evidence for:
+QA documentation is current for backend-owned ASP.NET Core cookie identity and roll-scoped table Phase 2 implementation. Before broader release signoff, QA expects Product/Design/Execution evidence for:
 
 1. Final register/login/logout endpoint shapes and response DTOs.
 2. Backend-owned account store, password hashing, uniqueness, display label, and server-side `processUserId` mapping rules.
@@ -236,4 +266,4 @@ QA documentation is current for the next backend-owned ASP.NET Core cookie login
 7. Regression evidence that authentication did not become authorization: no new existing-route `[Authorize]` gates, QueryHub auth, role/policy gates, or command blocking by default.
 8. A Web/API integration test harness where practical; otherwise complete manual HTTP evidence plus an explicit automation gap.
 
-No tests were run and no implementation changes were made for this document-only QA update. No QA-requested code rework is required for the completed Phase 1 tracking slice based on the current evidence.
+No QA-requested code rework remains for the completed Phase 1 tracking slice, backend cookie identity MVP, or roll-scoped table Phase 2 based on the current focused evidence. The known unrelated full-suite failure remains governed by the existing waiver unless release policy requires a no-waiver full-suite pass.

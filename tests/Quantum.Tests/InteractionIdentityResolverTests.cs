@@ -87,6 +87,39 @@ namespace Quantum.Tests
     }
 
     [Fact]
+    public void BackendCookiePrincipalWithProcessUserId_ReturnsIdentifiedSession()
+    {
+      var session = Resolve(Principal(
+        new Claim(ClaimTypes.NameIdentifier, "user-1"),
+        new Claim(ClaimTypes.Name, "Alex Johnston"),
+        new Claim(InteractionAuthClaims.UserName, "ajohnston"),
+        new Claim(InteractionAuthClaims.ProcessUserId, "AJOHNSTON"),
+        new Claim(InteractionAuthClaims.TrackingSource, InteractionTrackingSources.BackendCookie)));
+
+      Assert.Equal(InteractionTrackingStatus.Identified, session.Status);
+      Assert.Equal("Alex Johnston", session.DisplayLabel);
+      Assert.Null(session.WindowsAccount);
+      Assert.Null(session.UserPrincipalName);
+      Assert.Equal("AJOHNSTON", session.ProcessUserId);
+      Assert.Equal(InteractionTrackingSources.BackendCookie, session.TrackingSource);
+    }
+
+    [Fact]
+    public void BackendCookiePrincipalWithoutProcessUserId_ReturnsUnmappedSession()
+    {
+      var session = Resolve(Principal(
+        new Claim(ClaimTypes.NameIdentifier, "user-1"),
+        new Claim(ClaimTypes.Name, "Alex Johnston"),
+        new Claim(InteractionAuthClaims.UserName, "ajohnston"),
+        new Claim(InteractionAuthClaims.TrackingSource, InteractionTrackingSources.BackendCookie)));
+
+      Assert.Equal(InteractionTrackingStatus.Unmapped, session.Status);
+      Assert.Equal("Alex Johnston", session.DisplayLabel);
+      Assert.Null(session.ProcessUserId);
+      Assert.Equal(InteractionTrackingSources.BackendCookie, session.TrackingSource);
+    }
+
+    [Fact]
     public void DuplicateAccountMappingsWithDifferentProcessUsers_ThrowConfigurationError()
     {
       var resolver = Resolver(

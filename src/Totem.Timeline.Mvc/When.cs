@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,6 +12,9 @@ namespace Totem.Timeline.Mvc
   public static class When<TEvent> where TEvent : Event
   {
     public static CommandWhen Then(Func<TEvent, IActionResult> respond) =>
+      new CommandWhen(typeof(TEvent), e => respond((TEvent) e));
+
+    public static CommandWhen ThenAsync(Func<TEvent, Task<IActionResult>> respond) =>
       new CommandWhen(typeof(TEvent), e => respond((TEvent) e));
 
     public static CommandWhen Then(int statusCode) =>
