@@ -1,12 +1,11 @@
 using System.Collections.Generic;
-using System.Linq;
 using Totem;
 using Totem.Timeline;
 
 namespace Outermind.Microfilm.Queries
 {
   /// <summary>
-  /// Tracks effective column definitions for one roll-scoped table.
+  /// Retains baseline roll fields for compatibility; API reads resolve the client catalog.
   /// </summary>
   public class RollMicrofilmColumnsQuery : Query
   {
@@ -14,7 +13,6 @@ namespace Outermind.Microfilm.Queries
     public List<MicrofilmTableColumn> Columns { get; set; } = new();
 
     static Id RouteFirst(RollCreated e) => e.Roll.RollId;
-    static Id Route(RollMicrofilmTableColumnsChanged e) => e.RollId;
 
     void Given(RollCreated e)
     {
@@ -22,10 +20,5 @@ namespace Outermind.Microfilm.Queries
       Columns = MicrofilmDefaultColumns.RollScoped();
     }
 
-    void Given(RollMicrofilmTableColumnsChanged e)
-    {
-      RollId = e.RollId;
-      Columns = e.Columns.Select(column => column.Clone()).ToList();
-    }
   }
 }

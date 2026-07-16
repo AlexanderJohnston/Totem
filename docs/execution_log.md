@@ -130,3 +130,33 @@ No `ProcessUserID`, `ScanUserID`, `userId`, process operator, or equivalent trac
 ## Scaffolding Updates
 
 - Created `/docs/execution_log.md` for Execution traceability. [Product → Execution: FND-S1]
+
+### 2026-07-13 - Client-owned Microfilm column catalog and durable inactive fields [Product → Execution: Microfilm schema and retention] [Design → Execution]
+
+- Made the client Microfilm column catalog authoritative for roll create/update validation. Canonical and legacy-dispatched roll writes now receive an immutable client-catalog snapshot from the Web API; old command callers without a snapshot retain the historical roll fallback.
+- Merged guaranteed `boxName` and `rollName` baseline definitions into effective roll catalogs without overriding client definitions.
+- Changed roll reads at the API boundary to return the effective client catalog and durable roll values. The roll columns compatibility PUT now replaces the owning client catalog rather than creating per-roll mappings.
+- Preserved inactive `Cells` and `CellAudits` during reconciliation, removed roll-column-event mutation from client projections, and stopped historical roll column events from reconciling roll rows.
+- Added focused regression coverage for client-catalog roll writes, unknown-field rejection, inactive-field retention, aggregate durability, and old roll-column projection isolation.
+- Added `docs/frontend-microfilm-column-catalog-migration.md` for already-integrated frontend teams. [Execution → QA]
+
+### 2026-07-13 - Validation remediation [Product → Execution: Microfilm schema and retention] [Design → Execution]
+
+- Reworked effective roll-catalog merging to avoid mutating `List<T>.Reverse()`, keep `boxName` then `rollName` in deterministic order, and retain client definitions for either baseline ID.
+- Added regression coverage for baseline ordering, client baseline overrides, and merge cloning. Existing topic/query coverage verifies client catalog snapshot writes and historical roll-column-event isolation.
+- Controller-level tests were not added: the existing test project has no Microfilm API/query-host harness, and exercising the controller's `IQueryDb` extension-based reads would require a Timeline `AreaMap`/query database fixture rather than a focused mock. [Execution → QA]
+
+## Suggested Tests (2026-07-13)
+
+[Execution → QA]
+
+1. Run the focused Microfilm test suite and verify catalog-snapshot writes accept client fields absent from historical roll defaults and reject unknown IDs.
+2. Remove then re-add a client catalog ID after a roll cell update; verify table, rows, single-row, and legacy projections retain the value/audit.
+3. Confirm `PUT /api/microfilm/rolls/{rollId}/columns` updates the client catalog for all client rolls and creates no roll-local mapping.
+4. Replay a historical `RollMicrofilmTableColumnsChanged` event and confirm it cannot change client catalog or unrelated client row values.
+
+## Validation Results (2026-07-13)
+
+[Execution → QA]
+
+- Not run by Execution per delegation instruction; validation is pending the Luna agent.

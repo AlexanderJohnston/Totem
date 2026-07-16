@@ -17,7 +17,6 @@ namespace Outermind.Microfilm.Queries
     static Id Route(MicrofilmTableColumnsChanged e) => e.ClientId;
     static Id Route(MicrofilmRegularRowCreated e) => e.ClientId;
     static Id Route(MicrofilmRegularRowCellUpdated e) => e.ClientId;
-    static Id Route(RollMicrofilmTableColumnsChanged e) => e.ClientId;
     static Id Route(RollMicrofilmRowCreated e) => e.ClientId;
     static Id Route(RollMicrofilmRowCellChanged e) => e.ClientId;
 
@@ -48,14 +47,6 @@ namespace Outermind.Microfilm.Queries
       Upsert(e.Row.Clone(MicrofilmTableRowOrigins.Regular));
     }
 
-    void Given(RollMicrofilmTableColumnsChanged e)
-    {
-      foreach(var row in Rows)
-      {
-        row.Cells = MicrofilmTableRules.ReconcileCells(e.Columns, row.Cells);
-        row.CellAudits = MicrofilmTableRules.ReconcileCellAudits(e.Columns, row.CellAudits);
-      }
-    }
 
     void Given(RollMicrofilmRowCreated e)
     {

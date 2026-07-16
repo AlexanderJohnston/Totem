@@ -26,6 +26,11 @@ namespace Outermind.Microfilm
     public string RowKind { get; set; }
     public Dictionary<string, MicrofilmCellValue> Cells { get; set; }
     public MicrofilmAuditActorStamp Actor { get; set; }
+    /// <summary>
+    /// Immutable snapshot of the owning client's active catalog at dispatch time.
+    /// Null is reserved for legacy callers, which fall back to historical roll state.
+    /// </summary>
+    public List<MicrofilmTableColumn> CatalogColumns { get; set; }
 
     public CreateRollMicrofilmRow(
       Id rollId,
@@ -33,7 +38,8 @@ namespace Outermind.Microfilm
       string rowId,
       string rowKind,
       Dictionary<string, MicrofilmCellValue> cells,
-      MicrofilmAuditActorStamp actor)
+      MicrofilmAuditActorStamp actor,
+      List<MicrofilmTableColumn> catalogColumns = null)
     {
       RollId = rollId;
       ClientId = clientId;
@@ -41,6 +47,7 @@ namespace Outermind.Microfilm
       RowKind = rowKind;
       Cells = cells ?? new Dictionary<string, MicrofilmCellValue>();
       Actor = actor;
+      CatalogColumns = catalogColumns;
     }
   }
 
@@ -53,6 +60,8 @@ namespace Outermind.Microfilm
     public string ColumnId { get; set; }
     public MicrofilmCellValue Value { get; set; }
     public MicrofilmAuditActorStamp Actor { get; set; }
+    /// <summary>See <see cref="CreateRollMicrofilmRow.CatalogColumns"/>.</summary>
+    public List<MicrofilmTableColumn> CatalogColumns { get; set; }
 
     public UpdateRollMicrofilmRowCell(
       Id rollId,
@@ -61,7 +70,8 @@ namespace Outermind.Microfilm
       string rowKind,
       string columnId,
       MicrofilmCellValue value,
-      MicrofilmAuditActorStamp actor)
+      MicrofilmAuditActorStamp actor,
+      List<MicrofilmTableColumn> catalogColumns = null)
     {
       RollId = rollId;
       ClientId = clientId;
@@ -70,6 +80,7 @@ namespace Outermind.Microfilm
       ColumnId = columnId;
       Value = value;
       Actor = actor;
+      CatalogColumns = catalogColumns;
     }
   }
 }

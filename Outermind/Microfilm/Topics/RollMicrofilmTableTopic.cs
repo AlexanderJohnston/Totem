@@ -6,12 +6,13 @@ using Totem.Timeline;
 namespace Outermind.Microfilm.Topics
 {
   /// <summary>
-  /// Manages the roll-scoped editable table for one microfilm roll.
+  /// Manages durable roll rows. The owning client catalog is supplied with current writes;
+  /// this topic retains only historical roll columns as a legacy-command fallback.
   /// </summary>
   public class RollMicrofilmTableTopic : Topic
   {
     bool _rollRecognized;
-    List<MicrofilmTableColumn> _columns = new();
+    List<MicrofilmTableColumn> _legacyColumns = new();
     readonly Dictionary<string, MicrofilmTableRow> _rowsById = new();
 
     static Id RouteFirst(RollCreated e) => e.Roll.RollId;
@@ -26,12 +27,14 @@ namespace Outermind.Microfilm.Topics
     void Given(RollCreated e)
     {
       _rollRecognized = true;
-      ApplyColumns(MicrofilmDefaultColumns.RollScoped());
+      ApplyLegacyColumns(MicrofilmDefaultColumns.RollScoped());
     }
 
     void Given(RollMicrofilmTableColumnsChanged e)
     {
-      ApplyColumns(e.Columns);
+      // Historical events are retained only to support old commands without a catalog snapshot.
+      // They must not reconcile or remove durable row values.
+      ApplyLegacyColumns(e.Columns);
     }
 
     void Given(RollMicrofilmRowCreated e)
@@ -54,12 +57,16 @@ namespace Outermind.Microfilm.Topics
 
     void When(ReplaceRollMicrofilmTableColumns command)
     {
-      if(!EnsureRollRecognized(command.RollId) || !TryNormalizeColumns(command.RollId, command.ClientId, command.Columns, out var columns))
+      if(!EnsureRollRecognized(command.RollId) || !TryNormalizeColumns(command.ClientId, command.Columns, out var columns))
       {
         return;
       }
 
-      Then(new RollMicrofilmTableColumnsChanged(command.RollId, command.ClientId, columns));
+      // Deprecated compatibility command. The Web API routes catalog replacement to the client.
+      Then(new RollMicrofilmTableColumnsChanged(
+        command.RollId,
+        command.ClientId,
+        MicrofilmDefaultColumns.MergeRollCatalog(columns)));
     }
 
     void When(CreateRollMicrofilmRow command)
@@ -85,10 +92,15 @@ namespace Outermind.Microfilm.Topics
         return;
       }
 
+      if(!TryGetEffectiveColumns(command.ClientId, command.CatalogColumns, out var columns))
+      {
+        return;
+      }
+
       if(!MicrofilmTableRules.TryNormalizeRow(
         rowId,
         rowKind,
-        _columns,
+        columns,
         command.Cells,
         out var row,
         out var code,
@@ -100,7 +112,7 @@ namespace Outermind.Microfilm.Topics
       }
 
       row.RollId = command.RollId.ToString();
-      row.CellAudits = MicrofilmTableRules.ReconcileCellAudits(_columns, row.CellAudits);
+      row.CellAudits = MicrofilmTableRules.ReconcileCellAudits(columns, row.CellAudits);
 
       Then(new RollMicrofilmRowCreated(command.RollId, command.ClientId, row, command.Actor));
     }
@@ -132,7 +144,12 @@ namespace Outermind.Microfilm.Topics
         return;
       }
 
-      var column = _columns.FirstOrDefault(c => c.Id == command.ColumnId);
+      if(!TryGetEffectiveColumns(command.ClientId, command.CatalogColumns, out var columns))
+      {
+        return;
+      }
+
+      var column = columns.FirstOrDefault(c => c.Id == command.ColumnId);
       if(column == null)
       {
         Then(new MicrofilmTableColumnNotRecognized(command.ClientId, command.ColumnId));
@@ -159,7 +176,25 @@ namespace Outermind.Microfilm.Topics
       return false;
     }
 
-    bool TryNormalizeColumns(Id rollId, Id clientId, List<MicrofilmTableColumn> input, out List<MicrofilmTableColumn> columns)
+    bool TryGetEffectiveColumns(Id clientId, List<MicrofilmTableColumn> catalogSnapshot, out List<MicrofilmTableColumn> columns)
+    {
+      if(catalogSnapshot == null)
+      {
+        columns = _legacyColumns.Select(column => column.Clone()).ToList();
+        return true;
+      }
+
+      if(!TryNormalizeColumns(clientId, catalogSnapshot, out var normalizedCatalog))
+      {
+        columns = null;
+        return false;
+      }
+
+      columns = MicrofilmDefaultColumns.MergeRollCatalog(normalizedCatalog);
+      return true;
+    }
+
+    bool TryNormalizeColumns(Id clientId, List<MicrofilmTableColumn> input, out List<MicrofilmTableColumn> columns)
     {
       if(MicrofilmTableRules.TryNormalizeColumns(input, out columns, out var code, out var message, out var columnId))
       {
@@ -182,15 +217,9 @@ namespace Outermind.Microfilm.Topics
       }
     }
 
-    void ApplyColumns(List<MicrofilmTableColumn> columns)
+    void ApplyLegacyColumns(List<MicrofilmTableColumn> columns)
     {
-      _columns = (columns ?? new List<MicrofilmTableColumn>()).Select(column => column.Clone()).ToList();
-
-      foreach(var row in _rowsById.Values)
-      {
-        row.Cells = MicrofilmTableRules.ReconcileCells(_columns, row.Cells);
-        row.CellAudits = MicrofilmTableRules.ReconcileCellAudits(_columns, row.CellAudits);
-      }
+      _legacyColumns = (columns ?? new List<MicrofilmTableColumn>()).Select(column => column.Clone()).ToList();
     }
   }
 }

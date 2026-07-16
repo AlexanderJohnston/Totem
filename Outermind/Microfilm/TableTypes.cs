@@ -30,6 +30,33 @@ namespace Outermind.Microfilm
         new("boxName", "Box", MicrofilmTableColumnTypes.Text, 160),
         new("rollName", "Roll", MicrofilmTableColumnTypes.Text, 160)
       };
+
+    /// <summary>
+    /// Adds required roll identity fields only when the client catalog does not define them.
+    /// Client definitions take precedence so the client catalog remains authoritative.
+    /// </summary>
+    public static List<MicrofilmTableColumn> MergeRollCatalog(IEnumerable<MicrofilmTableColumn> catalog)
+    {
+      var clientColumns = (catalog ?? Enumerable.Empty<MicrofilmTableColumn>())
+        .Where(column => column != null)
+        .Select(column => column.Clone())
+        .ToList();
+
+      // Keep the required identity fields first, in their stable baseline order. A
+      // client definition for either ID replaces that baseline definition, while
+      // all other client-defined columns retain their catalog order.
+      var baselineIds = new HashSet<string>();
+      var merged = new List<MicrofilmTableColumn>();
+
+      foreach(var baseline in RollScoped())
+      {
+        baselineIds.Add(baseline.Id);
+        merged.Add(clientColumns.FirstOrDefault(column => column.Id == baseline.Id) ?? baseline);
+      }
+
+      merged.AddRange(clientColumns.Where(column => !baselineIds.Contains(column.Id)));
+      return merged;
+    }
   }
 
   public static class MicrofilmTableRowOrigins
@@ -510,7 +537,9 @@ namespace Outermind.Microfilm
       IEnumerable<MicrofilmTableColumn> columns,
       IDictionary<string, MicrofilmCellValue> existingCells)
     {
-      var reconciled = CreateDefaultCells(columns);
+      // Active catalog changes affect visibility and defaults, never durable inactive values.
+      var reconciled = (existingCells ?? new Dictionary<string, MicrofilmCellValue>())
+        .ToDictionary(cell => cell.Key, cell => cell.Value?.Clone() ?? MicrofilmCellValue.Null());
 
       foreach(var column in columns ?? Enumerable.Empty<MicrofilmTableColumn>())
       {
@@ -520,6 +549,10 @@ namespace Outermind.Microfilm
         {
           reconciled[column.Id] = normalized;
         }
+        else if(!reconciled.ContainsKey(column.Id))
+        {
+          reconciled[column.Id] = CreateDefaultCell(column);
+        }
       }
 
       return reconciled;
@@ -527,13 +560,21 @@ namespace Outermind.Microfilm
 
     public static Dictionary<string, MicrofilmCellAudit> ReconcileCellAudits(
       IEnumerable<MicrofilmTableColumn> columns,
-      IDictionary<string, MicrofilmCellAudit> existingAudits) =>
-      (columns ?? Enumerable.Empty<MicrofilmTableColumn>())
-        .ToDictionary(
-          column => column.Id,
-          column => existingAudits != null && existingAudits.TryGetValue(column.Id, out var audit)
-            ? audit?.Clone() ?? MicrofilmCellAudit.NotTrackedYet()
-            : MicrofilmCellAudit.NotTrackedYet());
+      IDictionary<string, MicrofilmCellAudit> existingAudits)
+    {
+      var reconciled = (existingAudits ?? new Dictionary<string, MicrofilmCellAudit>())
+        .ToDictionary(audit => audit.Key, audit => audit.Value?.Clone() ?? MicrofilmCellAudit.NotTrackedYet());
+
+      foreach(var column in columns ?? Enumerable.Empty<MicrofilmTableColumn>())
+      {
+        if(!reconciled.ContainsKey(column.Id))
+        {
+          reconciled[column.Id] = MicrofilmCellAudit.NotTrackedYet();
+        }
+      }
+
+      return reconciled;
+    }
 
     public static bool TryNormalizeCell(MicrofilmTableColumn column, MicrofilmCellValue value, out MicrofilmCellValue normalized, out string message)
     {

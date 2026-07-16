@@ -14,7 +14,6 @@ namespace Outermind.Microfilm.Queries
     public List<MicrofilmTableRow> Rows { get; set; } = new();
 
     static Id RouteFirst(RollCreated e) => e.Roll.RollId;
-    static Id Route(RollMicrofilmTableColumnsChanged e) => e.RollId;
     static Id Route(RollMicrofilmRowCreated e) => e.RollId;
     static Id Route(RollMicrofilmRowCellChanged e) => e.RollId;
 
@@ -23,16 +22,6 @@ namespace Outermind.Microfilm.Queries
       RollId = e.Roll.RollId;
     }
 
-    void Given(RollMicrofilmTableColumnsChanged e)
-    {
-      RollId = e.RollId;
-
-      foreach(var row in Rows)
-      {
-        row.Cells = MicrofilmTableRules.ReconcileCells(e.Columns, row.Cells);
-        row.CellAudits = MicrofilmTableRules.ReconcileCellAudits(e.Columns, row.CellAudits);
-      }
-    }
 
     void Given(RollMicrofilmRowCreated e)
     {

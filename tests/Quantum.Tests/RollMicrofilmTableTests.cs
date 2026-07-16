@@ -138,7 +138,6 @@ namespace Quantum.Tests
     public async Task RollRowCellChange_ProjectsAuditMetadata()
     {
       await Append(new RollCreated(new KnownRoll("Roll A", RollId, Id.Unassigned)));
-      await Append(new RollMicrofilmTableColumnsChanged(RollId, ClientId, Columns()));
       await Append(new RollMicrofilmRowCreated(
         RollId,
         ClientId,

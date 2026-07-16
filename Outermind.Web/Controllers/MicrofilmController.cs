@@ -195,7 +195,10 @@ namespace Outermind.Controllers
         return NotFound(MicrofilmTableApiErrors.UnknownRoll(roll));
       }
 
-      return await _queries.Get<RollMicrofilmColumnsQuery>(roll);
+      var lookup = await GetRollLookup(roll);
+      var columns = await GetEffectiveRollColumns(lookup.ClientId);
+
+      return Ok(new { rollId = roll, columns });
     }
 
     [HttpPut("columns/{clientId}")]
@@ -229,10 +232,11 @@ namespace Outermind.Controllers
         return NotFound(MicrofilmTableApiErrors.UnknownRoll(roll));
       }
 
+      // Compatibility route: catalog ownership remains with the client, never the roll.
       return await _commands.Execute(
-        new ReplaceRollMicrofilmTableColumns(roll, lookup.ClientId, request.Columns),
-        When<RollMicrofilmTableColumnsChanged>.Then(e => Ok(new { rollId = e.RollId, columns = e.Columns })),
-        When<RollMicrofilmTableRollNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRoll(e.RollId))),
+        new ReplaceMicrofilmTableColumns(lookup.ClientId, request.Columns),
+        When<MicrofilmTableColumnsChanged>.Then(e => Ok(new { rollId = roll, columns = MicrofilmDefaultColumns.MergeRollCatalog(e.Columns) })),
+        When<MicrofilmTableClientNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownClient(e.ClientId))),
         When<MicrofilmTableColumnSchemaRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidColumns(e))));
     }
 
@@ -275,12 +279,15 @@ namespace Outermind.Controllers
     {
       var roll = Id.From(rollId);
 
-      if(!await RollExists(roll))
+      var lookup = await GetRollLookup(roll);
+      if(lookup == null)
       {
         return NotFound(MicrofilmTableApiErrors.UnknownRoll(roll));
       }
 
-      return await _queries.Get<RollMicrofilmTableQuery>(roll);
+      var table = await _queryDb.ReadQuery<RollMicrofilmTableQuery>(roll);
+      table.Columns = await GetEffectiveRollColumns(lookup.ClientId);
+      return Ok(table);
     }
 
     [HttpPost("rows/{clientId}")]
@@ -433,8 +440,10 @@ namespace Outermind.Controllers
         return BadRequest(MicrofilmTableApiErrors.InvalidRequest("Roll does not belong to the client route."));
       }
 
+      var catalogColumns = await GetEffectiveRollColumns(lookup.ClientId);
+
       return await _commands.Execute(
-        new CreateRollMicrofilmRow(roll, lookup.ClientId, request.RowId, rowKind, request.Cells, ResolveAuditActor()),
+        new CreateRollMicrofilmRow(roll, lookup.ClientId, request.RowId, rowKind, request.Cells, ResolveAuditActor(), catalogColumns),
         When<RollMicrofilmRowCreated>.Then(e => Created($"/api/microfilm/rolls/{e.RollId}/rows/{e.Row.Id}", new { row = e.Row })),
         When<RollMicrofilmTableRollNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRoll(e.RollId))),
         When<RollMicrofilmTableRowKindRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidRowKind(e))),
@@ -463,8 +472,10 @@ namespace Outermind.Controllers
         return NotFound(MicrofilmTableApiErrors.UnknownRoll(roll));
       }
 
+      var catalogColumns = await GetEffectiveRollColumns(lookup.ClientId);
+
       return await _commands.Execute(
-        new UpdateRollMicrofilmRowCell(roll, lookup.ClientId, rowId, rowKind, columnId, request.Value, ResolveAuditActor()),
+        new UpdateRollMicrofilmRowCell(roll, lookup.ClientId, rowId, rowKind, columnId, request.Value, ResolveAuditActor(), catalogColumns),
         When<RollMicrofilmRowCellChanged>.Then(e => Ok(new
         {
           rollId = e.RollId,
@@ -494,9 +505,12 @@ namespace Outermind.Controllers
       return null;
     }
 
-    Task<IActionResult> ExecuteLegacyRollCellUpdate(LegacyRowRoute route, UpdateMicrofilmTableCellRequest request) =>
-      _commands.Execute(
-        new UpdateRollMicrofilmRowCell(route.RollId, route.ClientId, route.RowId, route.RowKind, request.ColumnId, request.Value, ResolveAuditActor()),
+    async Task<IActionResult> ExecuteLegacyRollCellUpdate(LegacyRowRoute route, UpdateMicrofilmTableCellRequest request)
+    {
+      var catalogColumns = await GetEffectiveRollColumns(route.ClientId);
+
+      return await _commands.Execute(
+        new UpdateRollMicrofilmRowCell(route.RollId, route.ClientId, route.RowId, route.RowKind, request.ColumnId, request.Value, ResolveAuditActor(), catalogColumns),
         When<RollMicrofilmRowCellChanged>.ThenAsync(CreateLegacyRollCellUpdateResponse),
         When<RollMicrofilmTableRollNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRoll(e.RollId))),
         When<RollMicrofilmTableRowKindRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidRowKind(e))),
@@ -504,6 +518,7 @@ namespace Outermind.Controllers
         When<MicrofilmTableRowNotRecognized>.Then(e => NotFound(MicrofilmTableApiErrors.UnknownRow(e.ClientId, route.RollId, e.RowId))),
         When<MicrofilmTableColumnNotRecognized>.Then(e => BadRequest(MicrofilmTableApiErrors.UnknownColumn(e.ClientId, route.RollId, e.ColumnId))),
         When<MicrofilmTableCellValueRejected>.Then(e => BadRequest(MicrofilmTableApiErrors.InvalidCell(e))));
+    }
 
     async Task<IActionResult> CreateLegacyRollCellUpdateResponse(RollMicrofilmRowCellChanged e)
     {
@@ -526,6 +541,12 @@ namespace Outermind.Controllers
       }
 
       return await _queries.Get<TQuery>(id);
+    }
+
+    async Task<List<MicrofilmTableColumn>> GetEffectiveRollColumns(Id clientId)
+    {
+      var catalog = await _queryDb.ReadQuery<MicrofilmTableColumnsQuery>(clientId);
+      return MicrofilmDefaultColumns.MergeRollCatalog(catalog.Columns);
     }
 
     async Task<bool> ServerExists(Id serverId)
