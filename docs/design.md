@@ -21,21 +21,20 @@ Source inputs:
 
 ### Current-state summary from code
 
-- `MicrofilmController` exposes client-wide table APIs: `/api/microfilm/columns/{clientId}`, `/rows/{clientId}`, `/custom-rows/{clientId}`, and PATCH routes addressed by `clientId + rowId`.
-- `MicrofilmTableTopic` routes all table commands by `clientId` and owns one client-wide `_columns`, `_regularRowsById`, and `_customRowsById` set.
-- `MicrofilmRegularRowsQuery`, `MicrofilmCustomRowsQuery`, and `MicrofilmTableColumnsQuery` are all routed by `clientId`, so current QueryHub/query invalidation semantics are effectively client-wide.
+- The client and roll `/columns` endpoints are deleted. `MicrofilmController` exposes canonical roll rows/table reads, legacy client-wide row compatibility routes, and client profiles.
+- Canonical roll and legacy client-wide writes are schema-independent: arbitrary trimmed, non-empty field IDs accept only scalar/null values. Roll rows guarantee `boxName` and `rollName`; legacy rows remain sparse.
+- `MicrofilmRegularRowsQuery` and `MicrofilmCustomRowsQuery` retain client-wide compatibility projections; `RollMicrofilmRowsQuery`, `RollMicrofilmRowQuery`, and `RollMicrofilmTableQuery` expose durable canonical roll rows.
 - Box and roll navigation already exists (`ClientBoxesQuery`, `BoxStatusQuery`, `RollStatusQuery`), so P3 can anchor new table resources on `rollId` without inventing a new top-level hierarchy.
-- Current rows do **not** persist `rollId`. Automatic migration therefore requires an explicit row-to-roll assignment step; it cannot be inferred from the current table topic alone. [Design → Product] [Design → Execution]
+- Existing legacy client-wide rows do **not** persist `rollId`. Automatic migration therefore requires an explicit row-to-roll assignment step; it cannot be inferred from the legacy table topic alone. [Design → Product] [Design → Execution]
 
 ### Target architecture
 
 ```text
 box
   -> roll
-       -> column definitions (effective schema for the roll)
-       -> rows
-            -> cells keyed by columnId
-                 -> optional audit metadata for tracked cells
+        -> rows
+             -> sparse cells keyed by field ID
+                  -> optional audit metadata for tracked cells
 
 Browser / frontend
   -> canonical roll-scoped APIs
@@ -148,25 +147,15 @@ Design boundary:
 - Do **not** persist `windowsAccount` or `userPrincipalName` in row/cell audit facts by default; keep those as session diagnostics, not durable row-history payload. [Design → QA]
 - `unmapped` and `unidentified` are valid audit actor states; they are recorded, not blocked. [Product → Design: PD-P3-007]
 
-### 3. Column definition resources
+### 3. Optimistic fields and profile presentation
 
 [Product → Design: P3-S3] [Design → Execution]
 
-Rows must reference stable `columnId` values, and rolls must expose the column definitions required to interpret those cells.
+Rows store sparse `Dictionary<string, MicrofilmCellValue>` cells keyed by arbitrary trimmed, non-empty field IDs. Object/array values reject; text, finite numbers, booleans, and null are durable values.
 
-Recommended public model:
-- `GET /api/microfilm/rolls/{rollId}/columns` returns the **effective** column definitions for that roll.
-- Each row stores cells as `Dictionary<string, MicrofilmCellValue>` keyed by `columnId`.
-- Roll/table responses may inline the same columns for convenience, but column definitions remain a first-class resource.
+Profiles independently own presentation definitions: membership, order, width, mappings, types, and dropdown options. They are not a row schema or write allow-list. Omitted profile fields remain omitted, and profile removal, re-addition, or type changes cannot mutate stored cells or audits.
 
-Recommended internal model:
-- `columnSetId`: stable identifier for the effective roll schema.
-- Optional `sourceProfileId`: if the roll schema is derived from an existing client profile.
-- `columnId` stability is required across edits; renames should keep the same `columnId` when semantically the same column survives.
-
-Compatibility boundary:
-- While legacy `/columns/{clientId}` remains supported, the migrated rolls for that client should share one effective column set.
-- If Product later wants divergent per-roll schemas within one client, legacy client-wide columns compatibility becomes lossy and should sunset first. [Design → Product]
+The deleted `/api/microfilm/columns/{clientId}` and `/api/microfilm/rolls/{rollId}/columns` routes are not compatibility surfaces. Frontends join durable row reads to the selected profile for display.
 
 ### 4. Custom rows: recommended shape and remaining decision
 
@@ -188,24 +177,22 @@ Recommended decision:
 
 [Product → Design: P3-S1, P3-S3, P3-S5] [Design → Execution]
 
-Recommended new projections:
+Current projections:
 
 ```text
-RollColumnDefinitionsQuery(rollId)
-RollRowsQuery(rollId)
-RollRowQuery(rollId:rowId)
-RollTableQuery(rollId)              # convenience aggregate for first migrated frontend
-RollLookupQuery()                   # rollId -> boxId, clientId
+RollMicrofilmRowsQuery(rollId)
+RollMicrofilmRowQuery(rollId:rowId)
+RollMicrofilmTableQuery(rollId)     # convenience aggregate of durable roll rows
+RollMicrofilmLookupQuery()          # rollId -> boxId, clientId
 LegacyRowRoutingIndexQuery()        # clientId + rowId -> rollId, rowKind
-LegacyClientRowsQuery(clientId)
-LegacyClientCustomRowsQuery(clientId)
-LegacyClientColumnsQuery(clientId)
+MicrofilmRegularRowsQuery(clientId)
+MicrofilmCustomRowsQuery(clientId)
 ```
 
 Read-model rules:
-- `RollRowsQuery` returns roll-scoped rows with `rowId`, `rollId`, `rowKind`, and cell values.
-- `RollRowQuery` or `RollTableQuery?includeAudit=true` may include per-cell audit metadata.
-- `LegacyClient*Query` projections are temporary compatibility surfaces built from the roll-scoped model.
+- `RollMicrofilmRowsQuery` returns roll-scoped sparse rows with `id`, `rollId`, `origin`, cell values, and cell audits.
+- `RollMicrofilmRowQuery` and `RollMicrofilmTableQuery` expose the same durable row/audit model; neither projects profile columns.
+- `MicrofilmRegularRowsQuery` and `MicrofilmCustomRowsQuery` are temporary client-wide compatibility projections built from the roll-scoped model.
 - Avoid recomputing legacy client-wide responses by scanning all rolls on every request; maintain aggregate projections keyed by `clientId`.
 
 Recommended audit read shape:
@@ -243,16 +230,14 @@ Important distinction:
 
 [Product → Design: PD-P3-008, P3-S5] [Design → Execution] [Design → QA]
 
-Current table queries are client-wide by `clientId`. P3 should add roll-scoped invalidation **without** breaking existing watchers.
+Canonical roll queries are roll-scoped while legacy row projections remain client-wide by `clientId`.
 
 Conceptual buckets:
 
 ```text
-microfilm.rolls.{rollId}.columns
 microfilm.rolls.{rollId}.rows
 microfilm.rolls.{rollId}.row.{rowId}
 microfilm.rolls.{rollId}.table
-microfilm.clients.{clientId}.columns.legacy
 microfilm.clients.{clientId}.rows.legacy
 microfilm.clients.{clientId}.custom-rows.legacy
 ```
@@ -263,12 +248,6 @@ Invalidation rules during coexistence:
   - roll rows bucket
   - roll table bucket
   - matching legacy rows/custom-rows client bucket based on `rowKind`
-- `RollColumnDefinitionsChanged` invalidates:
-  - roll columns bucket
-  - roll rows bucket
-  - roll table bucket
-  - legacy client columns bucket
-  - legacy rows/custom-rows buckets if cell reconciliation changes response shape
 - Migration/backfill invalidates both new roll buckets and legacy client buckets once per migrated batch.
 
 If actual QueryHub bucket naming differs, Execution should map these semantics to the framework's real query-type/route-ID mechanism rather than invent a second invalidation system. [Design → Execution]
@@ -280,12 +259,12 @@ If actual QueryHub bucket naming differs, Execution should map these semantics t
 #### Phase A - add canonical roll-scoped APIs
 - Add roll-scoped reads first.
 - Keep current client-wide APIs in place.
-- Do not remove `/rows/{clientId}`, `/custom-rows/{clientId}`, or `/columns/{clientId}` in the first slice.
+- Keep only the legacy row routes needed during frontend migration; column endpoints are already removed.
 
 #### Phase B - backfill roll-scoped projections
-- Read current client-wide columns, regular rows, and custom rows.
+- Read current client-wide regular rows and custom rows.
 - Use roll inventory (`ClientBoxesQuery` + `BoxStatusQuery`/`RollStatusQuery`) plus a migration manifest/index to assign each legacy row to a `rollId`.
-- Seed roll-scoped rows and effective column definitions.
+- Seed roll-scoped rows without adding presentation-derived cells.
 - Build `LegacyRowRoutingIndexQuery` so old `clientId + rowId` routes still resolve.
 - Mark migrated cells as `auditState = notTrackedYet`; do **not** fabricate actor or timestamp history for untouched legacy cells. [Product → Design: PD-P3-006]
 
@@ -361,8 +340,7 @@ public sealed class LegacyRowRoute
 
 | Method | Route | Purpose | Notes |
 | --- | --- | --- | --- |
-| `GET` | `/api/microfilm/rolls/{rollId}/table` | Roll aggregate: roll context, effective columns, rows | Good first migrated frontend surface; support `includeAudit=true` optionally. |
-| `GET` | `/api/microfilm/rolls/{rollId}/columns` | Effective column definitions for a roll | Cells are interpreted by these `columnId` values. |
+| `GET` | `/api/microfilm/rolls/{rollId}/table` | Roll aggregate: roll ID and durable rows | Frontend joins rows to its selected profile; support `includeAudit=true` optionally. |
 | `GET` | `/api/microfilm/rolls/{rollId}/rows` | List roll-scoped rows | Can omit full audit metadata by default. |
 | `GET` | `/api/microfilm/rolls/{rollId}/rows/{rowId}` | Read one row | Composite addressing remains canonical. |
 | `POST` | `/api/microfilm/rolls/{rollId}/rows` | Create a row in a roll | Recommended body includes `rowKind`, optional `rowId`, and `cells`. |
@@ -382,20 +360,17 @@ Recommended `GET /api/microfilm/rolls/{rollId}/table?includeAudit=true` response
 ```json
 {
   "rollId": "ROLL-1",
-  "boxId": "BOX-1",
-  "columnSetId": "default",
-  "columns": [
-    { "columnId": "status", "name": "Status", "type": "dropdown", "dropdownOptions": ["Open", "Complete"] }
-  ],
   "rows": [
     {
+      "id": "ROW-1",
       "rollId": "ROLL-1",
-      "rowId": "ROW-1",
-      "rowKind": "regular",
+      "origin": "regular",
       "cells": {
+        "status": "Complete"
+      },
+      "cellAudits": {
         "status": {
-          "value": "Complete",
-          "auditState": "tracked",
+          "state": "tracked",
           "lastChangedAt": "2026-06-30T18:35:00Z",
           "lastChangedBy": {
             "status": "identified",
@@ -410,12 +385,13 @@ Recommended `GET /api/microfilm/rolls/{rollId}/table?includeAudit=true` response
 }
 ```
 
+The response intentionally contains no profile or column-definition payload. The frontend applies its selected profile solely as presentation metadata over these durable sparse cells.
+
 ### Legacy compatibility APIs during migration
 
 [Product → Design: P3-S2, P3-S3, P3-S5]
 
 Existing routes remain temporarily supported:
-- `GET /api/microfilm/columns/{clientId}`
 - `GET /api/microfilm/rows/{clientId}`
 - `GET /api/microfilm/custom-rows/{clientId}`
 - `PATCH /api/microfilm/rows/{clientId}/{rowId}`
@@ -444,12 +420,12 @@ Compatibility rules:
 | Unified roll-row model with `rowKind` | One command/audit/query path. | Requires UI distinction at a higher layer. | **Choose internally.** |
 | Separate roll rows + custom rows everywhere | Mirrors current API. | Duplicates logic and invalidation. | Allow only as API alias if needed. |
 
-### Decision 3: effective roll columns vs direct client-wide columns reuse
+### Decision 3: profile-owned presentation vs row schema
 
 | Approach | Pros | Cons | Decision |
 | --- | --- | --- | --- |
-| Roll exposes effective column definitions | Rows are self-describing at the correct scope; future-proof for per-roll variance. | Requires column-set ownership/linking design. | **Choose.** |
-| Keep client-wide columns as the primary long-term contract | Easier short term. | Fails the roll-scoped resource goal. | Do not choose as target model. |
+| Profiles own presentation definitions | Preserves independent layouts, mappings, ordering, types, and dropdown options without constraining durable data. | Frontend must join durable rows to a selected profile. | **Choose.** |
+| Row schema or shared column catalog controls writes | Centralized validation. | Rejects valid evolving fields and mutates interpretation of durable data. | Do not choose. |
 
 ### Decision 4: targeted cell facts vs whole-row update events
 
@@ -503,8 +479,8 @@ Compatibility rules:
 [Product → Design: P3-S4, P3-S5] [Design → QA]
 
 Required coverage when P3 execution begins:
-- **Domain/topic tests**: roll row create, cell update, column validation, `rowKind`, actor stamp persistence, `unmapped`/`unidentified` actor states, no client actor override.
-- **Projection tests**: `RollRowsQuery`, `RollRowQuery`, `RollTableQuery`, legacy aggregate projections, routing index projection, `notTrackedYet` vs tracked audit state.
+- **Domain/topic tests**: roll/legacy row create and update with arbitrary scalar/null fields, object/array and empty-ID rejection, `rowKind`, actor stamp persistence, and no client actor override.
+- **Projection tests**: `RollMicrofilmRowsQuery`, `RollMicrofilmRowQuery`, `RollMicrofilmTableQuery`, legacy row compatibility projections, routing index projection, `notTrackedYet` vs tracked audit state.
 - **Controller/integration tests**: canonical roll routes, legacy compatibility PATCH routing, optional legacy create ambiguity handling, `GET /api/session` actor reuse, no `[Authorize]`/permission-gating regressions.
 - **Migration tests**: idempotent backfill, missing/ambiguous row-to-roll assignment detection, no fabricated audit metadata on imported cells.
 - **QueryHub tests/evidence**: roll change invalidates roll-scoped buckets and matching legacy client-wide buckets during coexistence.
@@ -514,7 +490,7 @@ Primary QA risks to carry forward:
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | Legacy rows lack persisted `rollId` today | Wrong or incomplete migration | Require explicit row-to-roll manifest/index before switching writes. [Design → QA] |
-| Multiple roll schemas under one client while `/columns/{clientId}` still exists | Lossy compatibility contract | Keep one effective column set per client during coexistence, or sunset legacy columns first. [Design → Product] |
+| Profile type reinterpretation hides a durable field | UI can misrepresent retained data | Join rows to the selected profile without deleting/retyping stored cells or audits. [Design → Product] |
 | Legacy create routes cannot choose a roll | Broken coexistence writes | Add optional `rollId` hint or fail ambiguous creates deterministically. [Design → QA] |
 | QueryHub invalidation only updates new buckets | Stale legacy screens | Test fan-out to both roll and client compatibility buckets. [Design → QA] |
 | P3 accidentally adds authorization behavior | Scope creep / broken workflows | Static scan and route smoke tests for no `[Authorize]`, no QueryHub auth, no unmapped/unidentified blocking. [Design → QA] |
@@ -534,15 +510,13 @@ Outermind/
     Topics/
       RollTableTopic.cs
     Queries/
-      RollColumnDefinitionsQuery.cs
-      RollRowsQuery.cs
-      RollRowQuery.cs
-      RollTableQuery.cs
-      RollLookupQuery.cs
+      RollMicrofilmRowsQuery.cs
+      RollMicrofilmRowQuery.cs
+      RollMicrofilmTableQuery.cs
+      RollMicrofilmLookupQuery.cs
       LegacyRowRoutingIndexQuery.cs
-      LegacyClientRowsQuery.cs
-      LegacyClientCustomRowsQuery.cs
-      LegacyClientColumnsQuery.cs
+      MicrofilmRegularRowsQuery.cs
+      MicrofilmCustomRowsQuery.cs
 
 Outermind.Web/
   Controllers/

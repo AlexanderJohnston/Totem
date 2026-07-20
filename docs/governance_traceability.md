@@ -88,7 +88,7 @@ Roll-scoped guardrails:
 | Roll-scoped resources replace client-wide table ownership for new rows | Product `P3-S1`, `P3-S3`; Design roll-row boundary | Roll-scoped commands, topic, query model, legacy compatibility adapters | `RollMicrofilmTableTopic`, `RollMicrofilmRowsQuery`, `RollMicrofilmRowQuery`, `LegacyRowRoutingIndexQuery`, `MicrofilmController` roll routes | Focused Microfilm tests 38/38 | Pass for focused scope. Existing legacy rows remain on legacy path until migrated/recreated with `rollId`. |
 | Targeted per-cell audit with backend-resolved actor | Product `P3-S2`, `P3-S4`; Design targeted audit and actor stamping | `MicrofilmCellAudit`, `MicrofilmAuditActorStamp`, targeted cell events | Roll cell update commands/events/projections; actor from `IInteractionIdentityResolver` | Focused Microfilm tests and static no-client-actor scan | Pass. No manual/delegated `ProcessUserID` override support observed. |
 | Preserve tracking-not-authorization during table migration | Product guardrails; Design scope control | No authorization or QueryHub gate added | Static scan found no `[Authorize]`, `UseAuthorization`, `RequireAuthorization`, `AddAuthorization` | QA static evidence | Pass. Cookie identity remains tracking only. |
-| Legacy compatibility and safe migration adapters | Product `P3-S3`, `P3-S5`; Design migration/backfill strategy | Legacy projections consume roll facts; legacy adapters preserve old envelopes and route boundaries | `MicrofilmRegularRowsQuery`, `MicrofilmCustomRowsQuery`, `MicrofilmTableColumnsQuery`, controller adapters, backend guide | Focused Microfilm tests and docs review | Pass for focused compatibility scope. |
+| Legacy compatibility and safe migration adapters | Product `P3-S3`, `P3-S5`; Design migration/backfill strategy | Legacy row projections consume roll facts; adapters preserve row envelopes and route boundaries while profiles own presentation | `MicrofilmRegularRowsQuery`, `MicrofilmCustomRowsQuery`, controller adapters, optimistic-field migration guide | Focused Microfilm tests and docs review | Pass for focused compatibility scope. Deleted client/roll column endpoints are not adapters. |
 
 ## Process Compliance Status
 
@@ -200,7 +200,7 @@ Conditions for broader release remain:
 
 - Full `Quantum.Tests` remains subject to W-GOV-001 unless the unrelated baseline failure is fixed or a broader release owner accepts the waiver.
 - Existing client-wide rows are not automatically backfilled with `rollId`; release notes must state that legacy rows remain on legacy paths until migrated/recreated with `rollId`.
-- Divergent per-roll schemas should not be enabled behind the legacy client-wide column route without a Product/Design sunset or migration decision.
+- Profile presentation changes must not be treated as schemas or used to mutate durable cells/audits; frontend joins remain responsible for interpretation.
 - Any future authorization, role, permission, QueryHub auth, or command-blocking behavior requires a separate Product/Design/Governance scope.
 
 ## Remaining Owner Actions
@@ -210,7 +210,7 @@ Conditions for broader release remain:
 3. **QA/Documentation owner:** Update `docs/qa_plan.md` to remove the stale README Vision-link attention note at the next QA document refresh.
 4. **Research/Execution owners, only if re-scoped:** Validate real Windows/Negotiate principal capture before introducing auth middleware.
 5. **Documentation/release owner:** Include roll-scoped migration notes in release notes: new rows should prefer roll-scoped routes, legacy rows remain legacy until migrated/recreated, and legacy create with `rollId` must match the route client.
-6. **Product/Design owner before divergent per-roll schemas:** Decide how to sunset or replace the legacy client-wide column route before allowing roll schemas to diverge within one client.
+6. **Product/Design owner before profile expansion:** Preserve profile-owned presentation semantics and ensure frontend joins do not delete omitted durable fields or audits.
 7. **Execution owner before broader release:** Fix or waive the unrelated full-suite failure under the applicable release policy.
 8. **Documentation/frontend handoff owner:** Keep frontend-facing docs aligned with cookie CSRF/credential handling and roll-scoped table route preferences; ensure the handoff does not reintroduce manual/delegated identity selection.
 

@@ -9,6 +9,7 @@ namespace Outermind.Microfilm.Queries
   public class WaspImportStatusQuery : Query
   {
     public bool ImportEnabled { get; set; }
+    public bool IsRunning { get; set; }
     public HashSet<string> ImportedAssetIds { get; set; } = new();
     public HashSet<KnownWaspAsset> DeferredAssets { get; set; } = new();
     public HashSet<string> IgnoredLegacyAssetIds { get; set; } = new();
@@ -41,6 +42,7 @@ namespace Outermind.Microfilm.Queries
 
     void Given(WaspImportStarted e)
     {
+      IsRunning = true;
       ResetLastRun();
     }
 
@@ -102,6 +104,8 @@ namespace Outermind.Microfilm.Queries
 
     void Given(WaspImportCompleted e)
     {
+      IsRunning = false;
+
       if (HasLegacyCompletionSummary(e))
       {
         LastImportedAssetCount = e.ImportedAssetCount;
@@ -114,6 +118,7 @@ namespace Outermind.Microfilm.Queries
 
     void Given(WaspImportFailed e)
     {
+      IsRunning = false;
       LastError = e.Error;
       LastFailureStep = e.Step;
     }

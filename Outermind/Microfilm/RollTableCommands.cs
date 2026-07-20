@@ -26,11 +26,11 @@ namespace Outermind.Microfilm
     public string RowKind { get; set; }
     public Dictionary<string, MicrofilmCellValue> Cells { get; set; }
     public MicrofilmAuditActorStamp Actor { get; set; }
-    /// <summary>
-    /// Immutable snapshot of the owning client's active catalog at dispatch time.
-    /// Null is reserved for legacy callers, which fall back to historical roll state.
-    /// </summary>
-    public List<MicrofilmTableColumn> CatalogColumns { get; set; }
+
+    // Supports property-based deserialization of historical command payloads.
+    public CreateRollMicrofilmRow()
+    {
+    }
 
     public CreateRollMicrofilmRow(
       Id rollId,
@@ -38,8 +38,7 @@ namespace Outermind.Microfilm
       string rowId,
       string rowKind,
       Dictionary<string, MicrofilmCellValue> cells,
-      MicrofilmAuditActorStamp actor,
-      List<MicrofilmTableColumn> catalogColumns = null)
+      MicrofilmAuditActorStamp actor)
     {
       RollId = rollId;
       ClientId = clientId;
@@ -47,7 +46,20 @@ namespace Outermind.Microfilm
       RowKind = rowKind;
       Cells = cells ?? new Dictionary<string, MicrofilmCellValue>();
       Actor = actor;
-      CatalogColumns = catalogColumns;
+    }
+
+    // Retains source compatibility while old callers are migrated. Catalog snapshots
+    // are intentionally ignored: row write eligibility is domain-schema independent.
+    public CreateRollMicrofilmRow(
+      Id rollId,
+      Id clientId,
+      string rowId,
+      string rowKind,
+      Dictionary<string, MicrofilmCellValue> cells,
+      MicrofilmAuditActorStamp actor,
+      List<MicrofilmTableColumn> ignoredCatalogColumns)
+      : this(rollId, clientId, rowId, rowKind, cells, actor)
+    {
     }
   }
 
@@ -60,8 +72,11 @@ namespace Outermind.Microfilm
     public string ColumnId { get; set; }
     public MicrofilmCellValue Value { get; set; }
     public MicrofilmAuditActorStamp Actor { get; set; }
-    /// <summary>See <see cref="CreateRollMicrofilmRow.CatalogColumns"/>.</summary>
-    public List<MicrofilmTableColumn> CatalogColumns { get; set; }
+
+    // Supports property-based deserialization of historical command payloads.
+    public UpdateRollMicrofilmRowCell()
+    {
+    }
 
     public UpdateRollMicrofilmRowCell(
       Id rollId,
@@ -70,8 +85,7 @@ namespace Outermind.Microfilm
       string rowKind,
       string columnId,
       MicrofilmCellValue value,
-      MicrofilmAuditActorStamp actor,
-      List<MicrofilmTableColumn> catalogColumns = null)
+      MicrofilmAuditActorStamp actor)
     {
       RollId = rollId;
       ClientId = clientId;
@@ -80,7 +94,20 @@ namespace Outermind.Microfilm
       ColumnId = columnId;
       Value = value;
       Actor = actor;
-      CatalogColumns = catalogColumns;
+    }
+
+    // See the compatibility constructor on CreateRollMicrofilmRow.
+    public UpdateRollMicrofilmRowCell(
+      Id rollId,
+      Id clientId,
+      string rowId,
+      string rowKind,
+      string columnId,
+      MicrofilmCellValue value,
+      MicrofilmAuditActorStamp actor,
+      List<MicrofilmTableColumn> ignoredCatalogColumns)
+      : this(rollId, clientId, rowId, rowKind, columnId, value, actor)
+    {
     }
   }
 }

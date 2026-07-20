@@ -47,11 +47,29 @@ namespace Quantum.Tests
     }
 
     [Fact]
+    public async Task CreateRollRow_AcceptsSparseArbitraryScalarCellsAndAddsIdentityBaselines()
+    {
+      await Append(RollCreated());
+
+      await Append(new CreateRollMicrofilmRow(
+        RollId,
+        ClientId,
+        "optimistic-row",
+        MicrofilmTableRowOrigins.Regular,
+        new Dictionary<string, MicrofilmCellValue> { [" arbitraryColumn "] = MicrofilmCellValue.FromCheckbox(true) },
+        Actor()));
+
+      var created = await Expect<RollMicrofilmRowCreated>();
+      Assert.True(created.Row.Cells["arbitraryColumn"].Checkbox);
+      Assert.Equal(MicrofilmCellValueKind.Null, created.Row.Cells["boxName"].Kind);
+      Assert.Equal(MicrofilmCellValueKind.Null, created.Row.Cells["rollName"].Kind);
+      Assert.Equal(MicrofilmCellAuditStates.NotTrackedYet, created.Row.CellAudits["arbitraryColumn"].State);
+    }
+
+    [Fact]
     public async Task UpdateRollRowCell_EmitsTargetedCellFactWithActor()
     {
       await Append(RollCreated());
-      await Append(new ReplaceRollMicrofilmTableColumns(RollId, ClientId, Columns()));
-      await Expect<RollMicrofilmTableColumnsChanged>();
 
       await Append(new CreateRollMicrofilmRow(
         RollId,
@@ -74,11 +92,27 @@ namespace Quantum.Tests
     }
 
     [Fact]
+    public async Task UpdateRollRowCell_AcceptsArbitraryTrimmedColumnId()
+    {
+      await Append(RollCreated());
+      await Append(new CreateRollMicrofilmRow(
+        RollId, ClientId, "row-1", MicrofilmTableRowOrigins.Regular,
+        new Dictionary<string, MicrofilmCellValue>(), Actor()));
+      await Expect<RollMicrofilmRowCreated>();
+
+      await Append(new UpdateRollMicrofilmRowCell(
+        RollId, ClientId, "row-1", MicrofilmTableRowOrigins.Regular,
+        " dynamicField ", MicrofilmCellValue.FromNumber(12), Actor()));
+
+      var changed = await Expect<RollMicrofilmRowCellChanged>();
+      Assert.Equal("dynamicField", changed.ColumnId);
+      Assert.Equal(12, changed.Value.Number);
+    }
+
+    [Fact]
     public async Task UpdateRollRowCell_RejectsMismatchedRouteRowKind()
     {
       await Append(RollCreated());
-      await Append(new ReplaceRollMicrofilmTableColumns(RollId, ClientId, Columns()));
-      await Expect<RollMicrofilmTableColumnsChanged>();
 
       await Append(new CreateRollMicrofilmRow(
         RollId,
@@ -117,13 +151,6 @@ namespace Quantum.Tests
 
     static RollCreated RollCreated() =>
       new(new KnownRoll("Roll A", RollId, BoxId));
-
-    static List<MicrofilmTableColumn> Columns() =>
-      new()
-      {
-        new("boxName", "Box", MicrofilmTableColumnTypes.Text, 160),
-        new("status", "Status", MicrofilmTableColumnTypes.Dropdown, 160, new[] { "New", "Done" })
-      };
 
     static MicrofilmAuditActorStamp Actor() =>
       new("identified", "Alex Johnston", "AJOHNSTON", "backend-cookie");
@@ -166,38 +193,6 @@ namespace Quantum.Tests
       Assert.Equal("AJOHNSTON", row.CellAudits["status"].LastChangedBy.ProcessUserId);
       Assert.True(row.CellAudits["status"].LastChangedAt.HasValue);
     }
-
-    public class RollMicrofilmColumnsQueryTests : QueryTests<RollMicrofilmColumnsQuery>
-    {
-      static readonly Id RollId = Id.From("00000000-0000-0000-0000-000000000401");
-
-      [Fact]
-      public async Task RollCreated_SeedsDefaultBoxAndRollColumns()
-      {
-        await Append(new RollCreated(new KnownRoll("Roll A", RollId, Id.Unassigned)));
-
-        var query = await GetQuery(RollId);
-
-        Assert.Collection(
-          query.Columns,
-          column =>
-          {
-            Assert.Equal("boxName", column.Id);
-            Assert.Equal(MicrofilmTableColumnTypes.Text, column.Type);
-          },
-          column =>
-          {
-            Assert.Equal("rollName", column.Id);
-            Assert.Equal(MicrofilmTableColumnTypes.Text, column.Type);
-          });
-      }
-    }
-
-    static List<MicrofilmTableColumn> Columns() =>
-      new()
-      {
-        new("status", "Status", MicrofilmTableColumnTypes.Dropdown, 160, new[] { "New", "Done" })
-      };
 
     static MicrofilmAuditActorStamp Actor() =>
       new("identified", "Alex Johnston", "AJOHNSTON", "backend-cookie");

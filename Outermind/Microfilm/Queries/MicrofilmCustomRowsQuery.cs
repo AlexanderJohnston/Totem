@@ -30,10 +30,7 @@ namespace Outermind.Microfilm.Queries
 
     void Given(MicrofilmTableColumnsChanged e)
     {
-      foreach(var row in CustomRows)
-      {
-        row.Cells = MicrofilmTableRules.ReconcileCells(e.Columns, row.Cells);
-      }
+      // Catalog changes are metadata only and must not alter durable row values.
     }
 
     void Given(MicrofilmCustomRowCreated e)

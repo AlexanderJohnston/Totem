@@ -352,6 +352,33 @@ namespace Quantum.Tests
   public class WaspImportStatusQueryTests : QueryTests<WaspImportStatusQuery>
   {
     [Fact]
+    public async Task ImportLifecycle_UpdatesRunningStatus()
+    {
+      await Append(new WaspImportStarted(0));
+
+      var running = await GetQuery();
+
+      Assert.True(running.IsRunning);
+
+      await Append(new WaspImportCompleted());
+
+      var completed = await GetQuery();
+
+      Assert.False(completed.IsRunning);
+    }
+
+    [Fact]
+    public async Task FailedImport_ClearsRunningStatus()
+    {
+      await Append(new WaspImportStarted(0));
+      await Append(new WaspImportFailed("WASP unavailable", "AssetImport"));
+
+      var query = await GetQuery();
+
+      Assert.False(query.IsRunning);
+    }
+
+    [Fact]
     public async Task ManualImportEvent_ResetsLastRunStatus()
     {
       await Append(new WaspClientAssetsAccepted(

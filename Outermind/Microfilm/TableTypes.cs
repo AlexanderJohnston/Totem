@@ -24,11 +24,17 @@ namespace Outermind.Microfilm
 
   public static class MicrofilmDefaultColumns
   {
+    public const string BoxName = "boxName";
+    public const string RollName = "rollName";
+
+    public static IEnumerable<string> RollIdentityCellIds() =>
+      new[] { BoxName, RollName };
+
     public static List<MicrofilmTableColumn> RollScoped() =>
       new()
       {
-        new("boxName", "Box", MicrofilmTableColumnTypes.Text, 160),
-        new("rollName", "Roll", MicrofilmTableColumnTypes.Text, 160)
+        new(BoxName, "Box", MicrofilmTableColumnTypes.Text, 160),
+        new(RollName, "Roll", MicrofilmTableColumnTypes.Text, 160)
       };
 
     /// <summary>
@@ -276,9 +282,22 @@ namespace Outermind.Microfilm
 
     public override void Write(Utf8JsonWriter writer, MicrofilmCellValue value, JsonSerializerOptions options)
     {
-      if(value == null || value.Kind == MicrofilmCellValueKind.Null || value.Kind == MicrofilmCellValueKind.Unsupported)
+      if(value == null || value.Kind == MicrofilmCellValueKind.Null)
       {
         writer.WriteNullValue();
+        return;
+      }
+
+      // Unsupported values can originate while binding invalid request JSON. Commands
+      // cross the Timeline serializer before topic validation, so writing null here
+      // would incorrectly turn an invalid object/array into an accepted null cell.
+      // Any object reads back as Unsupported, making this a durable internal marker;
+      // rejected commands never expose it in normal API responses.
+      if(value.Kind == MicrofilmCellValueKind.Unsupported)
+      {
+        writer.WriteStartObject();
+        writer.WriteBoolean("$unsupportedMicrofilmCell", true);
+        writer.WriteEndObject();
         return;
       }
 
@@ -524,6 +543,105 @@ namespace Outermind.Microfilm
       return true;
     }
 
+    /// <summary>
+    /// Normalizes a user-authored row without consulting a table schema. New row writes
+    /// are deliberately sparse: only submitted cells and explicitly required cells are retained.
+    /// </summary>
+    public static bool TryNormalizeOptimisticRow(
+      string rowId,
+      string origin,
+      IDictionary<string, MicrofilmCellValue> sourceCells,
+      IEnumerable<string> requiredCellIds,
+      out MicrofilmTableRow row,
+      out string code,
+      out string message,
+      out string columnId)
+    {
+      row = null;
+      code = null;
+      message = null;
+      columnId = null;
+      var cells = new Dictionary<string, MicrofilmCellValue>(System.StringComparer.Ordinal);
+
+      foreach(var sourceCell in sourceCells ?? new Dictionary<string, MicrofilmCellValue>())
+      {
+        if(!TryNormalizeColumnId(sourceCell.Key, out var normalizedColumnId, out message))
+        {
+          code = "INVALID_COLUMN_ID";
+          columnId = normalizedColumnId;
+          return false;
+        }
+
+        if(cells.ContainsKey(normalizedColumnId))
+        {
+          code = "DUPLICATE_COLUMN_ID";
+          message = $"Column ID '{normalizedColumnId}' is duplicated after trimming.";
+          columnId = normalizedColumnId;
+          return false;
+        }
+
+        if(!TryNormalizeCellValue(normalizedColumnId, sourceCell.Value, out var value, out message))
+        {
+          code = "INVALID_CELL_VALUE";
+          columnId = normalizedColumnId;
+          return false;
+        }
+
+        cells[normalizedColumnId] = value;
+      }
+
+      foreach(var requiredCellId in requiredCellIds ?? Enumerable.Empty<string>())
+      {
+        if(!TryNormalizeColumnId(requiredCellId, out var normalizedColumnId, out message))
+        {
+          code = "INVALID_COLUMN_ID";
+          columnId = requiredCellId;
+          return false;
+        }
+
+        if(!cells.ContainsKey(normalizedColumnId))
+        {
+          cells[normalizedColumnId] = MicrofilmCellValue.Null();
+        }
+      }
+
+      row = new MicrofilmTableRow(rowId, origin, cells);
+      return true;
+    }
+
+    public static bool TryNormalizeColumnId(string input, out string columnId, out string message)
+    {
+      columnId = input?.Trim();
+      message = null;
+
+      if(!string.IsNullOrEmpty(columnId)) return true;
+
+      message = "Column IDs are required.";
+      return false;
+    }
+
+    /// <summary>
+    /// Validates JSON-representable scalar/null values without catalog type or dropdown constraints.
+    /// </summary>
+    public static bool TryNormalizeCellValue(string columnId, MicrofilmCellValue value, out MicrofilmCellValue normalized, out string message)
+    {
+      normalized = null;
+      message = null;
+      value ??= MicrofilmCellValue.Null();
+
+      if(value.Kind == MicrofilmCellValueKind.Null
+        || value.Kind == MicrofilmCellValueKind.Text
+        || value.Kind == MicrofilmCellValueKind.Checkbox
+        || (value.Kind == MicrofilmCellValueKind.Number && double.IsFinite(value.Number)))
+      {
+        normalized = value.Clone();
+        return true;
+      }
+
+      message = $"Column '{columnId}' received an unsupported JSON value.";
+      return false;
+    }
+
     public static Dictionary<string, MicrofilmCellValue> CreateDefaultCells(IEnumerable<MicrofilmTableColumn> columns) =>
       (columns ?? Enumerable.Empty<MicrofilmTableColumn>())
         .ToDictionary(column => column.Id, CreateDefaultCell);
@@ -537,43 +655,34 @@ namespace Outermind.Microfilm
       IEnumerable<MicrofilmTableColumn> columns,
       IDictionary<string, MicrofilmCellValue> existingCells)
     {
-      // Active catalog changes affect visibility and defaults, never durable inactive values.
-      var reconciled = (existingCells ?? new Dictionary<string, MicrofilmCellValue>())
+      // Catalog changes are presentation metadata only. Do not add, delete, or
+      // reinterpret persisted values when a profile definition changes.
+      return (existingCells ?? new Dictionary<string, MicrofilmCellValue>())
         .ToDictionary(cell => cell.Key, cell => cell.Value?.Clone() ?? MicrofilmCellValue.Null());
-
-      foreach(var column in columns ?? Enumerable.Empty<MicrofilmTableColumn>())
-      {
-        if(existingCells != null
-          && existingCells.TryGetValue(column.Id, out var existing)
-          && TryNormalizeCell(column, existing, out var normalized, out var _))
-        {
-          reconciled[column.Id] = normalized;
-        }
-        else if(!reconciled.ContainsKey(column.Id))
-        {
-          reconciled[column.Id] = CreateDefaultCell(column);
-        }
-      }
-
-      return reconciled;
     }
 
     public static Dictionary<string, MicrofilmCellAudit> ReconcileCellAudits(
       IEnumerable<MicrofilmTableColumn> columns,
       IDictionary<string, MicrofilmCellAudit> existingAudits)
     {
-      var reconciled = (existingAudits ?? new Dictionary<string, MicrofilmCellAudit>())
+      // Catalog changes must not manufacture or alter audit records.
+      return (existingAudits ?? new Dictionary<string, MicrofilmCellAudit>())
+        .ToDictionary(audit => audit.Key, audit => audit.Value?.Clone() ?? MicrofilmCellAudit.NotTrackedYet());
+    }
+
+    public static Dictionary<string, MicrofilmCellAudit> EnsureCellAudits(
+      IEnumerable<string> cellIds,
+      IDictionary<string, MicrofilmCellAudit> existingAudits = null)
+    {
+      var audits = (existingAudits ?? new Dictionary<string, MicrofilmCellAudit>())
         .ToDictionary(audit => audit.Key, audit => audit.Value?.Clone() ?? MicrofilmCellAudit.NotTrackedYet());
 
-      foreach(var column in columns ?? Enumerable.Empty<MicrofilmTableColumn>())
+      foreach(var cellId in cellIds ?? Enumerable.Empty<string>())
       {
-        if(!reconciled.ContainsKey(column.Id))
-        {
-          reconciled[column.Id] = MicrofilmCellAudit.NotTrackedYet();
-        }
+        if(!audits.ContainsKey(cellId)) audits[cellId] = MicrofilmCellAudit.NotTrackedYet();
       }
 
-      return reconciled;
+      return audits;
     }
 
     public static bool TryNormalizeCell(MicrofilmTableColumn column, MicrofilmCellValue value, out MicrofilmCellValue normalized, out string message)
@@ -660,16 +769,16 @@ namespace Outermind.Microfilm
     }
   }
 
-  public class ReplaceMicrofilmTableColumnsRequest
-  {
-    public List<MicrofilmTableColumn> Columns { get; set; } = new();
-  }
-
   public class SaveMicrofilmClientProfileRequest
   {
     public string Name { get; set; }
     public string Description { get; set; }
     public List<MicrofilmTableColumn> Columns { get; set; } = new();
+  }
+
+  public class SetMicrofilmClientProfileSelectionRequest
+  {
+    public string ProfileId { get; set; }
   }
 
   public class UpdateMicrofilmTableCellRequest

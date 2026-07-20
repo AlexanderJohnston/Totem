@@ -1,8 +1,53 @@
 # Execution Log
 
-Last updated: 2026-06-30
+Last updated: 2026-07-17
 
 ## Implemented Features
+
+### 2026-07-17 - Client Microfilm profile selection [Product → Execution: Microfilm client profile selection] [Design → Execution]
+
+- Added an isolated per-client selection command, event, topic, and query with nullable selection, trimmed profile IDs, and unknown-client rejection.
+- Added `GET`/`PUT /api/microfilm/clients/{clientId}/profile-selection`; PUT validates non-null profile IDs against the profile query while keeping profile deletion a soft reference.
+- Added focused topic/query coverage for initial null, set/replace/clear, unknown clients, and whitespace non-persistence. No controller harness was added because the existing suite has no lightweight query-host fixture.
+
+[Execution → QA]
+
+- No tests or builds were run per instruction. Validate endpoint envelopes for unknown client/profile and the whitespace-only `400` response.
+
+### 2026-07-16 - Optimistic Microfilm row writes, chunk 1 [Product → Execution: Optimistic domain behavior] [Design → Execution]
+
+- Made new canonical roll-scoped and legacy client-wide row writes schema-independent: any trimmed, non-empty column ID now accepts JSON null/text/finite-number/boolean values.
+- Row creation is sparse. Roll rows add only missing `boxName` and `rollName` null baselines; legacy rows add no catalog-derived cells.
+- Removed catalog snapshots from roll command state and decision logic while retaining source-compatible constructors for callers still passing historical snapshots.
+- Stopped column/profile change replay from reconciling, deleting, defaulting, or type-reinterpreting durable row cells and audits.
+- Kept historical seed normalization/replay behavior intact; all subsequent legacy row creates and updates are optimistic.
+- Added focused topic coverage for arbitrary IDs, trim collision rejection, unsupported values, sparse legacy rows, roll baseline defaults, and catalog-independent roll updates.
+
+[Execution → QA]
+
+- Run the focused Microfilm topic tests. Verify scalar/null writes to absent, retired, and type-mismatched catalog IDs succeed; object/array values and blank or trim-colliding IDs reject; and column replacements leave existing row cells/audits unchanged.
+
+### 2026-07-16 - Microfilm catalog API/read-contract removal, chunk 2 [Product → Execution: Catalog removal] [Design → Execution]
+
+- Removed the client and roll catalog HTTP endpoints and the catalog replacement request DTO; profile CRUD and profile column validation remain.
+- Removed catalog snapshot reads from canonical and legacy-dispatched roll writes. Roll table responses now expose only `rollId`, durable rows, and existing query metadata.
+- Retained historical catalog commands, events, and handlers for replay/source compatibility; historical column events remain unable to mutate roll row values or audits.
+
+[Execution → QA]
+
+- No tests/build run per chunk instruction.
+
+### 2026-07-16 - Optimistic-field frontend follow-up and query cleanup, chunk 3 [Product → Execution: Optimistic domain behavior] [Design → Execution]
+
+- Replaced the catalog migration note with `docs/frontend-microfilm-optimistic-fields-migration.md`, which supersedes the catalog/roll-columns guidance in `backend-integration-guide.md` for already-integrated frontend teams.
+- Removed unused `MicrofilmTableColumnsQuery` and `RollMicrofilmColumnsQuery` projections and their catalog/default-column tests. Historical column commands/events remain for timeline type resolution.
+- Renamed focused coverage to `MicrofilmOptimisticFieldsRegressionTests`; it covers canonical and legacy arbitrary scalar writes, trim/empty-ID and object/array rejection, sparse rows, roll baselines, durable audit/value preservation, historical column-event isolation, and roll table/list/single-row read shapes.
+- Removed test setup that required `Replace*Columns` before ordinary row writes. Profile definition validation tests remain because profiles own presentation metadata.
+- Corrected unsupported object/array command serialization so the Timeline round-trip retains the rejection sentinel instead of converting it to null; added canonical/legacy create-and-update coverage and corrected non-observation/normalized-ID assertions.
+
+[Execution → QA]
+
+- No tests/build run per chunk instruction. Run the discoverable `MicrofilmOptimisticFieldsRegressionTests` filter plus the existing focused Microfilm suite; do not treat the known unrelated NARA parser failure as part of this work.
 
 ### 2026-06-30 - P3 roll-scoped Microfilm resources and targeted audit [Product → Execution: P3-S1, P3-S2, P3-S3, P3-S4, P3-S5] [Design → Execution]
 
@@ -79,7 +124,6 @@ Audited current Phase 1 surfaces:
 - `PATCH /api/microfilm/custom-rows/{clientId}/{rowId}` (`UpdateMicrofilmTableCellRequest`): no actor fields.
 - `POST /api/microfilm/rows/{clientId}` (`CreateMicrofilmRegularRowRequest`): no actor fields.
 - `POST /api/microfilm/custom-rows/{clientId}` (`CreateMicrofilmCustomRowRequest`): no actor fields.
-- `PUT /api/microfilm/columns/{clientId}` (`ReplaceMicrofilmTableColumnsRequest`): no actor fields.
 - `POST /api/microfilm/client-profiles` and `PUT /api/microfilm/client-profiles/{profileId}` (`SaveMicrofilmClientProfileRequest`): no actor fields.
 - `POST /api/microfilm/wasp/import/force` (`ForceWaspImport`): trigger only, no actor field.
 
@@ -88,7 +132,6 @@ No `ProcessUserID`, `ScanUserID`, `userId`, process operator, or equivalent trac
 ## Technical Debt
 
 - P3 compatibility keeps the legacy client-wide table topic/routes available. Existing legacy rows have no persisted `rollId`; they remain on the legacy path until recreated or explicitly migrated with a `rollId`.
-- Legacy client-wide column projection can become lossy if Product later allows divergent schemas per roll within one client. Sunset legacy `/columns/{clientId}` before enabling divergent per-roll schemas.
 - QueryHub fan-out relies on query projection routing to update both roll-scoped and legacy client-scoped query buckets from roll events; no QueryHub authorization behavior was added.
 - Host principal capture remains a validation item. If `identified` is required under Kestrel/IIS Express, Research should verify passive Windows/Negotiate behavior before adding any auth middleware.
 - Duplicate mapping errors currently surface as infrastructure/configuration exceptions; a future hardening pass could add startup validation and controlled problem details without exposing sensitive internals.
@@ -133,12 +176,14 @@ No `ProcessUserID`, `ScanUserID`, `userId`, process operator, or equivalent trac
 
 ### 2026-07-13 - Client-owned Microfilm column catalog and durable inactive fields [Product → Execution: Microfilm schema and retention] [Design → Execution]
 
+This catalog approach was superseded by the 2026-07-16 optimistic-field chunks below; the entry remains as implementation history.
+
 - Made the client Microfilm column catalog authoritative for roll create/update validation. Canonical and legacy-dispatched roll writes now receive an immutable client-catalog snapshot from the Web API; old command callers without a snapshot retain the historical roll fallback.
 - Merged guaranteed `boxName` and `rollName` baseline definitions into effective roll catalogs without overriding client definitions.
 - Changed roll reads at the API boundary to return the effective client catalog and durable roll values. The roll columns compatibility PUT now replaces the owning client catalog rather than creating per-roll mappings.
 - Preserved inactive `Cells` and `CellAudits` during reconciliation, removed roll-column-event mutation from client projections, and stopped historical roll column events from reconciling roll rows.
 - Added focused regression coverage for client-catalog roll writes, unknown-field rejection, inactive-field retention, aggregate durability, and old roll-column projection isolation.
-- Added `docs/frontend-microfilm-column-catalog-migration.md` for already-integrated frontend teams. [Execution → QA]
+- Added the original catalog migration note for already-integrated frontend teams; it is now superseded and renamed to `docs/frontend-microfilm-optimistic-fields-migration.md`. [Execution → QA]
 
 ### 2026-07-13 - Validation remediation [Product → Execution: Microfilm schema and retention] [Design → Execution]
 
@@ -146,14 +191,11 @@ No `ProcessUserID`, `ScanUserID`, `userId`, process operator, or equivalent trac
 - Added regression coverage for baseline ordering, client baseline overrides, and merge cloning. Existing topic/query coverage verifies client catalog snapshot writes and historical roll-column-event isolation.
 - Controller-level tests were not added: the existing test project has no Microfilm API/query-host harness, and exercising the controller's `IQueryDb` extension-based reads would require a Timeline `AreaMap`/query database fixture rather than a focused mock. [Execution → QA]
 
-## Suggested Tests (2026-07-13)
+## Superseded Catalog-Test Notes (2026-07-13)
 
 [Execution → QA]
 
-1. Run the focused Microfilm test suite and verify catalog-snapshot writes accept client fields absent from historical roll defaults and reject unknown IDs.
-2. Remove then re-add a client catalog ID after a roll cell update; verify table, rows, single-row, and legacy projections retain the value/audit.
-3. Confirm `PUT /api/microfilm/rolls/{rollId}/columns` updates the client catalog for all client rolls and creates no roll-local mapping.
-4. Replay a historical `RollMicrofilmTableColumnsChanged` event and confirm it cannot change client catalog or unrelated client row values.
+These catalog-specific checks are superseded by the 2026-07-16 optimistic-field regression suite. Unknown field IDs now succeed; the deleted catalog endpoints must not be exercised. Retain only the historical-event isolation check, now against durable row values and audits.
 
 ## Validation Results (2026-07-13)
 

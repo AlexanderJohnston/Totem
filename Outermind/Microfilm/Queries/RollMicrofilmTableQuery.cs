@@ -11,7 +11,6 @@ namespace Outermind.Microfilm.Queries
   public class RollMicrofilmTableQuery : Query
   {
     public Id RollId { get; set; }
-    public List<MicrofilmTableColumn> Columns { get; set; } = new();
     public List<MicrofilmTableRow> Rows { get; set; } = new();
 
     static Id RouteFirst(RollCreated e) => e.Roll.RollId;
@@ -21,7 +20,6 @@ namespace Outermind.Microfilm.Queries
     void Given(RollCreated e)
     {
       RollId = e.Roll.RollId;
-      Columns = MicrofilmDefaultColumns.RollScoped();
     }
 
 

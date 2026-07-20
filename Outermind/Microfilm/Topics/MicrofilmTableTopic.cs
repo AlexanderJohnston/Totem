@@ -134,11 +134,11 @@ namespace Outermind.Microfilm.Topics
         return;
       }
 
-      if(!MicrofilmTableRules.TryNormalizeRow(
+      if(!MicrofilmTableRules.TryNormalizeOptimisticRow(
         rowId,
         MicrofilmTableRowOrigins.Regular,
-        _columns,
         command.Cells,
+        null,
         out var row,
         out var code,
         out var message,
@@ -171,11 +171,11 @@ namespace Outermind.Microfilm.Topics
 
       var rowId = Id.FromGuid().ToString();
 
-      if(!MicrofilmTableRules.TryNormalizeRow(
+      if(!MicrofilmTableRules.TryNormalizeOptimisticRow(
         rowId,
         MicrofilmTableRowOrigins.Custom,
-        _columns,
         command.Cells,
+        null,
         out var row,
         out var code,
         out var message,
@@ -280,50 +280,27 @@ namespace Outermind.Microfilm.Topics
         return;
       }
 
-      var column = _columns.FirstOrDefault(c => c.Id == columnId);
-      if(column == null)
+      if(!MicrofilmTableRules.TryNormalizeColumnId(columnId, out var normalizedColumnId, out var message)
+        || !MicrofilmTableRules.TryNormalizeCellValue(normalizedColumnId, value, out var normalized, out message))
       {
-        Then(new MicrofilmTableColumnNotRecognized(clientId, columnId));
-        return;
-      }
-
-      if(!MicrofilmTableRules.TryNormalizeCell(column, value, out var normalized, out var message))
-      {
-        Then(new MicrofilmTableCellValueRejected(clientId, rowId, columnId, message));
+        Then(new MicrofilmTableCellValueRejected(clientId, rowId, normalizedColumnId ?? columnId, message));
         return;
       }
 
       var updated = row.Clone();
-      updated.Cells[columnId] = normalized;
+      updated.Cells[normalizedColumnId] = normalized;
 
       Then(createEvent(updated));
     }
 
     void RejectRowInput(Id clientId, string rowId, string code, string message, string columnId)
     {
-      if(code == "UNKNOWN_COLUMN")
-      {
-        Then(new MicrofilmTableColumnNotRecognized(clientId, columnId));
-      }
-      else
-      {
-        Then(new MicrofilmTableCellValueRejected(clientId, rowId, columnId, message));
-      }
+      Then(new MicrofilmTableCellValueRejected(clientId, rowId, columnId, message));
     }
 
     void ApplyColumns(List<MicrofilmTableColumn> columns)
     {
       _columns = (columns ?? new List<MicrofilmTableColumn>()).Select(column => column.Clone()).ToList();
-      ReconcileRows(_regularRowsById);
-      ReconcileRows(_customRowsById);
-    }
-
-    void ReconcileRows(Dictionary<string, MicrofilmTableRow> rowsById)
-    {
-      foreach(var row in rowsById.Values)
-      {
-        row.Cells = MicrofilmTableRules.ReconcileCells(_columns, row.Cells);
-      }
     }
   }
 }
