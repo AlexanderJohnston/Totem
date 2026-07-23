@@ -64,6 +64,34 @@ namespace Quantum.Tests
     }
 
     [Fact]
+    public async Task ForceImport_PassesKnownClientJobNumbersToEachContinuation()
+    {
+      var clientId = Id.From("00000000-0000-0000-0000-000000000101");
+      _waspService.Batches.Add(new WaspImportClientBatch("JOB-001", new List<string> { "JOB-001-Box-1" }));
+
+      await Append(new ClientCreated(new KnownClient("First", "job-001", clientId, Id.Unassigned)));
+      await Append(new ClientCreated(new KnownClient("Blank", "  ", Id.From("00000000-0000-0000-0000-000000000102"), Id.Unassigned)));
+      await Append(new ClientCreated(new KnownClient("Duplicate", "JOB-001", clientId, Id.Unassigned)));
+      await Append(new ClientReassigned(new KnownClient("Reassigned", "JOB-002", clientId, Id.From("00000000-0000-0000-0000-000000000103")), Id.Unassigned));
+      await Append(new ForceWaspImport("Operator requested"));
+      await ExpectManualImportStarted();
+      await Expect<WaspClientAssetsImported>();
+
+      var knownJobNumbers = Assert.Single(_waspService.KnownJobNumbersByCall);
+      Assert.Equal(2, knownJobNumbers.Count);
+      Assert.Contains("job-001", knownJobNumbers);
+      Assert.Contains("JOB-002", knownJobNumbers);
+
+      await Append(new WaspImportClientHandled("JOB-001"));
+      await Expect<WaspImportCompleted>();
+
+      Assert.Equal(2, _waspService.KnownJobNumbersByCall.Count);
+      Assert.Equal(2, _waspService.KnownJobNumbersByCall[1].Count);
+      Assert.Contains("job-001", _waspService.KnownJobNumbersByCall[1]);
+      Assert.Contains("JOB-002", _waspService.KnownJobNumbersByCall[1]);
+    }
+
+    [Fact]
     public async Task ForceImport_EmitsIgnoredAssetsAlongsideAcceptedClientBatch()
     {
       _waspService.Batches.Add(new WaspImportClientBatch("JOB-001", new List<string>
@@ -175,9 +203,12 @@ namespace Quantum.Tests
     class FakeWaspAssetService : IWaspAssetService
     {
       public List<WaspImportClientBatch> Batches { get; } = new();
+      public List<IReadOnlyCollection<string>> KnownJobNumbersByCall { get; } = new();
 
-      public Task<WaspImportClientBatch> GetClientBatchAsync(int clientPosition)
+      public Task<WaspImportClientBatch> GetClientBatchAsync(int clientPosition, IReadOnlyCollection<string> knownJobNumbers)
       {
+        KnownJobNumbersByCall.Add(knownJobNumbers.ToArray());
+
         if (clientPosition < 0 || clientPosition >= Batches.Count)
         {
           return Task.FromResult<WaspImportClientBatch>(null);

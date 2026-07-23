@@ -14,6 +14,17 @@ namespace Outermind.Microfilm.Topics
     bool _importEnabled;
     bool _importInProgress;
     int _clientPosition;
+    readonly HashSet<string> _knownJobNumbers = new(StringComparer.OrdinalIgnoreCase);
+
+    void Given(ClientCreated e)
+    {
+      AddKnownJobNumber(e.Client?.JobNumber);
+    }
+
+    void Given(ClientReassigned e)
+    {
+      AddKnownJobNumber(e.Client?.JobNumber);
+    }
 
     void Given(WaspImportEnabledSet e)
     {
@@ -122,7 +133,8 @@ namespace Outermind.Microfilm.Topics
 
       try
       {
-        var batch = await waspService.GetClientBatchAsync(_clientPosition);
+        var knownJobNumbers = _knownJobNumbers.ToArray();
+        var batch = await waspService.GetClientBatchAsync(_clientPosition, knownJobNumbers);
 
         if (batch == null)
         {
@@ -206,6 +218,14 @@ namespace Outermind.Microfilm.Topics
     {
       _importInProgress = false;
       _clientPosition = 0;
+    }
+
+    void AddKnownJobNumber(string jobNumber)
+    {
+      if (!string.IsNullOrWhiteSpace(jobNumber))
+      {
+        _knownJobNumbers.Add(jobNumber);
+      }
     }
   }
 }

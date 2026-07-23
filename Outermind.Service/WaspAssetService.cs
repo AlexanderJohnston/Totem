@@ -37,14 +37,22 @@ namespace Outermind.Service
       _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    public async Task<WaspImportClientBatch> GetClientBatchAsync(int clientPosition)
+    public async Task<WaspImportClientBatch> GetClientBatchAsync(
+      int clientPosition,
+      IReadOnlyCollection<string> knownJobNumbers)
     {
       if (clientPosition < 0)
       {
         return null;
       }
 
-      var snapshot = await GetAssetSnapshotAsync(clientPosition);
+      var normalizedJobNumbers = NormalizeKnownJobNumbers(knownJobNumbers);
+      if (normalizedJobNumbers.Count == 0)
+      {
+        return null;
+      }
+
+      var snapshot = await GetAssetSnapshotAsync(clientPosition, normalizedJobNumbers);
 
       if (snapshot.HasUnassignedAssets && clientPosition == 0)
       {
@@ -63,7 +71,7 @@ namespace Outermind.Service
       return new WaspImportClientBatch(jobNumber, snapshot.GetAssetIds(jobNumber));
     }
 
-    async Task<CachedAssetSnapshot> GetAssetSnapshotAsync(int clientPosition)
+    async Task<CachedAssetSnapshot> GetAssetSnapshotAsync(int clientPosition, IReadOnlyCollection<string> knownJobNumbers)
     {
       if (_cache.TryGetValue<CachedAssetSnapshot>(AssetSnapshotCacheKey, out var snapshot)
         && !ShouldRefreshSnapshot(snapshot, clientPosition))
@@ -71,13 +79,13 @@ namespace Outermind.Service
         return snapshot;
       }
 
-      var assetIds = await GetAssetIdsAsync();
+      var assetIds = await GetAssetIdsAsync(knownJobNumbers);
       snapshot = BuildAssetSnapshot(assetIds);
       _cache.Set(AssetSnapshotCacheKey, snapshot);
       return snapshot;
     }
 
-    async Task<List<string>> GetAssetIdsAsync()
+    async Task<List<string>> GetAssetIdsAsync(IReadOnlyCollection<string> knownJobNumbers)
     {
       var assetIds = new List<string>();
       var seenAssetIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -92,12 +100,15 @@ namespace Outermind.Service
           PageNumber = pageNumber,
           TotalCountFromPriorFetch = totalCount,
           IgnoreAttachments = true,
-          IgnoreGeoLocation = true
+          IgnoreGeoLocation = true,
+          Filter = CreateAssetTagFilter(knownJobNumbers)
         });
 
         foreach (var assetTag in result.Data?
           .Where(a => !string.IsNullOrWhiteSpace(a.AssetTag))
           .Select(a => a.AssetTag)
+          .Where(assetTag => knownJobNumbers.Any(jobNumber =>
+            assetTag.StartsWith(jobNumber, StringComparison.OrdinalIgnoreCase)))
           ?? Enumerable.Empty<string>())
         {
           if (seenAssetIds.Add(assetTag))
@@ -153,6 +164,29 @@ namespace Outermind.Service
 
       return fetchedCount >= pageSize;
     }
+
+    // This is the single normalization layer for service callers and WASP filter construction.
+    static List<string> NormalizeKnownJobNumbers(IReadOnlyCollection<string> knownJobNumbers) =>
+      (knownJobNumbers ?? Array.Empty<string>())
+        .Where(jobNumber => !string.IsNullOrWhiteSpace(jobNumber))
+        .Select(jobNumber => jobNumber.Trim())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(jobNumber => jobNumber, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    static TopLevelFilterType CreateAssetTagFilter(IReadOnlyCollection<string> knownJobNumbers) =>
+      new()
+      {
+        Logic = "or",
+        Filters = knownJobNumbers
+          .Select(jobNumber => new TopLevelFilterType
+          {
+            Field = "AssetTag",
+            Operator = "startswith",
+            Value = jobNumber
+          })
+          .ToList()
+      };
 
     bool ShouldRefreshSnapshot(CachedAssetSnapshot snapshot, int clientPosition)
     {

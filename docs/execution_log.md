@@ -1,8 +1,20 @@
 # Execution Log
 
-Last updated: 2026-07-17
+Last updated: 2026-07-20
 
 ## Implemented Features
+
+### 2026-07-20 - WASP known-client asset filtering [Product → Execution: WASP import filtering steps 1-3] [Design → Execution]
+
+- `WaspImportTopic` now records nonblank job numbers from `ClientCreated` and `ClientReassigned` in a case-insensitive single-instance set, then passes an array snapshot to every import continuation.
+- `IWaspAssetService` now accepts that snapshot. `WaspAssetService` normalizes, de-duplicates, and sorts it once before issuing searches; an empty result returns no batch without an HTTP request.
+- Every WASP asset page now uses an `AssetTag` `startswith` filter with top-level `or` logic. Returned tags are also defensively restricted to the known prefixes before the existing snapshot grouping is retained.
+- Added focused topic/service tests for client snapshot forwarding, pagination filter objects, empty-known-client no-HTTP behavior, and exclusion of an unfiltered legacy response item.
+- Known limitation: the existing single asset-snapshot cache key is deliberately unchanged, so a cached snapshot can remain stale when the known-job-number set changes until its existing refresh behavior applies. Cache key/fingerprint invalidation is out of scope for these first filtering steps.
+
+[Execution → QA]
+
+- No tests or builds were run per instruction. Run the focused `WaspImportTopicTests` and `WaspAssetServiceTests` when validation is permitted.
 
 ### 2026-07-17 - Client Microfilm profile selection [Product → Execution: Microfilm client profile selection] [Design → Execution]
 
