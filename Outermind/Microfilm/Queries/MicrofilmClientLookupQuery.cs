@@ -34,5 +34,8 @@ namespace Outermind.Microfilm.Queries
 
     public bool HasClient(Id clientId) =>
       ClientsById.ContainsKey(clientId.ToString());
+
+    public bool TryGetClient(Id clientId, out KnownClient client) =>
+      ClientsById.TryGetValue(clientId.ToString(), out client);
   }
 }

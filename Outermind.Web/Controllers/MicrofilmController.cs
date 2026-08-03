@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Outermind.Microfilm;
 using Outermind.Microfilm.Queries;
@@ -262,6 +263,64 @@ namespace Outermind.Controllers
         : Ok(query);
     }
 
+    [HttpGet("rolls/{rollId}/rows/{rowId}/operation-context")]
+    [ProducesResponseType(typeof(OperationRowContext), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProcessingIssueEnvelope), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProcessingIssueEnvelope), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> GetOperationContext(string rollId, string rowId)
+    {
+      var roll = Id.From(rollId);
+      var status = await _queryDb.ReadQuery<RollStatusQuery>(roll);
+
+      if(status.Roll == null)
+      {
+        return NotFound(OperationContextApiErrors.RollNotFound(rollId, CorrelationId));
+      }
+
+      var rollLookup = await _queryDb.ReadQuery<RollMicrofilmLookupQuery>();
+      var clientLookup = await _queryDb.ReadQuery<MicrofilmClientLookupQuery>();
+
+      if(!rollLookup.TryGetRoll(roll, out var mapping)
+        || !rollLookup.BoxesById.TryGetValue(mapping.BoxId.ToString(), out var box)
+        || !clientLookup.TryGetClient(mapping.ClientId, out var client)
+        || mapping.Roll.RollId != status.Roll.RollId
+        || mapping.Roll.BoxId != status.Roll.BoxId
+        || box.BoxId != status.Roll.BoxId
+        || box.ClientId != mapping.ClientId
+        || client.ClientId != mapping.ClientId)
+      {
+        return Conflict(OperationContextApiErrors.RollMappingInvalid(rollId, CorrelationId));
+      }
+
+      var rowQuery = await _queryDb.ReadQuery<RollMicrofilmRowQuery>(RollMicrofilmRowQuery.CreateId(roll, rowId));
+
+      if(rowQuery.Row == null)
+      {
+        return NotFound(OperationContextApiErrors.RowNotFound(rollId, rowId, CorrelationId));
+      }
+
+      if(rowQuery.Row.RollId != status.Roll.RollId.ToString()
+        || !MicrofilmTableRowOrigins.IsSupported(rowQuery.Row.Origin))
+      {
+        return Conflict(OperationContextApiErrors.RowContextInvalid(rollId, rowId, CorrelationId));
+      }
+
+      var operation = await _queryDb.ReadQuery<RollOperationQuery>(roll);
+
+      if(operation.RollId != roll || operation.ResourceRevision < 1)
+      {
+        return Conflict(OperationContextApiErrors.RollMappingInvalid(rollId, CorrelationId));
+      }
+
+      return Ok(OperationRowContextFactory.Create(
+        client,
+        status.Roll,
+        rowQuery.Row,
+        operation.ScanState,
+        operation.ActiveScanId,
+        operation.ResourceVersion));
+    }
+
     [HttpGet("rolls/{rollId}/table")]
     public async Task<IActionResult> GetRollTable(string rollId)
     {
@@ -398,5 +457,7 @@ namespace Outermind.Controllers
         session.ProcessUserId,
         session.TrackingSource);
     }
+
+    string CorrelationId => HttpContext?.TraceIdentifier;
   }
 }

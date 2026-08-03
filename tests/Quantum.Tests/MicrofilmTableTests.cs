@@ -229,6 +229,9 @@ namespace Quantum.Tests
 
       Assert.True(query.HasServer(serverId));
       Assert.True(query.HasClient(clientId));
+      Assert.True(query.TryGetClient(clientId, out var client));
+      Assert.Equal("JOB-001", client.JobNumber);
+      Assert.Equal(serverId, client.ServerId);
     }
   }
 

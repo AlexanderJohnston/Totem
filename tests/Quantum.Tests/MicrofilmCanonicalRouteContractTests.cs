@@ -27,7 +27,8 @@ namespace Quantum.Tests
         "rolls/{rollId}/rows",
         "rolls/{rollId}/rows",
         "rolls/{rollId}/rows/{rowId}",
-        "rolls/{rollId}/rows/{rowId}/cells/{columnId}"
+        "rolls/{rollId}/rows/{rowId}/cells/{columnId}",
+        "rolls/{rollId}/rows/{rowId}/operation-context"
       }, rowRoutes);
 
       Assert.DoesNotContain(rowRoutes, route => route.Contains("{clientId}", StringComparison.Ordinal));

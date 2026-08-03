@@ -4,9 +4,11 @@ Last updated: 2026-08-03
 
 Authoritative policy: `SCAN_AND_PROCESSING_BACKEND_POLICY.md`
 
-## Current package
+## Completed package 1
 
 Work package 1 establishes the canonical row boundary. The backend now supports only roll-scoped regular and custom rows addressed by `rollId + rowId`.
+
+Committed on the current branch as `c4815cb Retire client-scoped microfilm rows`.
 
 Implemented:
 
@@ -61,8 +63,30 @@ No deployment data conversion was performed by this package. Before Scan or Proc
 - `Outermind.Service/appsettings.json` parses successfully after seed removal.
 - `git diff --check`: passed.
 
-## Next package
+## Current package 2
 
-After this package is focused-test green, the next smallest dependency boundary is work package 2: durable roll-owned scan state and resource version, canonical operation context for both row origins, structured errors, read-only discovery/context HTTP contracts, OpenAPI, and deterministic fixtures. Mutation and filesystem work remain out of scope.
+Work package 2 adds the durable, read-only operation-context foundation:
+
+- `RollOperationQuery` projects `idle`, `starting`, `active`, and `finishing` from durable roll-scoped scan facts;
+- `isScanning` is derived from that state and is emitted as a JSON Boolean independent of cells and profiles;
+- an opaque roll-business `resourceVersion` advances with durable roll facts and remains distinct from QueryHub/query ETags;
+- `GET /api/microfilm/rolls/{rollId}/rows/{rowId}/operation-context` resolves the canonical roll-to-box-to-client chain and the exact composite row;
+- regular and custom rows share the same operation rules; origin is provenance only;
+- invalid roll, row, mapping, row context, stale version, and ineligible action cases use the stable `ProcessingIssue` envelope;
+- deterministic v1 regular, custom, and error fixtures live under `docs/contracts/scan-processing/v1`.
+
+The scan transition facts are contract/projection foundations. There is no public command route or command handler that emits them in this package.
+
+### Package 2 verification
+
+- Focused operation-context, route, lookup, and wrong-roll tests: 16 passed, 0 failed.
+- Focused Microfilm/roll-operation tests: 47 passed, 0 failed.
+- Full `Totem.sln` Release build: succeeded with 0 errors and 3 existing warnings.
+- Broader `Quantum.Tests`: 121 passed, 2 failed. The failures are the same unrelated `ClientProfileRegistryTests.MatchesCorrectProfile` and `WaspAssetServiceTests.GetClientBatchAsync_FetchesAdditionalPagesWhenTotalCountExceedsCurrentPageWindow` baseline cases recorded for package 1.
+- `git diff --check`: passed.
+
+## Stop boundary
 
 Start, Finish, Preview, and Apply remain production-disabled. Authorization, protected QueryHub access, worker identity/storage roots, idempotency, leases, path safety, backup failure, restart reconciliation, and live Windows-service evidence remain open gates.
+
+No filesystem mutation or production enablement was implemented. No workspace/root binding, worker identity/storage policy, QueryHub protection, idempotency, recovery flow, or Windows-service evidence was added or claimed.

@@ -5,7 +5,7 @@ using Totem.Timeline;
 namespace Outermind.Microfilm.Queries
 {
   /// <summary>
-  /// Tracks roll-to-client ownership for roll-scoped API validation and compatibility routing.
+  /// Tracks canonical roll-to-box-to-client ownership for roll-scoped API validation.
   /// </summary>
   public class RollMicrofilmLookupQuery : Query
   {

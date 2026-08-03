@@ -1,0 +1,14 @@
+{
+  "clientId": "00000000-0000-0000-0000-000000000101",
+  "rowId": "row-1",
+  "origin": "regular",
+  "rollId": "00000000-0000-0000-0000-000000000401",
+  "rollName": "Roll A",
+  "isScanning": false,
+  "scanState": "idle",
+  "resourceVersion": "rv1-0000000000000002",
+  "eligibleActions": [
+    "scan",
+    "process"
+  ]
+}

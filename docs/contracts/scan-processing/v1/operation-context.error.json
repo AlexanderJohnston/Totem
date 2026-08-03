@@ -1,0 +1,10 @@
+{
+  "issues": [
+    {
+      "code": "RESOURCE_VERSION_STALE",
+      "severity": "error",
+      "message": "The roll changed after this operation context was read. Refresh the context and try again.",
+      "field": "resourceVersion"
+    }
+  ]
+}

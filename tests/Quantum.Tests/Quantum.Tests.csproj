@@ -18,4 +18,9 @@
     <ProjectReference Include="..\..\Outermind.Web\Quantum.Web.csproj" />
     <ProjectReference Include="..\..\src\Totem.App.Tests\Totem.App.Tests.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\docs\contracts\scan-processing\v1\*.json"
+          Link="Fixtures\ScanProcessing\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
