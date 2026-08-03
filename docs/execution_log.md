@@ -143,8 +143,8 @@ No `ProcessUserID`, `ScanUserID`, `userId`, process operator, or equivalent trac
 
 ## Technical Debt
 
-- P3 compatibility keeps the legacy client-wide table topic/routes available. Existing legacy rows have no persisted `rollId`; they remain on the legacy path until recreated or explicitly migrated with a `rollId`.
-- QueryHub fan-out relies on query projection routing to update both roll-scoped and legacy client-scoped query buckets from roll events; no QueryHub authorization behavior was added.
+- Client-scoped table runtime compatibility is removed. Environments containing client-only row events require an explicit manifest-driven conversion before Scan or Process is enabled; no cell/name matching bridge exists.
+- QueryHub row invalidation is roll-scoped only. QueryHub authorization remains a separate production gate.
 - Host principal capture remains a validation item. If `identified` is required under Kestrel/IIS Express, Research should verify passive Windows/Negotiate behavior before adding any auth middleware.
 - Duplicate mapping errors currently surface as infrastructure/configuration exceptions; a future hardening pass could add startup validation and controlled problem details without exposing sensitive internals.
 - There is no automated Web/API integration test harness yet; resolver unit tests cover the state algorithm and manual HTTP validation covers the default route/header/serialization behavior.
@@ -164,7 +164,7 @@ No `ProcessUserID`, `ScanUserID`, `userId`, process operator, or equivalent trac
 7. Confirm no QueryHub auth/login/permission-gating behavior was introduced.
 8. Register a backend user, confirm `Set-Cookie` for `Totem.Auth`, and confirm `GET /api/session` returns `trackingSource: "backend-cookie"` with the server-generated `processUserId`.
 9. Fetch `/api/auth/csrf`, send `X-CSRF-TOKEN` on authenticated unsafe requests, and confirm logout clears cookie identity and returns `unidentified`.
-10. For P3, run focused Microfilm tests and verify roll-scoped rows/cells project audit metadata and legacy client queries still update from roll events.
+10. For P3, run focused Microfilm tests and verify roll-scoped rows/cells project audit metadata, regular/custom parity, wrong-roll isolation, and absence of client-scoped row routes.
 
 
 ## Validation Results
@@ -214,3 +214,18 @@ These catalog-specific checks are superseded by the 2026-07-16 optimistic-field 
 [Execution → QA]
 
 - Not run by Execution per delegation instruction; validation is pending the Luna agent.
+
+### 2026-08-03 - Scan/Processing work package 1: canonical row boundary [Policy → Execution]
+
+- Removed the six client-scoped row HTTP route shapes, client row commands/events/topic, client row projections, legacy routing index/fallback dispatch, demo seed hosted service/configuration, and coexistence-only tests.
+- Retained canonical roll reads and regular/custom creates/patches. Both origins use the same roll-owned topic rules; `origin` remains provenance only.
+- Added route-contract, regular/custom parity, and wrong-roll isolation tests. The wrong-roll test includes a matching-looking `rollName` cell and proves it cannot retarget identity.
+- Updated active backend contracts and recorded the related Formatic checkout's remaining client-scoped reads/fallbacks as coordinated work; that checkout was inspected read-only and not edited.
+- No deployment data conversion was performed. Explicit conversion remains required before Scan/Process enablement wherever client-only row events exist.
+
+Validation with the pinned .NET SDK `10.0.300`:
+
+- Pre-change focused baseline: 63 passed, 0 failed.
+- Post-change focused Microfilm tests: 44 passed, 0 failed.
+- `Totem.sln` Release build: passed, 0 errors, 3 existing warnings.
+- Broader `Quantum.Tests`: 110 passed, 2 failed. The failures are the unchanged `ClientProfileRegistryTests.MatchesCorrectProfile` case and WASP paging test already recorded as unrelated baseline failures.

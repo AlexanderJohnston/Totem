@@ -787,19 +787,6 @@ namespace Outermind.Microfilm
     public MicrofilmCellValue Value { get; set; }
   }
 
-  public class CreateMicrofilmRegularRowRequest
-  {
-    public string RollId { get; set; }
-    public string RowId { get; set; }
-    public Dictionary<string, MicrofilmCellValue> Cells { get; set; } = new();
-  }
-
-  public class CreateMicrofilmCustomRowRequest
-  {
-    public string RollId { get; set; }
-    public Dictionary<string, MicrofilmCellValue> Cells { get; set; } = new();
-  }
-
   public class CreateRollMicrofilmRowRequest
   {
     public string RowId { get; set; }

@@ -153,7 +153,7 @@ namespace Quantum.Tests
         new System.DateTimeOffset(2026, 6, 10, 0, 0, 0, System.TimeSpan.FromHours(-4)));
 
     static List<MicrofilmTableColumn> StarterColumns() =>
-      MicrofilmTableTopicTestsStarter.Columns();
+      MicrofilmProfileTestColumns.Create();
   }
 
   public class MicrofilmClientProfilesQueryTests : QueryTests<MicrofilmClientProfilesQuery>
@@ -209,282 +209,9 @@ namespace Quantum.Tests
         id,
         name,
         null,
-        MicrofilmTableTopicTestsStarter.Columns(),
+        MicrofilmProfileTestColumns.Create(),
         new System.DateTimeOffset(2026, 6, 10, 0, 0, 0, System.TimeSpan.FromHours(-4)),
         new System.DateTimeOffset(2026, 6, 10, 0, 0, 0, System.TimeSpan.FromHours(-4)));
-  }
-
-  public class MicrofilmTableTopicTests : TopicTests<MicrofilmTableTopic>
-  {
-    static readonly Id ClientId = Id.From("00000000-0000-0000-0000-000000000101");
-    static readonly Id ServerId = Id.From("00000000-0000-0000-0000-000000000201");
-
-    [Fact]
-    public async Task Seed_ForKnownClient_AppliesColumnsAndRegularRows()
-    {
-      await Append(ClientCreated());
-      await Append(new SeedMicrofilmTable(ClientId, "demo", StarterColumns(), StarterRows()));
-
-      var seeded = await Expect<MicrofilmTableSeeded>();
-
-      Assert.Equal(ClientId, seeded.ClientId);
-      Assert.Equal("demo", seeded.SeedId);
-      Assert.Equal(new[] { "boxName", "rollName", "status", "reviewed" }, seeded.Columns.Select(column => column.Id));
-      var row = Assert.Single(seeded.RegularRows);
-      Assert.Equal("row-1", row.Id);
-      Assert.Equal(MicrofilmTableRowOrigins.Regular, row.Origin);
-      Assert.Equal("Box 01", row.Cells["boxName"].Text);
-      Assert.False(row.Cells["reviewed"].Checkbox);
-    }
-
-    [Fact]
-    public async Task UpdateRegularRowCell_ReturnsFullUpdatedRow()
-    {
-      await Append(ClientCreated());
-      await Append(new MicrofilmRegularRowCreated(ClientId, StarterRows().Single()));
-
-      await Append(new UpdateMicrofilmRegularRowCell(ClientId, "row-1", "status", MicrofilmCellValue.FromText("Done")));
-
-      var updated = await Expect<MicrofilmRegularRowCellUpdated>();
-
-      Assert.Equal("row-1", updated.Row.Id);
-      Assert.Equal(MicrofilmTableRowOrigins.Regular, updated.Row.Origin);
-      Assert.Equal("Done", updated.Row.Cells["status"].Text);
-      Assert.Equal("Box 01", updated.Row.Cells["boxName"].Text);
-    }
-
-    [Fact]
-    public async Task CreateRegularRow_AcceptsFrontendStableRowId()
-    {
-      await Append(ClientCreated());
-
-      await Append(new CreateMicrofilmRegularRow(ClientId, "wasp-box-1", new Dictionary<string, MicrofilmCellValue>
-      {
-        ["boxName"] = MicrofilmCellValue.FromText("Box 01"),
-        ["status"] = MicrofilmCellValue.FromText("New")
-      }));
-
-      var created = await Expect<MicrofilmRegularRowCreated>();
-
-      Assert.Equal(ClientId, created.ClientId);
-      Assert.Equal("wasp-box-1", created.Row.Id);
-      Assert.Equal(MicrofilmTableRowOrigins.Regular, created.Row.Origin);
-      Assert.Equal("Box 01", created.Row.Cells["boxName"].Text);
-      Assert.Equal("New", created.Row.Cells["status"].Text);
-      Assert.Equal(new[] { "boxName", "status" }, created.Row.Cells.Keys.OrderBy(key => key));
-    }
-
-    [Fact]
-    public async Task CreateRegularRow_AcceptsSparseArbitraryScalarCells()
-    {
-      await Append(ClientCreated());
-
-      await Append(new CreateMicrofilmRegularRow(ClientId, "optimistic-row", new Dictionary<string, MicrofilmCellValue>
-      {
-        [" arbitraryColumn "] = MicrofilmCellValue.FromNumber(42)
-      }));
-
-      var created = await Expect<MicrofilmRegularRowCreated>();
-      Assert.Equal(42, created.Row.Cells["arbitraryColumn"].Number);
-      Assert.DoesNotContain("boxName", created.Row.Cells.Keys);
-      Assert.DoesNotContain("rollName", created.Row.Cells.Keys);
-    }
-
-    [Fact]
-    public async Task CreateRegularRow_RejectsColumnIdsThatCollideAfterTrimming()
-    {
-      await Append(ClientCreated());
-
-      await Append(new CreateMicrofilmRegularRow(ClientId, "collision-row", new Dictionary<string, MicrofilmCellValue>
-      {
-        ["status"] = MicrofilmCellValue.FromText("New"),
-        [" status "] = MicrofilmCellValue.FromText("Done")
-      }));
-
-      var rejected = await Expect<MicrofilmTableCellValueRejected>();
-      Assert.Equal("status", rejected.ColumnId);
-    }
-
-    [Fact]
-    public async Task CreateRegularRow_RejectsUnsupportedJsonCells()
-    {
-      await Append(ClientCreated());
-
-      await Append(new CreateMicrofilmRegularRow(ClientId, "unsupported-row", new Dictionary<string, MicrofilmCellValue>
-      {
-        ["metadata"] = MicrofilmCellValue.Unsupported()
-      }));
-
-      Assert.Equal("metadata", (await Expect<MicrofilmTableCellValueRejected>()).ColumnId);
-    }
-
-    [Fact]
-    public async Task CreateRegularRow_RejectsDuplicateRowId()
-    {
-      await Append(ClientCreated());
-      await Append(new MicrofilmRegularRowCreated(ClientId, StarterRows().Single()));
-
-      await Append(new CreateMicrofilmRegularRow(ClientId, "row-1", new Dictionary<string, MicrofilmCellValue>
-      {
-        ["boxName"] = MicrofilmCellValue.FromText("Duplicate")
-      }));
-
-      var conflict = await Expect<MicrofilmTableRowConflict>();
-
-      Assert.Equal(ClientId, conflict.ClientId);
-      Assert.Equal("row-1", conflict.RowId);
-    }
-
-    [Fact]
-    public async Task UpdateRegularRowCell_AcceptsArbitraryFieldValue()
-    {
-      await Append(ClientCreated());
-      await Append(new MicrofilmRegularRowCreated(ClientId, StarterRows().Single()));
-
-      await Append(new UpdateMicrofilmRegularRowCell(ClientId, "row-1", " status ", MicrofilmCellValue.FromText("Archived")));
-
-      var updated = await Expect<MicrofilmRegularRowCellUpdated>();
-
-      Assert.Equal("Archived", updated.Row.Cells["status"].Text);
-    }
-
-    [Fact]
-    public async Task CreateCustomRow_StoresSparseSubmittedCells()
-    {
-      await Append(ClientCreated());
-
-      await Append(new CreateMicrofilmCustomRow(ClientId, new Dictionary<string, MicrofilmCellValue>
-      {
-        ["boxName"] = MicrofilmCellValue.FromText("Manual row")
-      }));
-
-      var created = await Expect<MicrofilmCustomRowCreated>();
-
-      Assert.True(!string.IsNullOrWhiteSpace(created.Row.Id));
-      Assert.Equal(MicrofilmTableRowOrigins.Custom, created.Row.Origin);
-      Assert.Equal("Manual row", created.Row.Cells["boxName"].Text);
-      Assert.Equal(new[] { "boxName" }, created.Row.Cells.Keys);
-    }
-
-    [Fact]
-    public async Task Write_ForUnknownClient_IsRejected()
-    {
-      await Append(new UpdateMicrofilmCustomRowCell(ClientId, "row-404", "boxName", MicrofilmCellValue.FromText("Ignored")));
-
-      var rejected = await Expect<MicrofilmTableClientNotRecognized>();
-
-      Assert.Equal(ClientId, rejected.ClientId);
-    }
-
-    static ClientCreated ClientCreated() =>
-      new(new KnownClient("Job", "JOB-001", ClientId, ServerId));
-
-    static List<MicrofilmTableColumn> StarterColumns() =>
-      new()
-      {
-        new("boxName", "Box", MicrofilmTableColumnTypes.Text, 160),
-        new("rollName", "Roll", MicrofilmTableColumnTypes.Text, 160),
-        new("status", "Status", MicrofilmTableColumnTypes.Dropdown, 160, new[] { "New", "In Progress", "Done" }),
-        new("reviewed", "Reviewed", MicrofilmTableColumnTypes.Checkbox, 120)
-      };
-
-    static List<MicrofilmTableRow> StarterRows() =>
-      new()
-      {
-        new("row-1", MicrofilmTableRowOrigins.Regular, new Dictionary<string, MicrofilmCellValue>
-        {
-          ["boxName"] = MicrofilmCellValue.FromText("Box 01"),
-          ["rollName"] = MicrofilmCellValue.FromText("Roll A"),
-          ["status"] = MicrofilmCellValue.FromText("New"),
-          ["reviewed"] = MicrofilmCellValue.FromCheckbox(false)
-        })
-      };
-  }
-
-  public class MicrofilmRegularRowsQueryTests : QueryTests<MicrofilmRegularRowsQuery>
-  {
-    static readonly Id ClientId = Id.From("00000000-0000-0000-0000-000000000101");
-
-    [Fact]
-    public async Task Seed_ProjectsRegularRows()
-    {
-      await Append(new ClientCreated(new KnownClient("Job", "JOB-001", ClientId, Id.Unassigned)));
-      await Append(new MicrofilmTableSeeded(ClientId, "demo", MicrofilmTableTopicTestsStarter.Columns(), MicrofilmTableTopicTestsStarter.Rows()));
-
-      var query = await GetQuery(ClientId);
-      var row = Assert.Single(query.Rows);
-
-      Assert.Equal(MicrofilmTableRowOrigins.Regular, row.Origin);
-      Assert.Equal("Box 01", row.Cells["boxName"].Text);
-    }
-
-    [Fact]
-    public async Task CreatedRegularRow_ProjectsInRows()
-    {
-      await Append(new ClientCreated(new KnownClient("Job", "JOB-001", ClientId, Id.Unassigned)));
-      await Append(new MicrofilmRegularRowCreated(ClientId, new MicrofilmTableRow(
-        "wasp-box-1",
-        MicrofilmTableRowOrigins.Regular,
-        new Dictionary<string, MicrofilmCellValue>
-        {
-          ["boxName"] = MicrofilmCellValue.FromText("Box 01"),
-          ["status"] = MicrofilmCellValue.FromText("New")
-        })));
-
-      var query = await GetQuery(ClientId);
-      var row = Assert.Single(query.Rows);
-
-      Assert.Equal("wasp-box-1", row.Id);
-      Assert.Equal(MicrofilmTableRowOrigins.Regular, row.Origin);
-      Assert.Equal("Box 01", row.Cells["boxName"].Text);
-    }
-
-    [Fact]
-    public async Task CellUpdate_ReplacesOneRegularRow()
-    {
-      await Append(new ClientCreated(new KnownClient("Job", "JOB-001", ClientId, Id.Unassigned)));
-      await Append(new MicrofilmTableSeeded(ClientId, "demo", MicrofilmTableTopicTestsStarter.Columns(), MicrofilmTableTopicTestsStarter.Rows()));
-      await Append(new MicrofilmRegularRowCellUpdated(ClientId, new MicrofilmTableRow(
-        "row-1",
-        MicrofilmTableRowOrigins.Regular,
-        new Dictionary<string, MicrofilmCellValue>
-        {
-          ["boxName"] = MicrofilmCellValue.FromText("Box 01"),
-          ["rollName"] = MicrofilmCellValue.FromText("Roll A"),
-          ["status"] = MicrofilmCellValue.FromText("Done"),
-          ["reviewed"] = MicrofilmCellValue.FromCheckbox(false)
-        })));
-
-      var query = await GetQuery(ClientId);
-      var row = Assert.Single(query.Rows);
-
-      Assert.Equal("Done", row.Cells["status"].Text);
-    }
-  }
-
-  public class MicrofilmCustomRowsQueryTests : QueryTests<MicrofilmCustomRowsQuery>
-  {
-    static readonly Id ClientId = Id.From("00000000-0000-0000-0000-000000000101");
-
-    [Fact]
-    public async Task CreatedAndUpdatedCustomRows_ProjectInEnvelope()
-    {
-      await Append(new ClientCreated(new KnownClient("Job", "JOB-001", ClientId, Id.Unassigned)));
-      await Append(new MicrofilmCustomRowCreated(ClientId, new MicrofilmTableRow(
-        "custom-1",
-        MicrofilmTableRowOrigins.Custom,
-        new Dictionary<string, MicrofilmCellValue> { ["boxName"] = MicrofilmCellValue.FromText("Manual") })));
-      await Append(new MicrofilmCustomRowCellUpdated(ClientId, new MicrofilmTableRow(
-        "custom-1",
-        MicrofilmTableRowOrigins.Custom,
-        new Dictionary<string, MicrofilmCellValue> { ["boxName"] = MicrofilmCellValue.FromText("Manual Updated") })));
-
-      var query = await GetQuery(ClientId);
-      var row = Assert.Single(query.CustomRows);
-
-      Assert.Equal(MicrofilmTableRowOrigins.Custom, row.Origin);
-      Assert.Equal("Manual Updated", row.Cells["boxName"].Text);
-    }
   }
 
   public class MicrofilmClientLookupQueryTests : QueryTests<MicrofilmClientLookupQuery>
@@ -505,27 +232,15 @@ namespace Quantum.Tests
     }
   }
 
-  static class MicrofilmTableTopicTestsStarter
+  static class MicrofilmProfileTestColumns
   {
-    public static List<MicrofilmTableColumn> Columns() =>
+    public static List<MicrofilmTableColumn> Create() =>
       new()
       {
         new("boxName", "Box", MicrofilmTableColumnTypes.Text, 160),
         new("rollName", "Roll", MicrofilmTableColumnTypes.Text, 160),
         new("status", "Status", MicrofilmTableColumnTypes.Dropdown, 160, new[] { "New", "In Progress", "Done" }),
         new("reviewed", "Reviewed", MicrofilmTableColumnTypes.Checkbox, 120)
-      };
-
-    public static List<MicrofilmTableRow> Rows() =>
-      new()
-      {
-        new("row-1", MicrofilmTableRowOrigins.Regular, new Dictionary<string, MicrofilmCellValue>
-        {
-          ["boxName"] = MicrofilmCellValue.FromText("Box 01"),
-          ["rollName"] = MicrofilmCellValue.FromText("Roll A"),
-          ["status"] = MicrofilmCellValue.FromText("New"),
-          ["reviewed"] = MicrofilmCellValue.FromCheckbox(false)
-        })
       };
   }
 }

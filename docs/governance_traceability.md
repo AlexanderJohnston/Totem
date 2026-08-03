@@ -39,13 +39,13 @@ P2 governance guardrails:
 
 ## Current Table Phase Governance Status: Roll-Scoped Microfilm Resources and Targeted Audit
 
-**Gate status: IMPLEMENTATION PASS for focused Product P3 / table Phase 2 scope, with existing full-suite waiver still applying to broader release policy.**
+**Gate status: CANONICAL ROW BOUNDARY FOCUSED PASS. Existing full-suite waiver still applies to broader release policy.**
 
-Governance observes implementation evidence for roll-scoped table resources, targeted per-cell audit facts, legacy migration compatibility, and tracking-not-authorization guardrails. Roll-scoped work is scoped to Microfilm table addressing and audit; it does not introduce authorization, QueryHub gating, or client-selected actor identity.
+Governance observes implementation evidence for roll-scoped table resources, targeted per-cell audit facts, removal of the temporary client-scoped compatibility model, and tracking-not-authorization guardrails. Roll-scoped work is scoped to Microfilm table addressing and audit; it does not introduce authorization, QueryHub gating, or client-selected actor identity.
 
 Roll-scoped guardrails:
-- Canonical row addressing is `rollId + rowId`; legacy client-wide routes remain compatibility surfaces during migration.
-- Legacy create adapters must not use a `rollId` belonging to another `{clientId}` route.
+- Canonical row addressing is `rollId + rowId`; client-scoped row routes, projections, routing indexes, and fallback dispatch must remain absent.
+- Any remaining deployment data without durable roll ownership must be explicitly converted before Scan or Process is enabled; names and cells cannot supply identity.
 - Regular/custom row routes must not mutate the opposite stored row kind.
 - Actor stamping comes from backend session resolution; request DTOs must not accept or trust `ProcessUserID`, `processUserId`, operator ID, or delegated actor fields.
 - Existing unmapped/unidentified tracking states do not block commands by default.
@@ -85,10 +85,10 @@ Roll-scoped guardrails:
 | P2 user store and password hashing | Product `P2-S1`, `P2-S2`; Design decisions required | Minimal store with `IPasswordHasher<ApplicationUser>` | `FileApplicationUserStore`, `ApplicationUserManager`, `App_Data/` gitignore | Focused manager/controller tests | Pass for MVP file-backed store; durable production store remains future hardening. |
 | P2 CSRF/CORS and frontend handoff | Product `P2-S5`, `P2-S6`; Design CSRF/CORS topology | Same-origin preferred, explicit credentialed origins only, double-submit CSRF for unsafe methods | `backend-integration-guide.md`, `frontend-userauth-feedback2-response.md`, CSRF implementation | Focused CSRF tests and docs review | Pass. |
 | P2 no authorization scope creep | Vision V4/V5; Product guardrails and `P2-S7` | No global fallback authorization, no `[Authorize]` gates on existing Microfilm APIs by default | Static scan found no `[Authorize]`, `UseAuthorization`, `RequireAuthorization`, `AddAuthorization`; no QueryHub auth | QA static evidence | Pass. Any future route gating requires Product re-scope. |
-| Roll-scoped resources replace client-wide table ownership for new rows | Product `P3-S1`, `P3-S3`; Design roll-row boundary | Roll-scoped commands, topic, query model, legacy compatibility adapters | `RollMicrofilmTableTopic`, `RollMicrofilmRowsQuery`, `RollMicrofilmRowQuery`, `LegacyRowRoutingIndexQuery`, `MicrofilmController` roll routes | Focused Microfilm tests 38/38 | Pass for focused scope. Existing legacy rows remain on legacy path until migrated/recreated with `rollId`. |
+| Roll-scoped resources are the only supported table ownership model | Product `P3-S1`, `P3-S3`; Scan/Processing policy roll-row boundary | Roll-scoped commands, topic, query model, canonical HTTP routes | `RollMicrofilmTableTopic`, `RollMicrofilmRowsQuery`, `RollMicrofilmRowQuery`, `MicrofilmController` roll routes | Focused Microfilm tests 44/44; Release solution build pass | Pass for focused boundary. Deployment data without roll ownership remains a pre-enable conversion gate. |
 | Targeted per-cell audit with backend-resolved actor | Product `P3-S2`, `P3-S4`; Design targeted audit and actor stamping | `MicrofilmCellAudit`, `MicrofilmAuditActorStamp`, targeted cell events | Roll cell update commands/events/projections; actor from `IInteractionIdentityResolver` | Focused Microfilm tests and static no-client-actor scan | Pass. No manual/delegated `ProcessUserID` override support observed. |
 | Preserve tracking-not-authorization during table migration | Product guardrails; Design scope control | No authorization or QueryHub gate added | Static scan found no `[Authorize]`, `UseAuthorization`, `RequireAuthorization`, `AddAuthorization` | QA static evidence | Pass. Cookie identity remains tracking only. |
-| Legacy compatibility and safe migration adapters | Product `P3-S3`, `P3-S5`; Design migration/backfill strategy | Legacy row projections consume roll facts; adapters preserve row envelopes and route boundaries while profiles own presentation | `MicrofilmRegularRowsQuery`, `MicrofilmCustomRowsQuery`, controller adapters, optimistic-field migration guide | Focused Microfilm tests and docs review | Pass for focused compatibility scope. Deleted client/roll column endpoints are not adapters. |
+| Client-scoped compatibility retirement | Scan/Processing policy and implementation handoff | Remove client row routes, projections, routing index, fallback dispatch, seeds, tests, and active contract claims | Canonical controller/routes and optimistic-field migration guide | Route contract, regular/custom parity, wrong-roll isolation, docs review | Focused pass. External Formatic consumer migration remains coordinated deployment work. |
 
 ## Process Compliance Status
 
@@ -101,7 +101,7 @@ Roll-scoped guardrails:
 | QA | Conditional Pass | QA accepted HTTP evidence and focused tests; full suite not rerun because Governance waiver remains active. QA plan now includes cookie identity and roll-scoped table evidence. | None for focused gates. |
 | Governance | Conditional Pass | Prior blockers are closed; focused implementation gates pass with explicit full-suite waiver and release-packaging condition. | Governance: monitor waiver and release conditions if scope changes. |
 | P2 cookie identity | Pass for focused MVP | Backend-owned register/login/logout/session identity is implemented with documented security controls and no authorization scope creep. | Broader release: decide durable store/rate limiting/lockout requirements. |
-| Product P3 / table Phase 2 | Pass for focused implementation | Roll-scoped table resources, targeted audit, and legacy compatibility are implemented and focused-tested. | Broader release: document migration/backfill and legacy route limitations. |
+| Product P3 / table Phase 2 | Pass for current focused boundary | Roll-scoped table resources and targeted audit remain; temporary client-scoped compatibility has been removed. | Coordinate the Formatic consumer migration and any deployment-data conversion before deployment. |
 
 ## Risk Register
 
@@ -194,12 +194,12 @@ Roll-scoped guardrails:
 
 ### GD-GOV-006 - Product P3 / table Phase 2 roll-scoped implementation gate
 
-**Decision: PASS for focused implementation scope.** Execution provided roll-scoped Microfilm commands/events/topic/query/controller changes, legacy compatibility adapters, backend session actor stamping, frontend-facing contract updates, focused tests, static no-authorization evidence, and a passing solution build.
+**Decision: PASS for the current focused canonical-row boundary.** The 2026-06-30 coexistence slice is superseded. Current evidence is 44/44 focused Microfilm tests, a successful Release solution build, and 110/112 broader Quantum tests with the same two recorded unrelated failures.
 
 Conditions for broader release remain:
 
 - Full `Quantum.Tests` remains subject to W-GOV-001 unless the unrelated baseline failure is fixed or a broader release owner accepts the waiver.
-- Existing client-wide rows are not automatically backfilled with `rollId`; release notes must state that legacy rows remain on legacy paths until migrated/recreated with `rollId`.
+- Existing client-wide rows are not automatically converted. An explicit row-to-roll manifest and verification are required before Scan/Process enablement; no legacy runtime path remains.
 - Profile presentation changes must not be treated as schemas or used to mutate durable cells/audits; frontend joins remain responsible for interpretation.
 - Any future authorization, role, permission, QueryHub auth, or command-blocking behavior requires a separate Product/Design/Governance scope.
 
@@ -209,7 +209,7 @@ Conditions for broader release remain:
 2. **Product/Execution owners:** Prepare versioned release notes or CHANGELOG links before broader production release readiness review.
 3. **QA/Documentation owner:** Update `docs/qa_plan.md` to remove the stale README Vision-link attention note at the next QA document refresh.
 4. **Research/Execution owners, only if re-scoped:** Validate real Windows/Negotiate principal capture before introducing auth middleware.
-5. **Documentation/release owner:** Include roll-scoped migration notes in release notes: new rows should prefer roll-scoped routes, legacy rows remain legacy until migrated/recreated, and legacy create with `rollId` must match the route client.
+5. **Documentation/release owner:** Include the breaking removal of client-scoped row routes and the required pre-enable data conversion in release notes.
 6. **Product/Design owner before profile expansion:** Preserve profile-owned presentation semantics and ensure frontend joins do not delete omitted durable fields or audits.
 7. **Execution owner before broader release:** Fix or waive the unrelated full-suite failure under the applicable release policy.
 8. **Documentation/frontend handoff owner:** Keep frontend-facing docs aligned with cookie CSRF/credential handling and roll-scoped table route preferences; ensure the handoff does not reintroduce manual/delegated identity selection.

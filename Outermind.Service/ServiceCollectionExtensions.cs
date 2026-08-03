@@ -3,12 +3,9 @@ using System.IO;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Outermind.Microfilm;
 using Quantum.Service;
 using Quantum.ServiceContracts;
-using Totem.Timeline.Client;
-using Totem.Timeline.EventStore.Client;
 
 namespace Outermind.Service
 {
@@ -28,7 +25,6 @@ namespace Outermind.Service
       //services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SmartScanBackgroundService>());
       AddOutermindParsers(services);
       AddWaspAssetService(services);
-      AddMicrofilmTableSeedService(services);
       return services;
     }
 
@@ -54,13 +50,6 @@ namespace Outermind.Service
           client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
       });
-      return services;
-    }
-
-    public static IServiceCollection AddMicrofilmTableSeedService(this IServiceCollection services)
-    {
-      services.AddSingleton<IClientDb, ClientDb>();
-      services.AddSingleton<IHostedService, MicrofilmTableSeedService>();
       return services;
     }
 

@@ -99,29 +99,21 @@ If local hosting does not populate `HttpContext.User`, `/api/session` should ret
 
 ## Roll-scoped table resources and audit
 
-Roll-scoped routes are the preferred Phase 2 table contract. They coexist with legacy client-wide routes during migration.
+Roll-scoped routes are the only supported Miller row contract. Every row read or write is addressed by `rollId + rowId`; profiles and cells never supply a missing roll identity.
 
 | Method | Route | Purpose | Request body | Response |
 |---|---|---|---|---|
-| `GET` | `/api/microfilm/rolls/{rollId}/columns` | Read effective column definitions for one roll | none | `200 OK` with roll-scoped columns query |
-| `PUT` | `/api/microfilm/rolls/{rollId}/columns` | Replace effective roll column definitions | `{ "columns": [...] }` | `200 OK` with `{ rollId, columns }` |
 | `GET` | `/api/microfilm/rolls/{rollId}/rows` | Read roll-scoped rows, including audit metadata when present | none | `200 OK` with `rows[]` |
 | `GET` | `/api/microfilm/rolls/{rollId}/rows/{rowId}` | Read one row addressed by `rollId + rowId` | none | `200 OK` with row query or `404` |
-| `GET` | `/api/microfilm/rolls/{rollId}/table` | Convenience aggregate for roll columns + rows | none | `200 OK` with `columns[]` and `rows[]` |
+| `GET` | `/api/microfilm/rolls/{rollId}/table` | Convenience aggregate for durable roll rows | none | `200 OK` with `rollId` and `rows[]` |
 | `POST` | `/api/microfilm/rolls/{rollId}/rows` | Create a regular roll row | optional `{ "rowId": "...", "cells": { ... } }` | `201 Created` with `row` |
 | `POST` | `/api/microfilm/rolls/{rollId}/custom-rows` | Create a custom roll row | optional `{ "rowId": "...", "cells": { ... } }` | `201 Created` with `row` |
 | `PATCH` | `/api/microfilm/rolls/{rollId}/rows/{rowId}/cells/{columnId}` | Change one regular-row cell | `{ "value": ... }` | `200 OK` with targeted cell result and audit |
 | `PATCH` | `/api/microfilm/rolls/{rollId}/custom-rows/{rowId}/cells/{columnId}` | Change one custom-row cell | `{ "value": ... }` | `200 OK` with targeted cell result and audit |
 
-Rows are addressed canonically by `rollId + rowId`. New roll-scoped rows include `rollId`, `origin` (`regular` or `custom`), `cells`, and `cellAudits`. Newly created cells start with `auditState: "notTrackedYet"`; targeted cell updates record `auditState: "tracked"`, `lastChangedAt`, and `lastChangedBy` from the server-resolved session actor.
+Rows include `rollId`, `origin` (`regular` or `custom`), `cells`, and `cellAudits`. Both origins use the same roll ownership and write rules; `origin` is provenance only. Newly created cells start with `auditState: "notTrackedYet"`; targeted cell updates record `auditState: "tracked"`, `lastChangedAt`, and `lastChangedBy` from the server-resolved session actor. The frontend must not send actor identity fields.
 
-Legacy compatibility:
-
-- Existing client-wide routes remain available.
-- `POST /api/microfilm/rows/{clientId}` and `POST /api/microfilm/custom-rows/{clientId}` may include `rollId` in the body to create through the roll-scoped model during migration. The roll must belong to the same `{clientId}` route.
-- Legacy PATCH routes consult the roll-scoped routing index first; if a matching roll-scoped row exists, they dispatch the same targeted roll cell command and keep the legacy `{ row }` response envelope. Otherwise they fall back to the pre-existing client-wide table behavior.
-- Regular-row and custom-row patch routes enforce the route row kind. A custom row cannot be changed through the regular-row route, and a regular row cannot be changed through the custom-row route.
-- The frontend must still not send actor identity fields; actor stamping uses backend `/api/session` resolution.
+The removed client-scoped row routes are not aliases and do not infer a roll from `clientId`, `boxName`, `rollName`, or any cell value.
 
 ## Endpoint reference
 
@@ -135,8 +127,6 @@ Legacy compatibility:
 | `GET` | `/api/microfilm/wasp/import/status` | Read current or last import status | none | `200 OK` with fields such as `importEnabled`, `lastImportedAssetCount`, `lastDeferredAssetCount`, `lastIgnoredAssetCount`, `lastError`, and `lastFailureStep` |
 | `GET` | `/api/microfilm/boxes/by-client/{clientId}` | List boxes for a client | none | `200 OK` with `boxes[]` containing `boxName`, `boxId`, and `clientId` |
 | `GET` | `/api/microfilm/boxes/{boxId}` | Read one box and its rolls | none | `200 OK` with `box` and `rolls[]`; each roll includes `rollName`, `rollId`, and `boxId` |
-| `GET` | `/api/microfilm/rows/{clientId}` | List Miller regular rows for a client | none | `200 OK` with `rows[]` |
-| `POST` | `/api/microfilm/rows/{clientId}` | Create a Miller regular row; optional migration path to roll-scoped create when body includes `rollId` | optional `{ "rollId": "...", "rowId": "...", "cells": { ... } }` | `201 Created` with `row`; `409 Conflict` if `rowId` already exists |
 
 ## Example requests
 
@@ -181,4 +171,4 @@ Content-Type: application/json
 - Query endpoints support `ETag` and `If-None-Match`, so polling clients can use conditional requests and handle `304 Not Modified`.
 - For this integration, prefer `api/microfilm` over `api/inventory`. The inventory endpoints are a separate navigation surface that use composite scan IDs instead of the microfilm entity IDs.
 - If you need roll details by roll ID later, there is also `GET /api/microfilm/rolls/{rollId}`.
-- WASP import populates the boxes read model first. If Miller needs imported boxes as regular rows, the frontend should compare `/boxes/by-client/{clientId}` with `/rows/{clientId}` and create missing rows through `POST /api/microfilm/rows/{clientId}`.
+- WASP import populates the box and roll read models first. A Miller row may be created only after the client has a stable backend `rollId`, using `POST /api/microfilm/rolls/{rollId}/rows`; the frontend must not infer a roll from names or cells.

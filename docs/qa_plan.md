@@ -1,9 +1,9 @@
 # QA Plan: Backend Session Tracking, Cookie Identity, and Roll-Scoped Tables
 
-Last updated: 2026-06-30 13:58 EDT
+Last updated: 2026-08-03
 QA owner: QA Agent
 Lifecycle: Intake → Product → Design → Execution → QA → Governance
-Recommendation: Phase 1 conditional pass remains; backend cookie identity and roll-scoped table Phase 2 have focused implementation evidence
+Recommendation: Phase 1 conditional pass remains; the canonical roll boundary supersedes the temporary client-scoped coexistence contract
 
 ## 1. Test Strategy & Approach
 
@@ -97,10 +97,11 @@ Planning status: future test plan only. These scenarios are not Phase 1 regressi
 | QA-P3-S1-001 | Roll-scoped topic uses `rollId + rowId` and initializes per-cell audit state | [Product → QA: P3-S1, P3-S2] [Design → QA] | `RollMicrofilmTableTopicTests` | Pass |
 | QA-P3-S2-001 | Targeted cell updates emit cell-level facts with server-resolved actor metadata | [Product → QA: P3-S2, P3-S4] [Design → QA] | `RollMicrofilmTableTopicTests`, roll row query tests | Pass |
 | QA-P3-S2-002 | Regular/custom route kind mismatch is rejected before a cell changes | [Product → QA: P3-S2] [Design → QA] | `RollMicrofilmTableTopicTests.UpdateRollRowCell_RejectsMismatchedRouteRowKind` | Pass |
-| QA-P3-S3-001 | Roll lookup resolves roll ownership and legacy routing index maps migrated rows | [Product → QA: P3-S3] [Design → QA] | `RollMicrofilmLookupQueryTests`, `LegacyRowRoutingIndexQueryTests` | Pass |
-| QA-P3-S3-002 | Legacy client projections continue receiving roll-scoped row/cell facts during migration | [Product → QA: P3-S3] [Design → QA] | `RollMicrofilmLegacyProjectionTests` and focused Microfilm filter | Pass |
+| QA-P3-S3-001 | Roll lookup resolves durable client/box ownership | [Product → QA: P3-S3] [Design → QA] | `RollMicrofilmLookupQueryTests` | Pass |
+| QA-P3-S3-002 | A matching `rowId` under the wrong `rollId` fails without cell/name fallback | [Product → QA: P3-S3] [Design → QA] | `RollMicrofilmRowQueryTests.RowQuery_DoesNotFallbackAcrossRollsOrMatchRollNameCells` | Pass |
+| QA-P3-S3-003 | Regular and custom rows use identical roll ownership and write rules | [Product → QA: P3-S3] [Design → QA] | `RollMicrofilmTableTopicTests.CreateAndUpdate_UseTheSameRulesForEverySupportedOrigin` | Pass |
 | QA-P3-S4-001 | Tracking remains non-authorization; no `[Authorize]`, `UseAuthorization`, QueryHub auth, role gates, or command blocking added | [Product → QA: P3-S4] [Design → QA] | Static scan and implementation review | Pass |
-| QA-P3-S5-001 | Legacy compatibility keeps client-wide routes available while documenting roll-scoped preferred routes | [Product → QA: P3-S5] [Design → QA] | `backend-integration-guide.md` review plus focused tests | Pass |
+| QA-P3-S5-001 | HTTP contract exposes only roll-scoped row routes and omits client-scoped aliases | [Product → QA: P3-S5] [Design → QA] | `MicrofilmCanonicalRouteContractTests` plus `backend-integration-guide.md` review | Pass |
 
 Draft automation approach for Execution consideration:
 - Add a lightweight ASP.NET Core Web/API integration harness, preferably `WebApplicationFactory`/`TestServer` with an isolated test user store and cookie container.
@@ -183,9 +184,9 @@ Additional P2 cookie identity regression gate when implementation begins:
 Additional roll-scoped table regression gate:
 
 1. Run `dotnet test .\tests\Quantum.Tests\Quantum.Tests.csproj -c Release --filter "FullyQualifiedName~Microfilm" --no-restore`.
-2. Verify roll-scoped rows are created/read by `rollId + rowId`, custom rows remain roll-scoped, and legacy client projections continue to update during migration.
+2. Verify roll-scoped rows are created/read by `rollId + rowId`, custom rows remain roll-scoped, and a wrong roll-row pair returns no row even when a presentation cell appears to match.
 3. Verify targeted cell updates stamp audit metadata from the backend-resolved session actor and reject route row-kind mismatches.
-4. Verify legacy create requests with body `rollId` cannot cross the `{clientId}` route boundary.
+4. Verify the HTTP/OpenAPI surface contains no client-scoped row read, create, patch, routing-index, or fallback contract.
 5. Re-run static no-authorization/no-client-actor scans when touching Microfilm controllers, topics, commands, events, or QueryHub behavior.
 
 ## 6. Documentation Verification
@@ -243,7 +244,7 @@ Additional roll-scoped table regression gate:
 
 - P3-S1 roll-scoped resources: Pass by roll topic, roll queries, roll API routes, and focused Microfilm tests.
 - P3-S2 targeted cell audit: Pass by targeted `RollMicrofilmRowCellChanged` facts, `MicrofilmCellAudit` projection, actor stamping from backend session resolver, and focused tests.
-- P3-S3 legacy migration compatibility: Pass by legacy projection updates, `LegacyRowRoutingIndexQuery`, legacy create route ownership validation, and compatibility docs.
+- P3-S3 canonical row boundary: Pass by 44/44 focused Microfilm tests covering regular/custom parity, composite identity isolation, route removal, and updated contract docs.
 - P3-S4 tracking-not-authorization: Pass by static no-authz scan and implementation review; no QueryHub auth or command blocking added.
 - P3-S5 frontend/backend handoff: Pass by `backend-integration-guide.md` roll-scoped route and migration notes.
 
@@ -255,7 +256,7 @@ Phase 1 backend session tracking remains conditionally passed for the scoped fea
 
 [QA → Product/Design/Execution]
 
-QA documentation is current for backend-owned ASP.NET Core cookie identity and roll-scoped table Phase 2 implementation. Before broader release signoff, QA expects Product/Design/Execution evidence for:
+QA documentation is current for backend-owned ASP.NET Core cookie identity and the canonical roll-only table boundary. Before broader release signoff, QA expects Product/Design/Execution evidence for:
 
 1. Final register/login/logout endpoint shapes and response DTOs.
 2. Backend-owned account store, password hashing, uniqueness, display label, and server-side `processUserId` mapping rules.
@@ -266,4 +267,4 @@ QA documentation is current for backend-owned ASP.NET Core cookie identity and r
 7. Regression evidence that authentication did not become authorization: no new existing-route `[Authorize]` gates, QueryHub auth, role/policy gates, or command blocking by default.
 8. A Web/API integration test harness where practical; otherwise complete manual HTTP evidence plus an explicit automation gap.
 
-No QA-requested code rework remains for the completed Phase 1 tracking slice, backend cookie identity MVP, or roll-scoped table Phase 2 based on the current focused evidence. The known unrelated full-suite failure remains governed by the existing waiver unless release policy requires a no-waiver full-suite pass.
+The canonical row-boundary focused gate passes: 44/44 Microfilm tests and the full Release solution build succeeded. Broader `Quantum.Tests` passed 110/112; the two unchanged failures match the recorded unrelated baseline and remain governed by the existing waiver unless release policy requires a no-waiver full-suite pass.

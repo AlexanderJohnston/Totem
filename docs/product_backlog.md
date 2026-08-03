@@ -1,6 +1,6 @@
 # Product Backlog
 
-Last updated: 2026-06-30
+Last updated: 2026-08-03
 
 Source inputs:
 - `C:\Users\ajohnston\.copilot\session-state\f0fd027a-2db0-4e34-bfa0-ffa121ee6bc8\plan.md`
@@ -12,6 +12,8 @@ Source inputs:
 - `docs/execution_log.md`
 - User direction on 2026-06-30: proceed directly to the post-cookie phase focused on roll-scoped resources and targeted audit metadata.
 
+Superseding direction on 2026-08-03: the Scan/Processing policy makes `rollId + rowId` the only supported row identity. The temporary client-scoped coexistence requirements below are retained as historical Product context, not current acceptance criteria. Client-scoped row routes, projections, routing indexes, seeds, and fallback dispatch are removed; any remaining deployment data requires explicit conversion before Scan or Process enablement.
+
 ## Product stance and MVP
 
 The completed baseline is:
@@ -20,17 +22,17 @@ The completed baseline is:
 
 That identity work is now **completed enabling infrastructure** for actor tracking. Do not reopen it in this phase except as separate release or production-readiness hardening work.
 
-The next Product phase is **P3: roll-scoped resources and targeted audit migration**. MVP for this phase:
-1. Move backend contracts away from client-wide Miller/Formatic row buckets toward roll-scoped resources with durable optimistic fields.
-2. Preserve current frontend workflows through compatibility endpoints/buckets during migration.
-3. Add targeted per-cell audit facts for changed/editable cells first, using backend-resolved tracking identity.
+The completed table foundation is **P3: roll-scoped resources and targeted audit**. The current backend package retires its temporary compatibility layer so that:
+1. Every regular or custom row is durably owned by one roll and addressed by `rollId + rowId`.
+2. No runtime route, projection, routing index, or cell/name lookup derives missing roll identity.
+3. Targeted per-cell audit facts continue to use backend-resolved tracking identity.
 
 ### Scope guardrails
 
-- In scope: roll/row resource boundaries, profile-owned presentation definitions, compatibility migration, custom-row placement, targeted cell-level audit facts, row-query audit metadata, QueryHub invalidation/bucket semantics, and backend/frontend contract sequencing. [Vision → Product: V4]
+- In scope: roll/row resource boundaries, profile-owned presentation definitions, custom-row parity, targeted cell-level audit facts, row-query audit metadata, roll-scoped QueryHub invalidation, explicit deployment-data conversion, and backend/frontend contract sequencing. [Vision → Product: V4]
 - Use backend-resolved session identity (`/api/session` plus backend cookie/session infrastructure) as the actor source; do not trust client actor fields. [Vision → Product: V1, V2, V3]
 - Missing or unmapped identity remains a tracking state unless Product later explicitly scopes write blocking. [Vision → Product: V1, V2]
-- No flag-day cutover from existing client-wide endpoints/buckets; compatibility is required.
+- Client-scoped row compatibility is retired. Coordinate frontend consumers before deploying the breaking contract.
 - Changed/editable cells first; no broad historical backfill is required for untouched cells in MVP.
 - Frontend source implementation remains outside this repo; this backlog defines backend contract and migration expectations only.
 - Keep authorization/permission gates, roles, QueryHub auth, full admin auth account management, and unrelated auth-store hardening out of this phase unless separately scoped.
@@ -40,7 +42,7 @@ The next Product phase is **P3: roll-scoped resources and targeted audit migrati
 - V1: Keep `/api/session` and backend-owned cookie identity as the canonical server-owned actor source for tracking. [Vision → Product: V1, V2, V3, V6]
 - V2: Replace client-wide Miller/Formatic row access with roll-scoped resources at the product/API contract level. [Vision → Product: V4]
 - V3: Introduce targeted audit facts at the cell level, starting with changed/editable cells only. [Vision → Product: V4]
-- V4: Preserve current frontend workflows through compatibility reads, writes, and invalidation while the resource model migrates. [Vision → Product: V3, V4]
+- V4: Coordinate frontend adoption of canonical roll reads, writes, and invalidation; do not preserve ambiguous client-scoped authority. [Vision → Product: V3, V4]
 - V5: Keep tracking separate from authorization unless Product explicitly scopes authorization later. [Vision → Product: V1, V2, V6]
 - V6: Keep repo hygiene and cross-agent traceability visible as scope changes. [Vision → Product: V5]
 
@@ -49,7 +51,7 @@ The next Product phase is **P3: roll-scoped resources and targeted audit migrati
 - **P1 backend session tracking:** Complete baseline.
 - **P2 backend-owned cookie identity MVP:** Complete enabling infrastructure for actor tracking.
 - **P2 hardening:** Separate release/production-readiness track only; not a P3 blocker by default.
-- **P3 roll-scoped resources/audit phase:** Ready for Product/Design. No Product blocker remains if the scope guardrails and decisions below stand.
+- **P3 roll-scoped resources/audit phase:** Canonical row model implemented; current route-removal verification and external frontend coordination remain.
 
 Loop back to Product before implementation if stakeholders request:
 - authorization or permission gates,
@@ -64,12 +66,12 @@ Loop back to Product before implementation if stakeholders request:
 
 - **PD-P3-001:** Treat backend-owned cookie/session identity as completed enabling infrastructure; do not reopen it except as separate hardening or release work.
 - **PD-P3-002:** Default row resource addressing is `rollId + rowId`. Design may simplify to a globally unique `rowId` only if the backend guarantees global row uniqueness and documents compatibility impacts; current frontend preference remains `rollId + rowId`. [Product → Design]
-- **PD-P3-003:** Migration off client-wide endpoints and buckets must be phased; no flag-day break to current frontend workflows. [Product → Design]
+- **PD-P3-003 (superseded):** Client-scoped endpoints and buckets are removed from the backend. Deployment sequencing must coordinate consumers and explicitly convert data without a runtime lookup bridge. [Product → Design]
 - **PD-P3-004:** Custom rows must become roll-scoped resources or roll-scoped siblings; they may not remain only client-wide orphan buckets. [Product → Design]
 - **PD-P3-005:** Rows retain arbitrary trimmed, non-empty field IDs and scalar/null values. Profiles independently own presentation membership, order, width, mappings, types, and dropdown options; they do not control row writes. [Product → Design]
 - **PD-P3-006:** Audit starts with targeted per-cell facts and query metadata for changed/editable cells first, not full-row or all-cell history backfill. [Product → Design]
 - **PD-P3-007:** Audit actor metadata comes from backend cookie/session tracking resolution; missing or unmapped identity is recorded as a tracking state unless Product later scopes command blocking. [Product → Design] [Product → QA]
-- **PD-P3-008:** QueryHub invalidation must gain roll-scoped semantics and maintain legacy bucket compatibility during migration. [Product → Design]
+- **PD-P3-008 (superseded):** QueryHub invalidation is roll-scoped only; HTTP remains the retrieval fallback. [Product → Design]
 - **PD-P3-009:** Out of scope remains authorization, roles, QueryHub auth, full admin auth account management, broad frontend implementation, and unrelated auth-store hardening unless separately scoped.
 
 ## Product Epics, Features, and User Stories
@@ -236,8 +238,8 @@ Acceptance Criteria:
 Purpose: Make the next Product phase explicit: move away from client-wide Miller/Formatic tables toward roll-scoped row resources and targeted audit metadata without breaking current frontend workflows. [Vision → Product: V2, V3, V4, V5]
 
 MVP outcome:
-- Backend contracts expose roll-scoped row resources with sparse durable cells; profiles supply independent presentation definitions.
-- Current client-wide consumers keep working through compatibility reads and invalidation during migration.
+- Backend contracts expose only roll-scoped row resources with sparse durable cells; profiles supply independent presentation definitions.
+- Regular and custom rows have identical ownership and capability rules.
 - Targeted per-cell audit metadata appears first for changed/editable cells using backend-resolved tracking identity.
 
 #### Feature P3-1: Roll-scoped row resource model
@@ -253,22 +255,22 @@ Acceptance Criteria:
 - Default row addressing is `rollId + rowId`; a globally unique `rowId` is acceptable only if the backend guarantees global uniqueness and the frontend/query impact is documented. Current frontend preference is `rollId + rowId`. [Product → Design]
 - Row resources expose stable `rowId`, `rollId`, and row kind/context needed to query or mutate one row.
 - Read and mutation contract planning assumes roll-scoped row resources rather than `rows/{clientId}` as the long-term primary surface. [Product → Design]
-- Existing client-wide row endpoints are treated as compatibility surfaces during migration, not the target model.
+- Client-scoped row endpoints are absent from the supported contract.
 
-#### Feature P3-2: Compatibility migration off client-wide endpoints and buckets
+#### Feature P3-2: Retire client-scoped endpoints and convert remaining data
 
 Priority: Must-have next phase.
 
 ##### Story P3-S2: Migrate without breaking current frontend workflows
 
-As the product team, we need a phased migration plan so roll-scoped resources can ship without a flag-day frontend break.
+As the product team, we need the backend to reject ambiguous client-only identity and deployment owners to convert any retained data explicitly.
 
 Acceptance Criteria:
-- Existing client-wide regular/custom row compatibility endpoints and buckets are retained only as needed during migration; deleted client/roll column endpoints are not restored.
-- Compatibility strategy is defined for existing frontend consumers, for example aggregated compatibility reads, versioned endpoints, adapters, or dual-published query surfaces. [Product → Design]
-- Current frontend workflows remain supported during migration: filtering, selection, keyboard navigation, optimistic patch state, and current load/refresh expectations. [Product → Design]
-- The first migrated backend contract can coexist with current frontend consumers while rollout sequencing is decided.
-- Sunset criteria for legacy client-wide endpoints and buckets are documented before removal.
+- Client-scoped regular/custom row endpoints, projections, routing indexes, seeds, and fallback dispatch are removed; deleted column endpoints remain absent.
+- A conversion manifest assigns each retained row to one durable roll and rejects missing or ambiguous assignments. [Product → Design]
+- Conversion never matches `boxName`, `rollName`, or another cell to establish identity.
+- Frontend owners receive a breaking-contract follow-up listing active client-scoped call sites; this backend repository does not edit that checkout silently.
+- Scan and Process remain disabled until required data conversion and consumer coordination are complete.
 
 #### Feature P3-3: Custom-row and profile-presentation relationships
 
@@ -313,7 +315,7 @@ Acceptance Criteria:
 - Row query responses can expose per-cell metadata for tracked cells such as `value`, `lastChangedAt`, and `lastChangedBy` or an equivalent actor shape. [Product → Design]
 - Query responses clearly distinguish not-tracked-yet from known `unidentified` or `unmapped` actor states. [Product → Design] [Product → QA]
 - QueryHub bucket and invalidation semantics are defined at roll scope before execution depends on them. [Product → Design]
-- During migration, a roll-scoped cell change invalidates both the new roll-scoped bucket or buckets and any still-supported legacy aggregate or client-wide bucket or buckets. [Product → Design]
+- A roll-scoped cell change invalidates only the affected roll query instances. [Product → Design]
 - Compatibility expectations are documented for active tables spanning many rolls, including refresh and load behavior for the first migrated frontend consumers.
 
 ## Priority Matrix
@@ -321,7 +323,7 @@ Acceptance Criteria:
 | Priority | Items | Rationale |
 | --- | --- | --- |
 | Completed baseline / maintain | FND-S1; P1-S1; P1-S2; P1-S3; P2-S1 through P2-S7 | Preserves repo hygiene, canonical tracking contract, and completed backend-owned actor resolution. |
-| Must-have next phase | P3-S1; P3-S2; P3-S3; P3-S4; P3-S5 | Defines the actual next Product phase: roll-scoped resources, compatibility migration, custom-row/profile presentation, targeted per-cell audit, and QueryHub invalidation semantics. |
+| Current table foundation | P3-S1; P3-S2; P3-S3; P3-S4; P3-S5 | Canonical roll resources, explicit conversion boundary, custom-row/profile presentation, targeted per-cell audit, and roll-scoped QueryHub semantics. |
 | Should-have parallel release work | P2R-S1 | Keeps auth hardening separate so it does not quietly absorb the resource/audit phase. |
 | Explicitly out of scope for P3 | Authorization/permission gates, roles/claims management, QueryHub auth unless separately scoped, full admin auth account management, broad frontend implementation, command blocking for unmapped or unidentified users, unrelated production auth-store hardening, full historical audit backfill, unrelated frontend redesign | Prevents scope creep and preserves a thin MVP around resource migration and targeted audit facts. |
 
@@ -330,17 +332,17 @@ Acceptance Criteria:
 ### Dependencies
 
 - Completed P1 and P2 session plus backend-cookie actor resolution baseline. [Product → Design]
-- Current canonical and legacy row endpoints are documented in `backend-integration-guide.md`; `docs/frontend-microfilm-optimistic-fields-migration.md` supersedes its deleted-column endpoint guidance. [Product → Design]
+- Canonical row endpoints and removed client-scoped contracts are documented in `backend-integration-guide.md` and `docs/frontend-microfilm-optimistic-fields-migration.md`. [Product → Design]
 - Design inventory of current QueryHub bucket and invalidation behavior before changing resource scope. [Product → Design]
 - Design confirmation of whether current row IDs are globally unique across rolls or only within a roll. [Product → Design]
 - Design clarification of how custom rows map to rolls in the current domain model. [Product → Design]
-- QA follow-on coverage for new roll-scoped queries or mutations, compatibility behavior, audit metadata, and invalidation semantics. [Product → QA]
+- QA coverage for roll-scoped queries/mutations, regular/custom parity, wrong-roll isolation, route absence, audit metadata, and invalidation semantics. [Product → QA]
 - Frontend consumer sequencing and handoff outside this repo for eventual adoption of the new resources.
 
 ### Blockers
 
 - No Product blocker remains to begin the P3 Product/Design pass.
-- Implementation should not start a breaking migration until compatibility strategy, row addressing, custom-row placement, profile-presentation relationship, and QueryHub invalidation semantics are documented.
+- Deployment must not consume the breaking contract until frontend coordination and any explicit data conversion are complete.
 - Product loopback is required if stakeholders want authorization behavior, route gating, or blocking of unmapped or unidentified users inside this phase.
 - Product or Execution loopback is required if P3 proves to depend on auth hardening beyond the completed cookie or session contract.
 
@@ -349,19 +351,18 @@ Acceptance Criteria:
 - Can the backend guarantee globally unique `rowId` values, or should `rollId + rowId` remain the public address permanently?
 - Will custom rows share the same roll-row resource collection with a `rowKind` discriminator, or use a sibling roll-scoped custom-row resource?
 - How do selected profiles supply presentation while preserving omitted durable fields in row caches and saves?
-- What is the first compatibility shape for existing `/rows/{clientId}` and `/custom-rows/{clientId}` consumers?
-- What are the concrete QueryHub bucket keys and fan-out rules during dual support of new and legacy resources?
+- Which frontend release removes every `/rows/{clientId}` and `/custom-rows/{clientId}` read/write/subscription dependency?
+- Which deployment environments contain client-only row events that need an explicit conversion manifest?
 - How should audit projections represent unidentified or unmapped actor states in a UI-safe way?
-- What is the explicit removal or sunset checkpoint for client-wide compatibility endpoints and buckets?
 
 ## Acceptance Criteria Summary for P3
 
 P3 can be considered Product-complete when:
 - Roll-scoped row resources and addressing are defined, including the row uniqueness decision.
-- Migration off client-wide row and custom-row endpoints has a compatibility strategy with no flag-day break; deleted column endpoints remain absent.
+- Client-wide row and custom-row endpoints are removed; consumer coordination and any data conversion are explicit deployment gates.
 - Custom rows and profile presentation have an explicit relationship to roll-scoped resources without making profiles schemas.
 - Targeted per-cell audit facts use backend-resolved actor tracking and changed/editable cells first.
-- Query responses and QueryHub invalidation semantics are defined for both new roll-scoped and temporary legacy compatibility surfaces.
+- Query responses and QueryHub invalidation semantics are roll-scoped only.
 - Missing or unmapped identity remains a tracking state unless separately re-scoped.
 - Out-of-scope auth/authorization and broad frontend work have not crept into the phase.
 
@@ -369,6 +370,7 @@ P3 can be considered Product-complete when:
 
 | Date | Change |
 | --- | --- |
+| 2026-08-03 | Superseded the temporary coexistence requirement: canonical `rollId + rowId` is the only row identity, client-scoped runtime compatibility is removed, and remaining data requires explicit conversion before Scan/Process enablement. |
 | 2026-06-30 | Shifted the active backlog from completed cookie-identity delivery to the next Product phase: roll-scoped resources and targeted audit facts. Preserved P1 and P2 as completed or enabling infrastructure, separated auth hardening as release work, and expanded P3 scope, guardrails, decisions, dependencies, and acceptance criteria for migration away from client-wide Miller/Formatic tables. |
 | 2026-06-30 | Updated backlog for stakeholder direction: backend-owned ASP.NET Core cookie login/register became the next identity goal. Preserved completed Phase 1 passive session tracking as the baseline, added P2 stories for register/login/logout/session integration and security, and moved roll-row audit or resource migration to future P3 scope. |
 | 2026-06-30 | Created product backlog from session-state plan. Reframed original Windows auth handoff from authorization semantics to tracking-only session states. Split immediate backend session or identity work from future roll-row audit or resource migration. |

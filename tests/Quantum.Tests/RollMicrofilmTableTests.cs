@@ -66,6 +66,37 @@ namespace Quantum.Tests
       Assert.Equal(MicrofilmCellAuditStates.NotTrackedYet, created.Row.CellAudits["arbitraryColumn"].State);
     }
 
+    [Theory]
+    [InlineData(MicrofilmTableRowOrigins.Regular)]
+    [InlineData(MicrofilmTableRowOrigins.Custom)]
+    public async Task CreateAndUpdate_UseTheSameRulesForEverySupportedOrigin(string origin)
+    {
+      await Append(RollCreated());
+      await Append(new CreateRollMicrofilmRow(
+        RollId,
+        ClientId,
+        "row-1",
+        origin,
+        new Dictionary<string, MicrofilmCellValue> { ["status"] = MicrofilmCellValue.FromText("New") },
+        Actor()));
+
+      var created = await Expect<RollMicrofilmRowCreated>();
+      Assert.Equal(origin, created.Row.Origin);
+
+      await Append(new UpdateRollMicrofilmRowCell(
+        RollId,
+        ClientId,
+        "row-1",
+        origin,
+        "status",
+        MicrofilmCellValue.FromText("Done"),
+        Actor()));
+
+      var changed = await Expect<RollMicrofilmRowCellChanged>();
+      Assert.Equal(origin, changed.RowKind);
+      Assert.Equal("Done", changed.Value.Text);
+    }
+
     [Fact]
     public async Task UpdateRollRowCell_EmitsTargetedCellFactWithActor()
     {
@@ -221,6 +252,27 @@ namespace Quantum.Tests
       Assert.Equal(RollId.ToString(), query.Row.RollId);
     }
 
+    [Fact]
+    public async Task RowQuery_DoesNotFallbackAcrossRollsOrMatchRollNameCells()
+    {
+      var otherRollId = Id.From("00000000-0000-0000-0000-000000000402");
+
+      await Append(new RollMicrofilmRowCreated(
+        RollId,
+        ClientId,
+        new MicrofilmTableRow("row-1", RollId.ToString(), MicrofilmTableRowOrigins.Custom, new Dictionary<string, MicrofilmCellValue>
+        {
+          ["rollName"] = MicrofilmCellValue.FromText(otherRollId.ToString())
+        }),
+        Actor()));
+
+      var correct = await GetQuery(RollMicrofilmRowQuery.CreateId(RollId, "row-1"));
+      var wrong = await GetQuery(RollMicrofilmRowQuery.CreateId(otherRollId, "row-1"));
+
+      Assert.Equal(MicrofilmTableRowOrigins.Custom, correct.Row.Origin);
+      Assert.Null(wrong.Row);
+    }
+
     static MicrofilmAuditActorStamp Actor() =>
       new("identified", "Alex Johnston", "AJOHNSTON", "backend-cookie");
   }
@@ -244,53 +296,6 @@ namespace Quantum.Tests
       Assert.Equal(boxId, roll.BoxId);
     }
 
-    public class LegacyRowRoutingIndexQueryTests : QueryTests<LegacyRowRoutingIndexQuery>
-    {
-      [Fact]
-      public async Task CreatedRollRows_CanResolveLegacyClientRowRoute()
-      {
-        var clientId = Id.From("00000000-0000-0000-0000-000000000101");
-        var rollId = Id.From("00000000-0000-0000-0000-000000000401");
-
-        await Append(new RollMicrofilmRowCreated(
-          rollId,
-          clientId,
-          new MicrofilmTableRow("row-1", rollId.ToString(), MicrofilmTableRowOrigins.Regular, new Dictionary<string, MicrofilmCellValue>()),
-          new MicrofilmAuditActorStamp("identified", "Alex Johnston", "AJOHNSTON", "backend-cookie")));
-
-        var query = await GetQuery();
-
-        Assert.True(query.TryGetRoute(clientId, "row-1", out var route));
-        Assert.Equal(rollId, route.RollId);
-        Assert.Equal(MicrofilmTableRowOrigins.Regular, route.RowKind);
-      }
-    }
   }
 
-  public class RollMicrofilmLegacyProjectionTests : QueryTests<MicrofilmRegularRowsQuery>
-  {
-    static readonly Id ClientId = Id.From("00000000-0000-0000-0000-000000000101");
-    static readonly Id RollId = Id.From("00000000-0000-0000-0000-000000000401");
-
-    [Fact]
-    public async Task RollScopedRegularRows_ProjectToLegacyClientRowsDuringMigration()
-    {
-      await Append(new ClientCreated(new KnownClient("Job", "JOB-001", ClientId, Id.Unassigned)));
-      await Append(new RollMicrofilmRowCreated(
-        RollId,
-        ClientId,
-        new MicrofilmTableRow("row-1", RollId.ToString(), MicrofilmTableRowOrigins.Regular, new Dictionary<string, MicrofilmCellValue>
-        {
-          ["status"] = MicrofilmCellValue.FromText("New")
-        }),
-        new MicrofilmAuditActorStamp("identified", "Alex Johnston", "AJOHNSTON", "backend-cookie")));
-
-      var query = await GetQuery(ClientId);
-      var row = Assert.Single(query.Rows);
-
-      Assert.Equal("row-1", row.Id);
-      Assert.Equal(RollId.ToString(), row.RollId);
-      Assert.Equal("New", row.Cells["status"].Text);
-    }
-  }
 }
