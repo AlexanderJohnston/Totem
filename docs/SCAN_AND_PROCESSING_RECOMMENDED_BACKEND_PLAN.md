@@ -2,12 +2,13 @@
 
 Status: Architecture recommendation for Backend, Product, Security, and Operations review  
 Prepared: 2026-07-31  
+Last updated: 2026-08-10
 Frontend baseline: `406b352d996f101350a48d2636625ff312c6be12`
 
 The handoff is sound. I recommend adopting it with three architectural amendments:
 
 1. `isScanning` belongs to the durable roll's operational state and should be projected as a top-level row field. It should not live in `cells`, even though the current cell model can carry JSON Booleans.
-2. `Quantum.Service` should be the only production process that touches Formatic storage. `Quantum.Web` should authenticate, authorize, validate, append commands, and serve projections.
+2. `Quantum.Service` should be the only production process that touches Formatic storage. `Quantum.Web` should resolve the authenticated registered actor, validate, append commands, and serve projections; durable topics should make role/permission decisions.
 3. Start Scan should be a durable asynchronous state transition. Do not promise an atomic transaction across KurrentDB and an SMB or local filesystem.
 
 This is a target design and review recommendation, not production-readiness evidence.
@@ -15,10 +16,10 @@ This is a target design and review recommendation, not production-readiness evid
 ## Evidence behind the recommendation
 
 - The current Miller row already separates durable identity (`Id`, `RollId`, `Origin`) from presentation cells.
-- The current domain maps roll to box/client and client to server, but it does not yet define an authorized workspace or filesystem-root resource.
+- The current domain maps roll to box/client and client to server, but it does not yet define an authorized filesystem binding. For Version 1, a client is the workspace; the existing Server entity remains a separate identifier.
 - Query ETags represent projection checkpoints. They are useful for caching and QueryHub invalidation, but they are not business concurrency tokens.
 - Commands can be durably appended before their processing response is observed. Lost-response reconciliation is therefore required for mutations.
-- Current identity is tracking-oriented rather than an authorization boundary, and QueryHub is not yet protected by operation/resource policies.
+- Current identity is tracking-oriented rather than the durable role/permission authority required for Scan and Processing topic decisions.
 - The installed web and worker processes use separate Windows service identities. Remote share access must be deliberately assigned to the worker identity.
 - The legacy Formatic implementations disagree on discovery, validation, Frames roots, and file behavior. Neither implementation should be declared wholly canonical.
 - Both existing QPF editors correctly avoid rewriting the affected QPF when backup creation fails. The new backend must preserve or improve that safety property.
@@ -29,13 +30,13 @@ This is a target design and review recommendation, not production-readiness evid
 Browser
    |
    | authenticated HTTP commands and bounded polling
-   | protected QueryHub invalidations
+   | identity-independent QueryHub ETag invalidations
    v
 Quantum.Web
-   | authorize, validate, append commands, serve OpenAPI/projections
+   | resolve authenticated actor, validate, append commands, serve OpenAPI/projections
    v
 KurrentDB
-   | durable roll state, scans, plans, jobs, idempotency, audit
+   | topic decisions, roles, permissions, roll state, scans, plans, jobs, idempotency, audit
    v
 Quantum.Service
    | resolve opaque resources, execute jobs, reconcile after restart
@@ -70,7 +71,7 @@ Recommended decisions:
 - Keep `scanState` as the richer durable state. `isScanning` is true for `starting`, `active`, and `finishing`.
 - Make `resourceVersion` an opaque roll/business version, normally derived from the durable roll stream revision.
 - Keep HTTP ETags separate; an ETag is a projection/cache version, not command concurrency authority.
-- Address operations by `rollId + rowId`. Resolve the canonical roll, box, client, workspace, and roll name from `rollId`; never use `cells.rollName` or another cell as an operation lookup key.
+- Address operations by `rollId + rowId`. Resolve the canonical roll, box, client/workspace, and roll name from `rollId`; never use `cells.rollName` or another cell as an operation lookup key.
 - Support regular and custom rows equally. `origin` records whether the row came from WASP or was entered manually; it does not change identity, authorization, capabilities, or behavior.
 - Remove legacy client-scoped rows, routes, routing indexes, and compatibility behavior, converting any remaining data before Scan and Process are enabled.
 - Return refreshed operation context from successful commands and also issue/refetch through the normal row invalidation path.
@@ -78,10 +79,12 @@ Recommended decisions:
 The backend should resolve storage scope through durable relationships rather than client input:
 
 ```text
-row -> roll -> box -> client/workspace -> configured storage-root binding
+row -> roll -> box -> client (the Version 1 workspace) -> configured storage binding
 ```
 
-The missing piece is a server-owned workspace/root binding. Domain state should reference a stable binding key; Operations-owned configuration should supply the physical root and service identity.
+The missing piece is a server-owned storage binding. Version 1 has exactly one active binding per client. Domain state should reference its stable binding ID and configuration generation; Operations-owned `Quantum.Service` configuration supplies the physical root and service identity. Developer-admin API commands may create and activate logical binding generations. The existing Server entity does not resolve storage.
+
+The initial production root is `\\sbsr-film\film\`, and the approved worker identity is `CMGX\appdevsvc`. Labels remain the primary presentation value. A deliberately client/workspace-scoped query or operation result may return an informational full path so a user can verify work, but the path is never accepted back as operation authority. Version 1 uses configured parent choices rather than arbitrary browsing.
 
 ## Scan plan
 
@@ -140,12 +143,12 @@ Unauthorized operations should be omitted rather than disclosed as blocked. `blo
 
 Resource references should be:
 
-- opaque and short-lived;
+- opaque, versioned, and purpose-bound;
 - bound to actor, workspace/roll, purpose, capabilities, version, and configuration generation;
 - reauthorized when used;
-- invalidated by expiry, permission change, mapping change, or configuration change.
+- invalidated by explicit revocation or expiry, permission change, mapping change, or configuration change.
 
-Proposed expiry: 15 minutes.
+Version 1 does not automatically expire resource references. Automatic expiry may be added later without weakening use-time authorization or binding-generation validation.
 
 The server should reject arbitrary paths, traversal, rooted child input, device paths, alternate data streams, mapped drives, and root escape. Reparse points, symlinks, and junctions should be rejected by default. If later permitted, containment must be verified using resolved final handles rather than string-prefix checks.
 
@@ -286,7 +289,7 @@ Do not use recursive "first QPF found" discovery. Version 1 requires exactly one
 
 ## Authorization and audit
 
-Production mutation requires enforced permissions separate from identity tracking:
+Production mutation requires durable topic-enforced permissions separate from identity tracking. Managers with role-assignment permission assign roles to registered users; role definitions, assignments, and permission changes are events governed by topic decisions. Registration or authentication alone grants no Scan or Processing permission:
 
 - Scan discover/start/finish-own/finish-any/abandon;
 - Processing discover and Preview;
@@ -296,7 +299,7 @@ Production mutation requires enforced permissions separate from identity trackin
 - View sensitive paths, values, and errors;
 - Backup cleanup and any future restore.
 
-The same authorization model must protect QueryHub subscriptions and job/history reads. Registration must be disabled or controlled before mutation enablement. Production storage roots must be reachable only by the approved worker identity.
+QueryHub subscriptions intentionally remain available regardless of caller identity and are not an authorization boundary. General HTTP fetch authorization is a separate future decision. Registration and role assignment must be governed so users cannot grant themselves operation authority. Production storage roots must be reachable only by the approved worker identity.
 
 Audit should retain the authenticated principal, server-derived operator identity, row/roll/box/workspace scope, validated inputs, schema/configuration/plan/resource versions, acknowledgements, idempotency key, status transitions, scan/cancel actor and reason, per-item and backup outcomes, resulting versions, and a redacted diagnostic correlation ID.
 
@@ -320,7 +323,7 @@ Never return stack traces, credentials, service-account details, or unauthorized
 
 ## Delivery sequence
 
-1. Security and Operations foundation: authorization, protected QueryHub, worker identity, approved roots/ACLs, redaction, logs, metrics, recovery ownership.
+1. Security and Operations foundation: registered-user identity, manager-assigned roles and topic-enforced permissions, worker identity, approved roots/ACLs, redaction, logs, metrics, recovery ownership.
 2. Canonical row boundary, contracts, and roll state: retire legacy row compatibility; preserve regular/custom parity; add durable scan state/version, row context, errors, OpenAPI, deterministic fixtures, and contract tests.
 3. Scan vertical slice: discovery, idempotent Start, async folder creation, Finish, Abandon, audit, collision and restart tests.
 4. Shared plan/job platform: resource references, Preview, Apply, leases, durable jobs, cancellation, results, paging, history, reconciliation.
@@ -340,9 +343,9 @@ Product should approve:
 
 Security should approve:
 
-- authentication and authorization claims;
-- operation/resource/history/QueryHub policies;
-- registration policy;
+- registered-user identity resolution plus role/permission events and topic decisions;
+- operation/resource and sensitive-response policies; QueryHub remains identity-independent and general HTTP fetch authorization is deferred;
+- registration, initial-manager bootstrap, role-assignment, and revocation policy;
 - path and error visibility;
 - worker identity, root ACLs, and audit/redaction rules.
 

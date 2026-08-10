@@ -1,7 +1,7 @@
 # Scan and Processing Backend Policy
 
 Status: Draft for Backend, Product, Security, and Operations review  
-Last updated: 2026-07-31  
+Last updated: 2026-08-10
 Frontend baseline: `406b352d996f101350a48d2636625ff312c6be12`
 
 ## 1. Purpose and scope
@@ -37,13 +37,13 @@ The words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative. Items m
 ```text
 Browser
    |
-   | authenticated HTTP + protected QueryHub invalidations
+   | HTTP operations + QueryHub ETag invalidations
    v
 Quantum.Web
-   |  authorize, validate DTOs, append commands, serve projections/OpenAPI
+   |  resolve authenticated actor, validate DTOs, append commands, serve projections/OpenAPI
    v
 KurrentDB / durable application state
-   |  rolls, scans, plans, jobs, idempotency, audit, status transitions
+   |  topic decisions, roles, permissions, rolls, scans, plans, jobs, idempotency, audit
    v
 Quantum.Service
    |  resolve authorized resources and perform filesystem work
@@ -55,6 +55,8 @@ Approved Windows storage roots / UNC shares
 - `Quantum.Service` is the only application process permitted to resolve resource references and read or mutate production files.
 - A durable command append and command processing are distinct events. Mutation APIs MUST support reconciliation when the command was durably accepted but the HTTP response was lost.
 - QueryHub is an invalidation/notification transport, not the source of record. HTTP retrieval remains the bounded fallback.
+- Totem QueryHub ETag subscriptions intentionally remain available regardless of caller identity. QueryHub is not an authorization boundary and subscribing does not grant authority to fetch data or perform an operation.
+- Authorization of general HTTP query/fetch endpoints is a separate future decision and is not a production-mutation gate in this policy.
 - Production storage access MUST use an Operations-approved domain service account or gMSA when remote shares are involved. Virtual service accounts MUST NOT be assumed to have the required remote identity.
 
 ## 4. Durable roll and Miller row policy
@@ -63,7 +65,7 @@ Approved Windows storage roots / UNC shares
 
 The durable roll model owns operational scan state and versioning. A Miller row projection exposes that state independently of profile visibility.
 
-All Miller rows MUST be roll-scoped and addressed by `rollId + rowId`. The backend resolves the canonical roll, box, client, workspace, and roll name from `rollId`; cell values, including `cells.rollName`, are never operation identity or lookup keys.
+All Miller rows MUST be roll-scoped and addressed by `rollId + rowId`. For Version 1, the existing client is the workspace, so `workspaceId` is the resolved `clientId`. The backend resolves the canonical roll, box, client/workspace, and roll name from `rollId`; cell values, including `cells.rollName`, are never operation identity or lookup keys. The existing Server entity remains a separate identifier and MUST NOT be used to select or resolve the storage binding.
 
 Regular and custom rows are equally eligible for Scan and Process. `origin` records provenance only: regular rows came from WASP data and custom rows were entered manually when WASP data was unavailable. Origin MUST NOT change operation identity, authorization, capabilities, or behavior.
 
@@ -103,12 +105,14 @@ Policy:
 The server resolves a row using durable relationships:
 
 ```text
-row -> roll -> box -> client/workspace -> approved storage-root binding
+row -> roll -> box -> client (the Version 1 workspace) -> approved storage binding
 ```
 
 The frontend supplies `rollId + rowId`. The backend verifies that the row belongs to the roll, resolves the remaining scope from the durable roll mapping, and does not accept names, client IDs, box IDs, or workspace IDs as alternate operation lookup keys.
 
-Storage-root configuration owns physical paths. Domain state SHOULD store a stable binding key and configuration generation rather than a mutable physical path. A mapping or configuration generation change invalidates outstanding discoveries and plans.
+Each client/workspace has exactly one active logical storage binding in Version 1. The binding may expose the distinct Scan parent, QPF, grayscale Frames, and bitonal Frames capabilities; capabilities may intentionally resolve beneath the same approved root. Domain state stores only the stable binding ID and configuration generation, never the physical root.
+
+Developer-admin API commands create or activate a client's binding ID, generation, labels, and capability set. `Quantum.Service` configuration maps that same binding ID and generation to the physical root. Activating a different binding or generation invalidates outstanding discoveries and plans. The Server entity does not participate in this mapping.
 
 ## 5. Scan policy
 
@@ -145,7 +149,7 @@ interface StartScanCommand {
 
 Start is a durable asynchronous action:
 
-1. Web authorization and validation occur before acceptance.
+1. Web resolves the authenticated registered actor and validates the transport request; durable role/operation topic decisions authorize the operation from role and permission facts before the roll accepts it.
 2. A `ScanStartAccepted` record, scan ID, idempotency record, audit record, new roll version, and `scanState=starting` are persisted before the response reports acceptance.
 3. `isScanning` becomes true when the start is durably accepted, not after the share operation completes.
 4. The worker resolves the parent reference, revalidates containment and access, then creates the folder.
@@ -232,28 +236,31 @@ interface AuthorizedResourceRef {
   displayName: string;
   displayPath?: string;
   version: string;
-  expiresAt: string;
+  expiresAt?: string;
   capabilities: Array<'read' | 'write' | 'create-child'>;
 }
 ```
 
 An authorized resource reference:
 
-- is opaque, actor-bound, scope-bound, versioned, purpose-bound, and short-lived;
+- is opaque, actor-bound, scope-bound, versioned, and purpose-bound;
 - is not a substitute for authorization at use time;
 - MUST NOT embed a client-editable authoritative path;
-- MUST be rejected after expiry, scope change, configuration generation change, or permission change;
-- exposes a full display path only under a specific sensitive-path permission.
+- MUST be rejected after an explicit expiry or revocation, scope change, configuration generation change, or permission change;
+- uses labels as the primary display value;
+- MAY expose a full display path as informational output in a deliberately workspace-scoped query or operation result so a user can check completed work; that path never becomes operation authority or valid path input.
 
-**Proposed default:** Resource references expire after 15 minutes.
+Version 1 resource references do not expire automatically. Future automatic expiry may be added without changing the rule that use-time authorization and binding-generation validation are required.
 
 Storage policy:
 
 1. Operations owns the allow-listed roots, service identity, ACLs, availability expectations, and configuration change process.
+   - The initial production share root is `\\sbsr-film\film\`.
+   - The approved worker identity is `CMGX\appdevsvc`; its live service logon and share/NTFS access still require target-host evidence before production mutation is enabled.
 2. Only explicit local absolute roots or UNC roots are allowed. Mapped drives, device paths, alternate data streams, and environment-expanded client input are forbidden.
 3. The worker rejects traversal, rooted child input, invalid Windows names, unexpected case/normalization results, and any final target outside the configured root.
 4. Reparse points, symlinks, mount points, and junctions are rejected by default. If later allowed, containment MUST be verified using resolved final handles for every traversed component.
-5. Child browsing accepts a parent reference and server-validated child selector, never a path.
+5. Version 1 exposes configured parent choices only. Arbitrary child browsing is deferred. A future browsing contract may accept a parent reference and server-validated child selector, never a path.
 6. Share unavailability and changed ACLs surface as structured, retry-aware errors without leaking unauthorized paths.
 7. Cross-volume file moves are not assumed atomic and require a separately designed copy/verify/commit/delete workflow.
 
@@ -442,9 +449,19 @@ The backend:
 
 Only one top-level QPF is eligible in Version 1. Nested recursive search and "first file found" behavior are prohibited.
 
-## 16. Authorization and audit
+## 16. Domain authorization and audit
 
-Current identity/tracking alone is insufficient authority for these mutations. Before production enablement the backend MUST have enforced authorization for:
+Current identity/tracking alone is insufficient authority for these operations. The target authorization model is:
+
+- users are registered and authenticated before they can receive Scan or Processing authority;
+- managers whose durable permissions allow role assignment submit commands that assign roles to registered users;
+- role definitions, role assignments, and permission changes are durable events governed by topic decisions;
+- roles grant named permissions; registration or authentication alone grants no Scan or Processing permission;
+- topic decisions resolve the authenticated actor's current durable roles and permissions rather than trusting client-supplied role or permission claims;
+- role definition and assignment changes are audited, including actor, target user, before/after roles, and timestamp;
+- the initial manager/bootstrap procedure, role-definition ownership, revocation behavior, and multi-instance consistency MUST be approved before production mutation is enabled.
+
+The permission catalog includes:
 
 - `scan.discover`
 - `scan.start`
@@ -463,7 +480,9 @@ Current identity/tracking alone is insufficient authority for these mutations. B
 - `backup.cleanup`
 - any future `backup.restore`
 
-Authorization is checked against actor, client/workspace, roll, operation, and resource. QueryHub subscriptions and job/history retrieval MUST be protected by the same scope model. Public/self-service registration MUST be disabled or governed before mutation is enabled.
+Authorization for Scan and Processing actions is a domain decision made in topics against actor, assigned roles/permissions, client/workspace, roll, operation, and resource. It is not ASP.NET endpoint authorization. The HTTP layer maps durable rejection facts to the appropriate response but does not make the authoritative permission decision. Operation-specific responses MUST still redact sensitive paths and diagnostics unless the actor has the corresponding permission.
+
+QueryHub subscriptions remain identity-independent by Totem design and MUST NOT be treated as authorization or as evidence that a caller may retrieve or mutate the referenced resource. General HTTP fetch-endpoint authorization may be added later without changing QueryHub. Registration and role assignment MUST be governed so a user cannot grant themselves operation authority.
 
 Audit records retain at least:
 
@@ -555,7 +574,7 @@ The frontend can retrieve active work by captured row/roll/workspace and reconne
 
 ## 20. Delivery sequence
 
-1. **Security and Operations foundation:** production identity, permissions, protected QueryHub, worker service identity, root configuration, ACLs, redaction, logs, metrics.
+1. **Security and Operations foundation:** production identity, manager-assigned roles and permissions, worker service identity, root configuration, ACLs, redaction, logs, metrics.
 2. **Contracts and roll state:** durable scan state/version, operation context, errors, OpenAPI, deterministic fixtures, contract tests.
 3. **Scan vertical slice:** discovery, idempotent Start, async folder creation, Finish, Abandon, audit, restart and collision tests.
 4. **Shared processing platform:** resource references, Preview plans, Apply, leases, durable jobs, cancellation, paging, history, recovery.
@@ -570,7 +589,8 @@ Start, Finish, Preview, and Apply remain disabled in production until all applic
 
 - machine-readable contracts and deterministic frontend fixtures;
 - Boolean, enum, version, error, and pagination contract tests;
-- authorization tests for operation, row, workspace, history, hub, and sensitive data boundaries;
+- authorization tests for manager role assignment, operation permissions, row/workspace scope, and sensitive data boundaries;
+- QueryHub subscription and reconnect tests that preserve Totem's identity-independent ETag behavior and HTTP refetch fallback;
 - traversal, reparse point/junction/symlink, UNC, normalization, and root-escape tests;
 - idempotency tests covering a lost response after durable acceptance;
 - multi-user, multi-tab, multi-instance lease and version tests;
@@ -593,7 +613,7 @@ Reviewers should edit this section rather than treating silence as approval.
 | --- | --- | --- |
 | Product | Editable scan folder names; collision failure; file checks at Finish; Frames separate-root UX; exact QPF setting meanings | Pending |
 | Backend | Roll state machine; mapping resource; DTOs; stream/version model; idempotency scope; lease and recovery implementation | Pending |
-| Security | Authentication/claims; authorization policies; hub protection; path visibility; service identity; registration policy; audit/redaction | Pending |
+| Security | Registered-user identity; manager role assignment; permission catalog; bootstrap/revocation behavior; path visibility; service identity; registration policy; audit/redaction | Pending |
 | Operations | Approved roots and ACLs; service account/gMSA; retention; backups; monitoring; stuck-job and reconciliation runbooks | Pending |
 | QA | Contract, security, filesystem fault, concurrency, restart, and target-host evidence plan | Pending |
 

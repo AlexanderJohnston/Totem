@@ -1,172 +1,197 @@
 # Scan and Processing Backend Implementation Handoff Prompt
 
-You are picking up backend implementation work for Miller Scan and Processing in:
+Last updated: 2026-08-10
+
+Use this document to resume Miller Scan and Processing backend work in a fresh context at:
 
 ```text
 C:\Users\ajohnston\Desktop\Refactor\Totem
 ```
 
-The authoritative design guidance is:
+## Required reading order
 
-- `docs/SCAN_AND_PROCESSING_BACKEND_POLICY.md`
+Read these documents completely before editing code:
 
-Read that document completely before editing code. Use `docs/SCAN_AND_PROCESSING_RECOMMENDED_BACKEND_PLAN.md` only as supporting background. Where the two differ, the policy wins.
+1. `docs/SCAN_AND_PROCESSING_BACKEND_IMPLEMENTATION_HANDOFF_PROMPT.md`
+2. `docs/SCAN_AND_PROCESSING_BACKEND_POLICY.md` — authoritative behavior and safety policy
+3. `docs/SCAN_AND_PROCESSING_BACKEND_IMPLEMENTATION_STATUS.md` — completed implementation and verification evidence
+4. `docs/SCAN_AND_PROCESSING_NEXT_STEPS_PLAN.md` — proposed sequence, open decisions, and package boundaries
+5. `docs/contracts/scan-processing/v1/README.md` — implemented operation-context contract
 
-## Objective
+`docs/SCAN_AND_PROCESSING_RECOMMENDED_BACKEND_PLAN.md` is supporting architectural background. Where documents differ, the policy wins; where a proposed plan conflicts with current code or status evidence, verify the repository and update the documentation rather than assuming either is current.
 
-Begin implementation with the smallest coherent backend foundation for Scan and Processing. Establish the canonical roll-scoped model and durable operation context before implementing filesystem mutation.
+## Current checkpoint
 
-Do not attempt the entire policy in one change. Work in small, independently verified packages and report precisely what is implemented versus still proposed.
+Verify this checkpoint at the start of the session; do not treat it as a substitute for `git status`, `git log`, or reading the code.
 
-## Corrected assumptions that must carry forward
+- Expected branch at handoff preparation: `user-auth`.
+- Work package 1 is committed as `c4815cb Retire client-scoped microfilm rows`.
+- Work package 2 is committed as `cb03223 Add durable roll operation context`.
+- Work package 1 removed legacy client-scoped row routes and compatibility behavior.
+- Work package 2 added the read-only durable roll operation context, scan-state projection, JSON Boolean `isScanning`, and business `resourceVersion`.
+- Start, Finish, Preview, Apply, role/permission topics, storage-binding code, idempotency, worker execution, recovery, and production enablement are not implemented.
+- The policy, status, recommended plan, this handoff, and the next-steps plan were prepared as a separate documentation continuation after work package 2. Verify the actual commit/worktree state before doing more work.
+- The recorded broad test baseline is 121 passing and 2 unrelated existing failures; re-run relevant tests rather than presenting this historical result as fresh evidence.
+
+The user previously supplied an EventStoreDB instance for development. Check whether it is already running before starting another instance; do not assume the old process state is still current.
+
+## Resume objective and stop boundary
+
+Continue after completed work package 2. The next implementation target is the smallest coherent portion of work package 3: durable role definitions, assignments, permissions, and topic-owned authorization decisions. Keep it independent of filesystem work.
+
+Then proceed only in the small verified packages listed below. Do not compress role authority, storage configuration, Start acceptance, filesystem mutation, and recovery into one demo change.
+
+Unless the user explicitly expands the scope, stop before:
+
+- any real local or UNC filesystem mutation;
+- production mutation enablement;
+- QPF or Frames Apply;
+- claims of recovery, multi-instance, target-host, or Windows-service qualification.
+
+QueryHub protection is not a work item. Totem intentionally provides identity-independent ETag subscriptions. Do not add subscription authorization or replace QueryHub. General HTTP fetch-endpoint authorization is also deferred.
+
+## Settled domain and infrastructure decisions
+
+Carry these decisions forward without reopening them:
 
 1. Canonical operation identity is `rollId + rowId`.
-2. The frontend does not send `rollName`, `boxName`, or cell values to resolve or authorize a Scan/Process operation.
-3. The backend resolves the canonical roll, box, client, workspace, and roll name from `rollId`, then verifies that `rowId` belongs to that roll.
-4. Profiles and visible cells are presentation only. `cells.rollName` is never an operation lookup key.
-5. Regular and custom rows are equally eligible. `origin` records provenance only:
-   - regular rows came from WASP data;
-   - custom rows were manually entered when the data was unavailable from WASP.
-6. Origin must not change operation identity, authorization, capabilities, or behavior.
-7. The supported table model consists only of roll-scoped regular and custom rows. Legacy client-scoped rows, routes, routing indexes, and compatibility behavior should be removed, with any remaining data converted before Scan and Process are enabled.
-8. `isScanning` is durable roll-owned operational state. It is not a cell, profile field, UI-local flag, or value inferred from folder contents.
+2. The frontend does not provide names, client IDs, box IDs, workspace IDs, cell values, roles, permissions, or filesystem paths as operation authority.
+3. The backend resolves the canonical roll, box, client/workspace, and roll name from `rollId`, then verifies that `rowId` belongs to the roll.
+4. For Version 1, a client is the workspace and `workspaceId` is the resolved `clientId`.
+5. Each client/workspace has exactly one active logical storage binding. The binding may contain distinct Scan-parent, QPF, grayscale-Frames, and bitonal-Frames capabilities, even when capabilities resolve beneath the same root.
+6. The existing Server entity remains a separate identifier and does not select or resolve the storage binding.
+7. Developer-admin API commands may create and activate a logical binding ID and configuration generation. Durable domain state stores only that ID and generation; Operations-owned `Quantum.Service` configuration maps them to physical locations.
+8. The initial production share root is `\\sbsr-film\film\`.
+9. The approved worker identity is `CMGX\appdevsvc`, with access already configured. This is policy input, not live Windows-service evidence.
+10. Labels are the primary resource presentation. An authorized operation result or deliberately client/workspace-scoped query may sometimes expose an informational full path so a user can verify work. Returned paths never become valid operation input.
+11. Version 1 resource references do not automatically expire. Use-time authorization and binding-generation validation remain mandatory, and explicit revocation, permission/scope changes, or generation changes may still invalidate use.
+12. Configured parent choices are sufficient for Version 1. Arbitrary filesystem browsing is deferred.
+13. Profiles and visible cells are presentation only. `cells.rollName` and `cells.isScanning` are never authoritative.
+14. Regular and custom rows are equally eligible. `origin` is provenance only and does not change identity, permissions, capabilities, or behavior.
+15. `isScanning` is durable roll-owned state, projected independently of profiles and cells.
+16. Scan and Processing are authorized domain actions. Managers assign roles to registered users; role definitions, assignments, permission changes, and authorization outcomes are events and decisions in topics, not ASP.NET endpoint authorization.
+17. Query ETags and QueryHub notifications are invalidation infrastructure, never business concurrency or operation authority.
+18. `Quantum.Web` does not resolve or touch production storage. `Quantum.Service` is the only filesystem boundary.
+
+## Role-policy decisions still open
+
+These are the only current product/security decisions that materially affect the first role package:
+
+1. Are Version 1 role definitions fixed by the application, or may managers create roles and choose permissions?
+2. Are role assignments global in Version 1, or scoped to a client/workspace?
+3. How is the first manager bootstrapped, and which registered user should be used for the demo?
+4. Is full-path disclosure a normal workspace result, or must the actor have `sensitive-path.view`?
+
+Recommended demo defaults, if the user approves them, are fixed built-in `manager`, `scan-operator`, and `processing-operator` roles; global Version 1 assignments; a developer-only manual bootstrap command/API that records an audited initial-manager fact; and `sensitive-path.view` for full-path disclosure. Revocation should prevent authorization decisions ordered after the revocation; it should not rewrite already accepted operation history.
+
+The exact cross-topic routing, ordering, replay, and projection design is a backend implementation decision to derive from current Totem patterns. Do not burden the user with it unless repository evidence exposes a real business tradeoff.
 
 ## Start-of-session procedure
 
 1. Read any applicable `AGENTS.md` files.
-2. Run `git status --short`, record the current branch and HEAD, and preserve all existing user changes and untracked documents.
-3. Read `global.json` before building. This checkout requires .NET SDK `10.0.300` unless the file has changed.
-4. Do a shallow inventory of the solution, relevant projects, documents, and tests before tracing implementation details.
-5. Inspect the current roll/table model, commands/events/topics/queries, HTTP routes, command execution path, QueryHub behavior, authentication/authorization state, and worker hosting boundary.
-6. Write a short working plan with small verifiable packages, then begin implementation unless current evidence reveals a genuine blocker.
+2. Run `git status --short`, record the current branch and HEAD, and preserve all existing user changes and untracked files.
+3. Read `global.json` before building. The recorded requirement is .NET SDK `10.0.300`; obey the current file if it changed.
+4. Read the required documents above and inspect the completed package code/tests before designing the next slice.
+5. Trace current registered-user identity, commands/events/topics/queries, command dispatch, authorization-related code, HTTP mapping, replay behavior, and multi-instance assumptions.
+6. Write a short working plan, implement one coherent package, run focused verification, and report what remains proposed.
 
-Do not switch branches, reset the worktree, discard changes, or edit the related frontend checkout without explicit authorization.
+Do not switch branches, reset the worktree, discard changes, edit another checkout, or mutate the production share without explicit authorization.
 
-At the time of this handoff, the policy and recommended-plan documents may be untracked. Preserve them. Re-check current state rather than assuming the recorded branch or commit is still current.
+## Proposed implementation sequence
 
-## Initial implementation sequence
+### Completed package 1: canonical row boundary
 
-### Work package 1: canonical row boundary
+Do not reimplement it. Verify the status document and commit when needed. The supported model contains only roll-scoped regular and custom rows addressed by `rollId + rowId`; there is no name/cell fallback or client-scoped compatibility route.
 
-Make the roll-scoped table model the only supported backend row model:
+### Completed package 2: durable operation context
 
-- retain regular and custom row routes addressed by `rollId + rowId`;
-- give regular and custom rows the same ownership and operation eligibility rules;
-- remove legacy client-scoped row endpoints and compatibility dispatch;
-- remove legacy row-routing indexes, adapters, tests, and documentation that exist only for coexistence;
-- do not derive a missing `rollId` from `boxName`, `rollName`, or any other cells;
-- identify any external frontend dependency that still calls a removed route and record it as a coordinated follow-up rather than editing another checkout silently.
+Do not reimplement it. Verify the status document and commit when needed. The current read-only contract owns scan state on the roll, projects a real Boolean `isScanning`, uses a business `resourceVersion` distinct from query ETags, and treats both row origins equally.
 
-Before deleting compatibility code, trace its callers and tests so removal is intentional and complete. Do not introduce a migration bridge based on cell matching.
+### Work package 3: durable role and permission foundation
 
-### Work package 2: durable operation context
+Implement no operation or filesystem mutation in this package:
 
-Add the backend foundation needed to open Scan or Process for either row origin:
+- stable registered actor identity from authenticated server context;
+- versioned role definitions and permission catalog;
+- manager assignment and revocation requests;
+- durable role-definition, assignment, revocation, decision, rejection, and audit facts;
+- topic-owned decisions that never trust client-authored roles or permissions;
+- bootstrap/self-elevation protection consistent with the approved Version 1 decisions;
+- focused replay, ordering, assignment-authority, revocation, forged-input, and multi-instance tests.
 
-- durable roll-owned scan state;
-- a real JSON Boolean `isScanning` projected independently of cells and profiles;
-- an explicit transitional scan state if needed to distinguish `idle`, `starting`, `active`, and `finishing`;
-- an opaque business `resourceVersion` for command concurrency, separate from query ETags;
-- canonical row/roll context resolved from `rollId + rowId`;
-- equal Scan/Process eligibility for regular and custom rows;
-- structured invalid-row, invalid-roll, mapping, stale-version, and ineligible-action errors;
-- a read-only discovery/context HTTP contract and deterministic fixtures or contract examples.
+HTTP may resolve the authenticated registered actor, append a request, and map durable outcomes. It does not become the authoritative permission evaluator.
 
-Prefer extending the current durable roll model cleanly. The model was designed to carry durable roll information such as `isScanning`, but existing shapes are guidance rather than a restriction if a clearer design emerges.
+### Work package 4: logical storage-binding contract
 
-Do not use `cells.isScanning`. Do not read `cells.rollName` to establish identity. Do not use QueryHub ETags as the mutation concurrency version.
+Implement contracts and durable configuration only—no physical path resolution or filesystem mutation:
 
-### Work package 3: first Scan mutation slice
+- exactly one active binding per client/workspace;
+- stable binding ID, configuration generation, labels, and capability set;
+- developer-admin create/activate API commands and durable facts;
+- opaque resource references with no automatic Version 1 expiry;
+- configured parent choices, with arbitrary browsing deferred;
+- informational full-path response shape that never accepts a returned path as authority;
+- mapping/generation invalidation, redaction, wrong-scope, and Server-separation tests;
+- no physical root in browser-authoritative input or durable domain identity.
 
-Proceed only after the first two packages are focused-test green and the security boundary is explicit.
+### Work package 5: durable Start acceptance
 
-Implement the durable command side of Start Scan before filesystem work:
+Only after packages 3 and 4 are focused-test green, implement the durable command side of Start Scan without folder creation:
 
-- authenticated actor and operation authorization;
-- expected roll resource version;
-- idempotency key and reconciliation behavior;
+- topic-owned authorization bound to one request, actor, permission, scope, and authorization revision;
+- exact `rollId + rowId`, expected `resourceVersion`, idle state, binding generation, folder-name, and notes validation;
+- idempotency key plus semantic-input hash and lost-response reconciliation;
 - one active or transitioning scan per roll;
-- durable scan ID, accepted state, roll version change, and audit facts;
-- a worker-owned asynchronous boundary for later folder creation.
+- durable scan ID, `ScanStartAccepted`, roll version change, `starting` state, rejection, and audit facts;
+- worker-owned asynchronous boundary for a later package.
 
-Do not claim an atomic transaction between KurrentDB and local/SMB storage. Do not expose production-enabled filesystem mutation in this package.
+Do not claim an atomic transaction between KurrentDB and storage. Stop before folder creation unless the user explicitly authorizes the filesystem package.
 
-Stop after a coherent, verified slice if completing the next package would mix unfinished security, storage, or recovery concerns into otherwise proven work.
-
-## Architectural boundaries
+## Architectural boundary
 
 ```text
 Browser
    |
-   | authenticated HTTP and protected invalidation notifications
+   | HTTP operations + identity-independent QueryHub invalidations
    v
 Quantum.Web
-   | authorize, validate, append commands, serve projections/contracts
+   | resolve authenticated actor, validate transport, append commands, serve projections
    v
-Durable application state
-   | rolls, scans, versions, idempotency, jobs, audit
+KurrentDB / durable topics
+   | roles, permissions, decisions, rolls, bindings, scans, versions, idempotency, audit
    v
 Quantum.Service
-   | resolve opaque resources and perform filesystem work
+   | later: resolve configured bindings and perform filesystem work
    v
 Approved Windows storage roots
 ```
-
-- `Quantum.Web` must not touch production Formatic storage.
-- `Quantum.Service` is the filesystem worker boundary.
-- A durable append and completed processing are different states.
-- QueryHub is notification infrastructure; HTTP refetch remains the state-retrieval fallback.
-- The browser never supplies an authoritative local or UNC path.
-- Profile membership is not a schema, identity rule, or authorization boundary.
-- Current tracking identity must not be mistaken for production authorization.
-
-## Production safety boundary
-
-Keep Start, Finish, Preview, and Apply disabled in production until the applicable policy gates exist. In particular, do not claim readiness without:
-
-- enforced actor/resource authorization;
-- protected QueryHub access;
-- approved worker service identity and storage roots;
-- idempotency and multi-instance concurrency evidence;
-- path-containment and reparse-point tests;
-- backup-failure protection for QPF writes;
-- durable job/restart reconciliation;
-- live evidence under the real Windows service identity.
-
-Contract and domain work may proceed behind an explicit disabled feature gate or without exposing mutation routes.
 
 ## Verification expectations
 
 For every work package:
 
-1. Run focused tests first.
-2. Add tests for regular and custom rows wherever operation context or eligibility is exercised.
-3. Prove that cell/profile visibility does not affect identity or `isScanning`.
-4. Prove that wrong `rollId + rowId` combinations fail without falling back to name matching.
-5. Prove JSON Boolean and enum/version contracts at the HTTP boundary.
-6. Run the narrowest relevant build and broader tests that are practical without hiding unrelated existing failures.
+1. Run focused tests first and record exact pass/fail counts.
+2. Prove both regular and custom row behavior where operation context is involved.
+3. Prove wrong `rollId + rowId` combinations fail without name matching.
+4. Prove roles, permissions, client/workspace IDs, Server IDs, and paths supplied by a client never become authority.
+5. Prove replay and ordering behavior for new durable topic decisions.
+6. Run the narrowest relevant build and broader tests practical without hiding unrelated baseline failures.
 7. Run `git diff --check`.
 
-If the required SDK is unavailable from the normal `dotnet` on `PATH`, locate the installed `10.0.300` SDK using the established repository/deployment guidance. Do not silently build with a different SDK.
+Do not silently build with a different SDK. Do not present fixture, mock-filesystem, or development-machine results as production evidence.
 
-## Documentation and contract handling
+## Documentation and end-of-session report
 
-- Keep `docs/SCAN_AND_PROCESSING_BACKEND_POLICY.md` synchronized only when implementation uncovers a real contract decision or discrepancy.
-- Do not rewrite policy sections merely to describe unfinished code.
-- Add or update OpenAPI/machine-readable contracts and deterministic fixtures with the implementation slice.
-- Record intentional removals of legacy routes and any external client coordination required.
-- Preserve the difference between completed implementation evidence and future production-readiness work.
-
-## End-of-session report
+Keep the policy, status, next-steps plan, machine-readable contracts, and deterministic fixtures synchronized only with decisions or implementation actually made. Preserve the distinction between completed evidence, approved policy, recommended defaults, and future work.
 
 Report:
 
-1. the implemented work package and why it was the correct dependency boundary;
-2. files and contracts changed;
-3. legacy paths removed and any remaining references;
-4. focused and broader verification with exact pass/fail counts;
-5. any current failures proven unrelated;
-6. the next smallest work package;
-7. remaining security, filesystem, recovery, and live-environment gates.
+1. the implemented package and dependency boundary;
+2. files, routes, events, contracts, and projections changed;
+3. focused and broader verification with exact results;
+4. unrelated failures separately identified;
+5. the next smallest package;
+6. remaining human decisions and production gates;
+7. explicit confirmation that no filesystem or production mutation occurred.
 
-Do not describe the overall Scan/Processing backend as complete merely because the first domain or HTTP slice is implemented.
+Do not describe the Scan/Processing backend as complete or production-ready until all applicable gates have live evidence.

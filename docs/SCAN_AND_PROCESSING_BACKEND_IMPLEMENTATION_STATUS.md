@@ -1,6 +1,6 @@
 # Scan and Processing Backend Implementation Status
 
-Last updated: 2026-08-03
+Last updated: 2026-08-10
 
 Authoritative policy: `SCAN_AND_PROCESSING_BACKEND_POLICY.md`
 
@@ -85,8 +85,22 @@ The scan transition facts are contract/projection foundations. There is no publi
 - Broader `Quantum.Tests`: 121 passed, 2 failed. The failures are the same unrelated `ClientProfileRegistryTests.MatchesCorrectProfile` and `WaspAssetServiceTests.GetClientBatchAsync_FetchesAdditionalPagesWhenTotalCountExceedsCurrentPageWindow` baseline cases recorded for package 1.
 - `git diff --check`: passed.
 
+## Settled policy after package 2
+
+The following decisions are documented policy and planning inputs, not implemented runtime capability:
+
+- a client is the Version 1 workspace, with exactly one active logical storage binding per client;
+- the existing Server entity stays separate from storage resolution;
+- developer-admin API commands may create and activate binding generations;
+- the initial production share root is `\\sbsr-film\film\` and the approved worker identity is `CMGX\appdevsvc`;
+- labels are primary, while an operation result or deliberately workspace-scoped query may return an informational full path that never becomes path authority;
+- Version 1 resource references do not expire automatically;
+- configured parent choices replace arbitrary browsing in Version 1;
+- managers assign durable roles/permissions to registered users, and topics—not ASP.NET endpoint authorization—decide Scan and Processing authority;
+- QueryHub remains an unchanged, identity-independent ETag subscription mechanism.
+
 ## Stop boundary
 
-Start, Finish, Preview, and Apply remain production-disabled. Authorization, protected QueryHub access, worker identity/storage roots, idempotency, leases, path safety, backup failure, restart reconciliation, and live Windows-service evidence remain open gates.
+Start, Finish, Preview, and Apply remain production-disabled. Durable manager-assigned roles and topic-enforced operation permissions, logical binding implementation, deployed worker configuration/identity evidence, idempotency, leases, path safety, backup failure, restart reconciliation, and live Windows-service evidence remain open gates. Totem QueryHub ETag subscriptions intentionally remain identity-independent and are not an authorization gate.
 
-No filesystem mutation or production enablement was implemented. No workspace/root binding, worker identity/storage policy, QueryHub protection, idempotency, recovery flow, or Windows-service evidence was added or claimed.
+No filesystem mutation or production enablement was implemented. No storage-binding runtime, worker identity/configuration deployment, role/permission topics, idempotency, recovery flow, or Windows-service evidence was added or claimed.
