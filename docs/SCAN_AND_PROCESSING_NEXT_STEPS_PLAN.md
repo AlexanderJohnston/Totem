@@ -14,7 +14,7 @@ Authoritative policy: `SCAN_AND_PROCESSING_BACKEND_POLICY.md`
 4. QueryHub is invalidation only. HTTP remains the state-retrieval fallback, and query ETags never become business concurrency tokens.
 5. Authorization of general HTTP query/fetch endpoints is a separate possible future change and is not part of this plan.
 6. Scan and Processing operations are authorized domain actions. Registered or authenticated status alone grants no operation authority.
-7. Managers with the appropriate durable permission assign roles to registered users. Role definitions, assignments, permission changes, and authorization outcomes are modeled as events and topic decisions, not ASP.NET endpoint authorization.
+7. Managers define roles and assign them globally to registered users. Role definitions, assignments, and permission changes are durable events; Scan/Processing authorization outcomes are topic decisions rather than ASP.NET endpoint authorization.
 8. The HTTP layer resolves the authenticated registered actor, validates transport input, appends commands, and maps durable outcomes to responses. It does not make the authoritative role/permission decision.
 9. `Quantum.Web` never touches production Formatic storage. `Quantum.Service` is the only filesystem worker.
 10. Production mutation stays disabled until the applicable storage, idempotency, concurrency, recovery, filesystem-safety, and target-host gates pass.
@@ -25,6 +25,10 @@ Authoritative policy: `SCAN_AND_PROCESSING_BACKEND_POLICY.md`
 15. Labels are the primary resource presentation. An operation result or deliberately client/workspace-scoped query may return a full informational path for work verification; the path never becomes valid operation input.
 16. Version 1 resource references do not expire automatically. Binding-generation changes, scope changes, permission changes, explicit revocation, or a future explicit expiry still invalidate their use.
 17. Configured parent choices are sufficient for Version 1; arbitrary filesystem browsing is deferred.
+18. Managers define roles and choose their permission sets. Role assignments are global in Version 1.
+19. Role-definition and assignment endpoints exist for frontend use. Backend manager-only enforcement for those management endpoints is deferred for the demo.
+20. A temporary admin endpoint bootstraps any existing registered user as a manager when the request body contains the correct hard-coded plaintext demo secret. The secret is never persisted or logged, and this mechanism is not production-ready.
+21. Full informational paths are normal output from the scoped Version 1 contracts and never become path authority.
 
 ## Current implementation baseline
 
@@ -60,8 +64,6 @@ Production enablement
 ### Proposal
 
 - Define a stable permission catalog for Scan and Processing. Initial candidates are:
-  - `access.roles.assign`
-  - `access.roles.manage` if role definitions are manager-editable
   - `scan.discover`
   - `scan.start`
   - `scan.finish-own`
@@ -72,12 +74,16 @@ Production enablement
   - operation-specific Apply permissions
   - `job.cancel-own`
   - `job.cancel-any`
-  - sensitive-path, sensitive-error, backup-cleanup, and future restore permissions
+  - sensitive-error, backup-cleanup, and future restore permissions
 - Represent role definitions, role assignments, revocations, and permission changes as durable facts.
-- Manager role-assignment commands are decided by topics using the manager's current durable permissions.
+- Let managers define named roles and select permissions through HTTP contracts intended for the frontend team.
+- Make role assignments global in Version 1.
+- Defer backend manager-only enforcement for role-definition and assignment endpoints during the demo. Record this explicitly as production-hardening debt.
+- Add a temporary admin bootstrap endpoint that accepts an existing username and plaintext secret, compares the secret to the hard-coded demo value, and grants manager status when the user exists.
+- Never write the bootstrap secret to events, logs, metrics, responses, fixtures, or committed documentation. Remove or harden the endpoint before production enablement.
 - Scan and Processing commands contain a server-resolved registered actor ID. They never accept client-supplied roles or permissions as authority.
-- Operation authorization is decided in topics. Rejections produce stable durable facts such as forbidden operation, forbidden scope, or role-assignment rejection, which the HTTP layer maps to safe responses.
-- Audit role and permission changes with the acting manager, target user, previous and resulting roles, reason where required, and timestamp.
+- Operation authorization is decided in topics. Rejections produce stable durable facts such as forbidden operation or forbidden scope, which the HTTP layer maps to safe responses. Role-management and bootstrap validation use stable contract errors.
+- Audit role and permission changes with the available acting identity, target user, previous and resulting roles, reason where required, and timestamp.
 - QueryHub remains unchanged. It accepts ETag subscriptions regardless of caller identity and grants no fetch or operation authority.
 
 ### Topic composition to design before implementation
@@ -99,14 +105,11 @@ accepted or rejected roll facts
 
 The authorization fact would be bound to one operation request ID, actor, permission, scope, and authorization revision so it cannot be replayed for a different request. This is a candidate, not yet an approved topology; we must verify it against Totem routing, ordering, replay, revocation, and multi-instance behavior.
 
-### Decisions still requiring role-policy input
+### Remaining implementation decisions
 
-- Are Version 1 roles built-in and immutable, or may managers define roles and choose their permissions?
-- How is the first manager bootstrapped without creating a self-elevation path?
-- Are manager assignments global or limited to specific clients/workspaces?
-- When a role is revoked, must it block already-authorized but not-yet-accepted requests, or only later requests?
-- Does full-path disclosure require `sensitive-path.view`, or is it a normal result for any user in the workspace?
-- What is the exact topic topology for evaluating roles without moving authorization into HTTP code?
+- Verify the exact topic topology for evaluating operation permissions without moving Scan/Processing authorization into HTTP code.
+- Unless Product overrides it, use forward-only revocation: authorization decisions ordered after revocation fail, while already accepted operation history is not rewritten.
+- Define the temporary bootstrap route and response envelope without exposing the fixed secret or whether a guessed username exists when the secret is wrong.
 
 ## 2. Worker identity and storage-root policy
 
@@ -129,7 +132,7 @@ The authorization fact would be bound to one operation request ID, actor, permis
 
 - Define the logical binding command/event/projection names and developer-admin API route shapes.
 - Define capability-relative configured locations beneath the approved root without persisting physical paths in domain state.
-- Define the workspace-scoped path result/query shape and redaction rules without turning returned paths into authority.
+- Define the workspace-scoped path result/query shape without turning returned paths into authority.
 - Prove the configured service logon plus share and NTFS access on the target host before production mutation.
 
 ## 3. Idempotency and durable Start Scan
@@ -240,7 +243,7 @@ Final qualification occurs under the real worker identity and approved roots, no
 
 ## Proposed implementation packages
 
-1. **Role and permission foundation:** settle role semantics and topic topology; add durable role/assignment commands, events, decisions, projections, audit, and manager-assignment tests. No operation mutation yet.
+1. **Role and permission foundation:** add manager-defined roles, global assignments, the temporary demo bootstrap contract, durable role/assignment events and projections, operation-authorization decisions, audit, and tests. No operation mutation yet.
 2. **Storage-binding contract:** add logical bindings, configuration generations, capabilities, opaque references, redaction rules, deterministic fixtures, and no filesystem access.
 3. **Durable Start acceptance:** add topic-owned permission decision, command-side roll authority, business-version checks, idempotency, accepted/rejected facts, audit, and lost-response tests. No folder creation.
 4. **Scan worker slice:** add worker claim/lease, approved-root resolution, path policy, folder creation, collision handling, and fault/restart reconciliation tests in controlled storage.
@@ -252,11 +255,9 @@ Final qualification occurs under the real worker identity and approved roots, no
 
 ## Decisions for the team to work through next
 
-1. Built-in roles versus manager-defined roles and permissions.
-2. Initial manager bootstrap and prevention of self-elevation.
-3. Role-assignment scope and revocation semantics.
-4. Exact authorization topic/operation topic interaction.
-5. Scan defaults: editable folder name, collision failure, notes limit, Finish file checks, finish-any reason, and Abandon behavior.
-6. Scan-folder ownership evidence for restart reconciliation.
-7. Lease duration, heartbeat, fencing, and multi-instance policy.
-8. Production gate ownership, emergency pause semantics, monitoring, and operator recovery workflow.
+1. Exact authorization topic/operation topic interaction.
+2. Forward-only revocation implementation and ordering evidence.
+3. Scan defaults: editable folder name, collision failure, notes limit, Finish file checks, finish-any reason, and Abandon behavior.
+4. Scan-folder ownership evidence for restart reconciliation.
+5. Lease duration, heartbeat, fencing, and multi-instance policy.
+6. Production gate ownership, emergency pause semantics, monitoring, role-management hardening, bootstrap removal, and operator recovery workflow.

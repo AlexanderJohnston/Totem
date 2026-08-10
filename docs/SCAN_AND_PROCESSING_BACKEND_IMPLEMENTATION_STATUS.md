@@ -96,11 +96,14 @@ The following decisions are documented policy and planning inputs, not implement
 - labels are primary, while an operation result or deliberately workspace-scoped query may return an informational full path that never becomes path authority;
 - Version 1 resource references do not expire automatically;
 - configured parent choices replace arbitrary browsing in Version 1;
-- managers assign durable roles/permissions to registered users, and topics—not ASP.NET endpoint authorization—decide Scan and Processing authority;
+- managers define roles and permission sets, assignments are global, and topics—not ASP.NET endpoint authorization—decide Scan and Processing authority;
+- role-management endpoints intentionally lack backend manager-only enforcement for the demo;
+- a temporary hard-coded-secret admin endpoint will bootstrap an existing registered user as manager; the secret must never be persisted or logged, and this mechanism must be removed or hardened before production;
+- full paths are normal informational output from scoped Version 1 contracts, but returned paths never become operation authority;
 - QueryHub remains an unchanged, identity-independent ETag subscription mechanism.
 
 ## Stop boundary
 
-Start, Finish, Preview, and Apply remain production-disabled. Durable manager-assigned roles and topic-enforced operation permissions, logical binding implementation, deployed worker configuration/identity evidence, idempotency, leases, path safety, backup failure, restart reconciliation, and live Windows-service evidence remain open gates. Totem QueryHub ETag subscriptions intentionally remain identity-independent and are not an authorization gate.
+Start, Finish, Preview, and Apply remain production-disabled. Durable manager-defined roles/global assignments and topic-enforced operation permissions, logical binding implementation, deployed worker configuration/identity evidence, idempotency, leases, path safety, backup failure, restart reconciliation, and live Windows-service evidence remain open gates. Totem QueryHub ETag subscriptions intentionally remain identity-independent and are not an authorization gate.
 
 No filesystem mutation or production enablement was implemented. No storage-binding runtime, worker identity/configuration deployment, role/permission topics, idempotency, recovery flow, or Windows-service evidence was added or claimed.

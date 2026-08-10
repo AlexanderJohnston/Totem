@@ -69,20 +69,25 @@ Carry these decisions forward without reopening them:
 13. Profiles and visible cells are presentation only. `cells.rollName` and `cells.isScanning` are never authoritative.
 14. Regular and custom rows are equally eligible. `origin` is provenance only and does not change identity, permissions, capabilities, or behavior.
 15. `isScanning` is durable roll-owned state, projected independently of profiles and cells.
-16. Scan and Processing are authorized domain actions. Managers assign roles to registered users; role definitions, assignments, permission changes, and authorization outcomes are events and decisions in topics, not ASP.NET endpoint authorization.
+16. Scan and Processing are authorized domain actions. Managers define roles and choose their permissions, assignments are global, and operation-authorization outcomes are topic decisions rather than ASP.NET endpoint authorization.
 17. Query ETags and QueryHub notifications are invalidation infrastructure, never business concurrency or operation authority.
 18. `Quantum.Web` does not resolve or touch production storage. `Quantum.Service` is the only filesystem boundary.
+19. Role-definition and assignment endpoints are frontend-facing management contracts. Backend manager-only enforcement for those endpoints is deliberately deferred for the demo.
+20. A temporary admin endpoint accepts an existing username plus a plaintext hard-coded demo secret and grants that registered user manager status. Never persist or log the secret, and remove or harden this endpoint before production enablement.
+21. Scoped Version 1 contracts may return full informational paths as normal output; returned paths never become operation authority.
 
-## Role-policy decisions still open
+## Settled demo role policy
 
-These are the only current product/security decisions that materially affect the first role package:
+Implement the following without reopening the product decision:
 
-1. Are Version 1 role definitions fixed by the application, or may managers create roles and choose permissions?
-2. Are role assignments global in Version 1, or scoped to a client/workspace?
-3. How is the first manager bootstrapped, and which registered user should be used for the demo?
-4. Is full-path disclosure a normal workspace result, or must the actor have `sensitive-path.view`?
+1. Managers create named roles and choose their Scan/Processing permissions.
+2. Managers assign those roles globally to registered users.
+3. The frontend may call role-definition and assignment endpoints; the demo backend does not enforce manager-only access to those management endpoints.
+4. The temporary bootstrap endpoint validates the hard-coded demo secret and upgrades the named registered user to manager.
+5. The secret arrives as plaintext in the request body but must never enter events, logs, metrics, responses, fixtures, or committed documentation.
+6. Full paths are normal informational output from the scoped contracts and never operation authority.
 
-Recommended demo defaults, if the user approves them, are fixed built-in `manager`, `scan-operator`, and `processing-operator` roles; global Version 1 assignments; a developer-only manual bootstrap command/API that records an audited initial-manager fact; and `sensitive-path.view` for full-path disclosure. Revocation should prevent authorization decisions ordered after the revocation; it should not rewrite already accepted operation history.
+The user supplied the temporary hard-coded secret directly in conversation. It is intentionally omitted from this durable handoff; obtain it from the operator at implementation/demo setup time and do not commit the plaintext value. Unless Product overrides it, implement forward-only revocation: decisions ordered after revocation fail, while already accepted operation history is not rewritten.
 
 The exact cross-topic routing, ordering, replay, and projection design is a backend implementation decision to derive from current Totem patterns. Do not burden the user with it unless repository evidence exposes a real business tradeoff.
 
@@ -112,12 +117,13 @@ Do not reimplement it. Verify the status document and commit when needed. The cu
 Implement no operation or filesystem mutation in this package:
 
 - stable registered actor identity from authenticated server context;
-- versioned role definitions and permission catalog;
-- manager assignment and revocation requests;
+- manager-defined, versioned roles and the Scan/Processing permission catalog;
+- global assignment and revocation requests;
+- frontend-facing role-definition and assignment endpoints with the accepted demo-only lack of backend manager enforcement;
+- temporary admin bootstrap endpoint for an existing registered user, including invalid-secret, unknown-user, and secret-non-disclosure tests;
 - durable role-definition, assignment, revocation, decision, rejection, and audit facts;
 - topic-owned decisions that never trust client-authored roles or permissions;
-- bootstrap/self-elevation protection consistent with the approved Version 1 decisions;
-- focused replay, ordering, assignment-authority, revocation, forged-input, and multi-instance tests.
+- focused replay, ordering, operation-authorization, revocation, forged-input, and multi-instance tests.
 
 HTTP may resolve the authenticated registered actor, append a request, and map durable outcomes. It does not become the authoritative permission evaluator.
 

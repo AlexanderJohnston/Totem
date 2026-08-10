@@ -289,17 +289,17 @@ Do not use recursive "first QPF found" discovery. Version 1 requires exactly one
 
 ## Authorization and audit
 
-Production mutation requires durable topic-enforced permissions separate from identity tracking. Managers with role-assignment permission assign roles to registered users; role definitions, assignments, and permission changes are events governed by topic decisions. Registration or authentication alone grants no Scan or Processing permission:
+Production mutation requires durable topic-enforced permissions separate from identity tracking. For the Version 1 demo, managers define roles and their permission sets, assignments are global, and role definitions, assignments, and permission changes are durable events. The frontend-facing role-management endpoints do not yet enforce manager-only access on the backend. A temporary admin endpoint may bootstrap an existing registered user as manager by checking a hard-coded plaintext request-body secret; that secret must never be persisted or logged, and the endpoint must be removed or hardened before production enablement. Registration or authentication alone grants no Scan or Processing permission:
 
 - Scan discover/start/finish-own/finish-any/abandon;
 - Processing discover and Preview;
 - Apply per operation;
 - Cancel own or another actor's job;
 - View contextual or workspace history;
-- View sensitive paths, values, and errors;
+- View contextual or workspace full paths and restricted diagnostic values/errors;
 - Backup cleanup and any future restore.
 
-QueryHub subscriptions intentionally remain available regardless of caller identity and are not an authorization boundary. General HTTP fetch authorization is a separate future decision. Registration and role assignment must be governed so users cannot grant themselves operation authority. Production storage roots must be reachable only by the approved worker identity.
+QueryHub subscriptions intentionally remain available regardless of caller identity and are not an authorization boundary. General HTTP fetch authorization is a separate future decision. Full paths are normal informational output from scoped Version 1 contracts, but they never become operation authority. The accepted demo role-management and bootstrap posture is not production-ready. Production storage roots must be reachable only by the approved worker identity.
 
 Audit should retain the authenticated principal, server-derived operator identity, row/roll/box/workspace scope, validated inputs, schema/configuration/plan/resource versions, acknowledgements, idempotency key, status transitions, scan/cancel actor and reason, per-item and backup outcomes, resulting versions, and a redacted diagnostic correlation ID.
 
@@ -311,7 +311,7 @@ Initial code groups should cover:
 
 - invalid, missing, mismatched, or ineligible row/roll context;
 - active, inactive, transitioning, or wrong-owner scan state;
-- forbidden operation/resource and redacted sensitive values;
+- forbidden operation/resource and restricted diagnostic values;
 - unsupported setting, range, combination, or schema version;
 - expired resource reference, stale resource/plan, lock conflict, or root unavailability;
 - invalid path, collision, missing/ambiguous/malformed source, backup/staging/replace failure;
@@ -319,11 +319,11 @@ Initial code groups should cover:
 - idempotency reconciliation, mismatch, or retired record;
 - transient service/storage failure and explicit reconciliation-required state.
 
-Never return stack traces, credentials, service-account details, or unauthorized physical paths.
+Never return stack traces, credentials, service-account details, or arbitrary paths outside the scoped operation/workspace result.
 
 ## Delivery sequence
 
-1. Security and Operations foundation: registered-user identity, manager-assigned roles and topic-enforced permissions, worker identity, approved roots/ACLs, redaction, logs, metrics, recovery ownership.
+1. Security and Operations foundation: registered-user identity, manager-defined roles, global assignments, topic-enforced operation permissions, worker identity, approved roots/ACLs, redaction, logs, metrics, recovery ownership.
 2. Canonical row boundary, contracts, and roll state: retire legacy row compatibility; preserve regular/custom parity; add durable scan state/version, row context, errors, OpenAPI, deterministic fixtures, and contract tests.
 3. Scan vertical slice: discovery, idempotent Start, async folder creation, Finish, Abandon, audit, collision and restart tests.
 4. Shared plan/job platform: resource references, Preview, Apply, leases, durable jobs, cancellation, results, paging, history, reconciliation.
@@ -344,9 +344,9 @@ Product should approve:
 Security should approve:
 
 - registered-user identity resolution plus role/permission events and topic decisions;
-- operation/resource and sensitive-response policies; QueryHub remains identity-independent and general HTTP fetch authorization is deferred;
-- registration, initial-manager bootstrap, role-assignment, and revocation policy;
-- path and error visibility;
+- operation/resource and restricted-diagnostic response policies; QueryHub remains identity-independent and general HTTP fetch authorization is deferred;
+- production replacement for the intentionally unhardened demo role-management and bootstrap endpoints;
+- revocation and error-visibility policy;
 - worker identity, root ACLs, and audit/redaction rules.
 
 Operations should approve:

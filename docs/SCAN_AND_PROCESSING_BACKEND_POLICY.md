@@ -451,15 +451,17 @@ Only one top-level QPF is eligible in Version 1. Nested recursive search and "fi
 
 ## 16. Domain authorization and audit
 
-Current identity/tracking alone is insufficient authority for these operations. The target authorization model is:
+Current identity/tracking alone is insufficient authority for Scan and Processing operations. The Version 1 demo authorization model is:
 
 - users are registered and authenticated before they can receive Scan or Processing authority;
-- managers whose durable permissions allow role assignment submit commands that assign roles to registered users;
-- role definitions, role assignments, and permission changes are durable events governed by topic decisions;
+- managers define roles and choose their permission sets through HTTP contracts intended for the frontend team;
+- role definitions, global role assignments, revocations, and permission changes are durable events;
 - roles grant named permissions; registration or authentication alone grants no Scan or Processing permission;
 - topic decisions resolve the authenticated actor's current durable roles and permissions rather than trusting client-supplied role or permission claims;
-- role definition and assignment changes are audited, including actor, target user, before/after roles, and timestamp;
-- the initial manager/bootstrap procedure, role-definition ownership, revocation behavior, and multi-instance consistency MUST be approved before production mutation is enabled.
+- role definition and assignment changes are audited, including the available actor identity, target user, previous/resulting roles, and timestamp;
+- manager-only enforcement for the role-management HTTP endpoints is deferred for the demo and is primarily a frontend concern in Version 1;
+- a temporary admin bootstrap endpoint accepts an existing username and a plaintext demo secret in the request body, verifies the fixed hard-coded demo secret, and grants that registered user manager status;
+- the bootstrap secret MUST NOT appear in events, logs, metrics, responses, or committed documentation, and the demo endpoint and fixed secret MUST be removed or hardened before production enablement.
 
 The permission catalog includes:
 
@@ -475,14 +477,13 @@ The permission catalog includes:
 - `job.cancel-any`
 - `history.view-context`
 - `history.view-workspace`
-- `sensitive-path.view`
 - `sensitive-error.view`
 - `backup.cleanup`
 - any future `backup.restore`
 
-Authorization for Scan and Processing actions is a domain decision made in topics against actor, assigned roles/permissions, client/workspace, roll, operation, and resource. It is not ASP.NET endpoint authorization. The HTTP layer maps durable rejection facts to the appropriate response but does not make the authoritative permission decision. Operation-specific responses MUST still redact sensitive paths and diagnostics unless the actor has the corresponding permission.
+Authorization for Scan and Processing actions is a domain decision made in topics against actor, assigned roles/permissions, client/workspace, roll, operation, and resource. It is not ASP.NET endpoint authorization. The HTTP layer maps durable rejection facts to the appropriate response but does not make the authoritative permission decision. Full informational paths may be returned by the scoped contracts described in Section 7. Restricted diagnostics still require the corresponding permission.
 
-QueryHub subscriptions remain identity-independent by Totem design and MUST NOT be treated as authorization or as evidence that a caller may retrieve or mutate the referenced resource. General HTTP fetch-endpoint authorization may be added later without changing QueryHub. Registration and role assignment MUST be governed so a user cannot grant themselves operation authority.
+QueryHub subscriptions remain identity-independent by Totem design and MUST NOT be treated as authorization or as evidence that a caller may retrieve or mutate the referenced resource. General HTTP fetch-endpoint authorization and backend enforcement for role-management endpoints may be added later without changing QueryHub. The temporary demo role-management and bootstrap posture is explicitly not production-ready.
 
 Audit records retain at least:
 
@@ -557,7 +558,7 @@ Operations owns:
 - recovery and reconciliation runbooks;
 - retention execution and evidence.
 
-Logs and metrics correlate by scan ID, plan ID, job ID, client ID, row ID, roll ID, and diagnostic correlation ID without disclosing sensitive paths to unauthorized operators.
+Logs and metrics correlate by scan ID, plan ID, job ID, client ID, row ID, roll ID, and diagnostic correlation ID. The bootstrap secret and credentials are never logged.
 
 ## 19. Recovery policy
 
@@ -574,7 +575,7 @@ The frontend can retrieve active work by captured row/roll/workspace and reconne
 
 ## 20. Delivery sequence
 
-1. **Security and Operations foundation:** production identity, manager-assigned roles and permissions, worker service identity, root configuration, ACLs, redaction, logs, metrics.
+1. **Security and Operations foundation:** production identity, manager-defined roles and global assignments, worker service identity, root configuration, ACLs, redaction, logs, metrics.
 2. **Contracts and roll state:** durable scan state/version, operation context, errors, OpenAPI, deterministic fixtures, contract tests.
 3. **Scan vertical slice:** discovery, idempotent Start, async folder creation, Finish, Abandon, audit, restart and collision tests.
 4. **Shared processing platform:** resource references, Preview plans, Apply, leases, durable jobs, cancellation, paging, history, recovery.
@@ -589,7 +590,8 @@ Start, Finish, Preview, and Apply remain disabled in production until all applic
 
 - machine-readable contracts and deterministic frontend fixtures;
 - Boolean, enum, version, error, and pagination contract tests;
-- authorization tests for manager role assignment, operation permissions, row/workspace scope, and sensitive data boundaries;
+- contract tests for manager-defined roles, global assignments, bootstrap success/failure, and secret non-disclosure;
+- authorization tests for Scan/Processing operation permissions, row/workspace scope, and sensitive diagnostic boundaries;
 - QueryHub subscription and reconnect tests that preserve Totem's identity-independent ETag behavior and HTTP refetch fallback;
 - traversal, reparse point/junction/symlink, UNC, normalization, and root-escape tests;
 - idempotency tests covering a lost response after durable acceptance;
@@ -613,7 +615,7 @@ Reviewers should edit this section rather than treating silence as approval.
 | --- | --- | --- |
 | Product | Editable scan folder names; collision failure; file checks at Finish; Frames separate-root UX; exact QPF setting meanings | Pending |
 | Backend | Roll state machine; mapping resource; DTOs; stream/version model; idempotency scope; lease and recovery implementation | Pending |
-| Security | Registered-user identity; manager role assignment; permission catalog; bootstrap/revocation behavior; path visibility; service identity; registration policy; audit/redaction | Pending |
+| Security | Registered-user identity; future role-management hardening; bootstrap removal/replacement; revocation behavior; service identity; registration policy; audit/redaction | Demo policy accepted; production hardening pending |
 | Operations | Approved roots and ACLs; service account/gMSA; retention; backups; monitoring; stuck-job and reconciliation runbooks | Pending |
 | QA | Contract, security, filesystem fault, concurrency, restart, and target-host evidence plan | Pending |
 
