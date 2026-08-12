@@ -20,6 +20,17 @@ namespace Quantum.Web.ScanProcessing
     public const string JobTerminal = "JOB_TERMINAL";
     public const string IdempotencyKeyRequired = "IDEMPOTENCY_KEY_REQUIRED";
     public const string IdempotencyKeyMismatch = "IDEMPOTENCY_KEY_MISMATCH";
+    public const string PhysicalConfigurationRequired = "DEMO_PHYSICAL_CONFIGURATION_REQUIRED";
+    public const string ScanFolderCollision = "SCAN_FOLDER_COLLISION";
+    public const string ScanFolderUnavailable = "SCAN_FOLDER_UNAVAILABLE";
+    public const string IdfNotFound = "IDF_NOT_FOUND";
+    public const string IdfAmbiguous = "IDF_AMBIGUOUS";
+    public const string IdfInvalid = "IDF_INVALID";
+    public const string QpfNotFound = "QPF_NOT_FOUND";
+    public const string QpfAmbiguous = "QPF_AMBIGUOUS";
+    public const string QpfInvalid = "QPF_INVALID";
+    public const string QpfMutationFailed = "QPF_MUTATION_FAILED";
+    public const string DurableImageCountFailed = "DURABLE_IMAGE_COUNT_FAILED";
   }
 
   public sealed class ScanProcessingDemoDiscoveryResponse
@@ -77,7 +88,14 @@ namespace Quantum.Web.ScanProcessing
     string Status,
     string FolderName,
     string Notes,
-    DateTimeOffset AcceptedAt);
+    DateTimeOffset AcceptedAt,
+    string InformationalFullPath);
+
+  public sealed record FinishScanProcessingDemoResponse(
+    OperationRowContext Context,
+    ScanProcessingDemoScan Scan,
+    int ImageCount,
+    string IdfFileName);
 
   public sealed class PreviewQpfSettingsDemoRequest
   {
@@ -122,7 +140,24 @@ namespace Quantum.Web.ScanProcessing
     ScanProcessingDemoJobStatus Status,
     int PercentComplete,
     DateTimeOffset AcceptedAt,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt,
+    ScanProcessingDemoQpfApplyResult QpfApply);
+
+  public sealed record ScanProcessingDemoQpfApplyResult(
+    string QpfFileName,
+    string BackupFileName,
+    int UpdatedDetectionSettings);
+
+  public sealed record ScanProcessingDemoPlanExecution(
+    string Purpose,
+    string RollId,
+    string RowId,
+    string FolderPath,
+    IReadOnlyDictionary<string, string> Settings);
+
+  public sealed record ScanProcessingDemoIdfInspection(
+    int ImageCount,
+    string IdfFileName);
 
   public sealed record ScanProcessingDemoResetResponse(
     bool Demo,

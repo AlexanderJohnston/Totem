@@ -2,7 +2,12 @@ using System;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Outermind.Microfilm;
+using Outermind.Microfilm.Queries;
 using Quantum.Web.ScanProcessing;
+using Totem;
+using Totem.Timeline.Client;
+using Totem.Timeline.Mvc;
+using static Totem.Timeline.FlowCall;
 
 namespace Quantum.Web.Controllers
 {
@@ -19,15 +24,24 @@ namespace Quantum.Web.Controllers
     readonly ScanProcessingDemoStore _store;
     readonly ScanProcessingDemoOptions _options;
     readonly IRegisteredScanProcessingActorResolver _actors;
+    readonly ScanProcessingDemoPhysicalWorkflow _physical;
+    readonly ICommandServer _commands;
+    readonly IQueryDb _queryDb;
 
     public ScanProcessingDemoController(
       ScanProcessingDemoStore store,
       IOptions<ScanProcessingDemoOptions> options,
-      IRegisteredScanProcessingActorResolver actors)
+      IRegisteredScanProcessingActorResolver actors,
+      ScanProcessingDemoPhysicalWorkflow physical,
+      ICommandServer commands,
+      IQueryDb queryDb)
     {
       _store = store;
       _options = options.Value;
       _actors = actors;
+      _physical = physical;
+      _commands = commands;
+      _queryDb = queryDb;
     }
 
     [HttpGet("rolls/{rollId}/rows/{rowId}/discovery")]
@@ -47,18 +61,47 @@ namespace Quantum.Web.Controllers
     }
 
     [HttpPost("rolls/{rollId}/rows/{rowId}/scan/start")]
-    public IActionResult Start(string rollId, string rowId, [FromBody] StartScanDemoRequest request)
+    public async System.Threading.Tasks.Task<IActionResult> Start(
+      string rollId,
+      string rowId,
+      [FromBody] StartScanDemoRequest request)
     {
       if(!TryBegin(out var actorId, out var error) || !ValidScope(rollId, rowId, out error))
       {
         return error;
       }
 
-      return Map(_store.Start(actorId, rollId, rowId, request));
+      if(_physical.Enabled && !await CanonicalRowExists(rollId, rowId))
+      {
+        return NotFound(Issue(
+          "ROW_NOT_FOUND",
+          "The physical demo requires a canonical row owned by the requested roll.",
+          "rowId"));
+      }
+
+      var started = _store.Start(actorId, rollId, rowId, request);
+      if(!started.Succeeded || !_physical.Enabled || !string.IsNullOrWhiteSpace(started.Value.Scan.InformationalFullPath))
+      {
+        return Map(started);
+      }
+
+      var folder = _physical.CreateScanFolder(started.Value.Scan.FolderName);
+      if(!folder.Succeeded)
+      {
+        _store.FailStart(actorId, rollId, rowId, started.Value.Scan.ScanId);
+        return Map(folder);
+      }
+
+      return Map(_store.AttachScanFolder(
+        actorId,
+        rollId,
+        rowId,
+        started.Value.Scan.ScanId,
+        folder.Value));
     }
 
     [HttpPost("rolls/{rollId}/rows/{rowId}/scans/{scanId}/finish")]
-    public IActionResult Finish(
+    public async System.Threading.Tasks.Task<IActionResult> Finish(
       string rollId,
       string rowId,
       string scanId,
@@ -69,7 +112,96 @@ namespace Quantum.Web.Controllers
         return error;
       }
 
-      return Map(_store.Finish(actorId, rollId, rowId, scanId, request));
+      if(!_physical.Enabled)
+      {
+        return Map(_store.Finish(actorId, rollId, rowId, scanId, request));
+      }
+
+      var validation = _store.ValidateFinish(actorId, rollId, rowId, scanId, request);
+      if(!validation.Succeeded)
+      {
+        return Map(validation);
+      }
+
+      if(_store.TryReplayPhysicalFinish(actorId, scanId, request, out var replay))
+      {
+        return StatusCode(202, replay);
+      }
+
+      if(!_store.TryGetActiveScanFolder(actorId, rollId, rowId, scanId, out var folderPath))
+      {
+        return Conflict(Issue(
+          ScanProcessingDemoIssueCodes.ScanFolderUnavailable,
+          "The active physical demo scan folder is unavailable for this actor and row.",
+          "scanId"));
+      }
+
+      var inspection = _physical.InspectIdf(folderPath);
+      if(!inspection.Succeeded)
+      {
+        return Map(inspection);
+      }
+
+      var roll = Id.From(rollId);
+      var lookup = await _queryDb.ReadQuery<RollMicrofilmLookupQuery>();
+      if(!lookup.TryGetRoll(roll, out var knownRoll))
+      {
+        return NotFound(Issue("ROLL_NOT_FOUND", "The canonical roll was not found.", "rollId"));
+      }
+
+      var rowQuery = await _queryDb.ReadQuery<RollMicrofilmRowQuery>(RollMicrofilmRowQuery.CreateId(roll, rowId));
+      if(rowQuery.Row == null || Id.From(rowQuery.Row.RollId) != roll)
+      {
+        return NotFound(Issue("ROW_NOT_FOUND", "The canonical row was not found for this roll.", "rowId"));
+      }
+
+      var auditActor = new MicrofilmAuditActorStamp(
+        "identified",
+        actorId,
+        null,
+        "scan-processing-demo");
+
+      return await _commands.Execute(
+        new UpdateRollMicrofilmRowCell(
+          roll,
+          knownRoll.ClientId,
+          rowId,
+          rowQuery.Row.Origin,
+          "imageCount",
+          MicrofilmCellValue.FromNumber(inspection.Value.ImageCount),
+          auditActor),
+        When<RollMicrofilmRowCellChanged>.Then(_ =>
+        {
+          var finished = _store.Finish(actorId, rollId, rowId, scanId, request);
+          if(!finished.Succeeded)
+          {
+            return Map(finished);
+          }
+
+          var response = new FinishScanProcessingDemoResponse(
+              finished.Value.Context,
+              finished.Value.Scan,
+              inspection.Value.ImageCount,
+              inspection.Value.IdfFileName);
+          _store.RememberPhysicalFinish(actorId, scanId, request, response);
+          return StatusCode(202, response);
+        }),
+        When<RollMicrofilmTableRollNotRecognized>.Then(_ => NotFound(Issue(
+          "ROLL_NOT_FOUND",
+          "The canonical roll was not recognized while recording imageCount.",
+          "rollId"))),
+        When<RollMicrofilmTableRowKindMismatch>.Then(_ => Conflict(Issue(
+          ScanProcessingDemoIssueCodes.DurableImageCountFailed,
+          "The row provenance changed while recording imageCount.",
+          "rowId"))),
+        When<MicrofilmTableRowNotRecognized>.Then(_ => NotFound(Issue(
+          "ROW_NOT_FOUND",
+          "The canonical row was not recognized while recording imageCount.",
+          "rowId"))),
+        When<MicrofilmTableCellValueRejected>.Then(_ => UnprocessableEntity(Issue(
+          ScanProcessingDemoIssueCodes.DurableImageCountFailed,
+          "The durable imageCount cell update was rejected.",
+          "imageCount"))));
     }
 
     [HttpPost("rolls/{rollId}/rows/{rowId}/processing/qpf-settings/preview")]
@@ -108,7 +240,9 @@ namespace Quantum.Web.Controllers
         return error;
       }
 
-      return Map(_store.Apply(actorId, planId, request));
+      Func<ScanProcessingDemoPlanExecution, ScanProcessingDemoResult<ScanProcessingDemoQpfApplyResult>> physicalApply =
+        _physical.Enabled ? _physical.ApplyQpfSettings : null;
+      return Map(_store.Apply(actorId, planId, request, physicalApply));
     }
 
     [HttpGet("jobs/{jobId}")]
@@ -207,6 +341,19 @@ namespace Quantum.Web.Controllers
       }
 
       return true;
+    }
+
+    async System.Threading.Tasks.Task<bool> CanonicalRowExists(string rollId, string rowId)
+    {
+      var roll = Id.From(rollId);
+      var lookup = await _queryDb.ReadQuery<RollMicrofilmLookupQuery>();
+      if(!lookup.TryGetRoll(roll, out _))
+      {
+        return false;
+      }
+
+      var row = await _queryDb.ReadQuery<RollMicrofilmRowQuery>(RollMicrofilmRowQuery.CreateId(roll, rowId));
+      return row.Row != null && Id.From(row.Row.RollId) == roll;
     }
 
     IActionResult Map<T>(ScanProcessingDemoResult<T> result)

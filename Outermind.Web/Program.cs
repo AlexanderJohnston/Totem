@@ -83,6 +83,7 @@ namespace Quantum.Web
           services.Configure<ScanProcessingDemoOptions>(context.Configuration.GetSection("ScanProcessingDemo"));
           services.AddSingleton<IScanProcessingDemoClock, SystemScanProcessingDemoClock>();
           services.AddSingleton<ScanProcessingDemoStore>();
+          services.AddSingleton<ScanProcessingDemoPhysicalWorkflow>();
           services.AddCors(options =>
             options.AddPolicy(CorsPolicyName, policy =>
               ConfigureCors(policy, context.Configuration)));

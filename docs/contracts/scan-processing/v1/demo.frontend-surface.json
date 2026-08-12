@@ -34,9 +34,16 @@
         "frames-paths"
       ],
       "qpfSettings": {
-        "polarity": "positive",
-        "compression": "lossless",
-        "rotation": "0"
+        "contrast": "64",
+        "brightness": "0",
+        "gamma": "0",
+        "sharpen": "0",
+        "auto-crop": "false",
+        "auto-deskew": "false",
+        "rotate": "0",
+        "flip": "0",
+        "save-grayscale": "true",
+        "save-bitonal": "false"
       },
       "qpf": {
         "id": "demo-ref-opaque-qpf",
@@ -74,9 +81,15 @@
     "previewQpfSettings": {
       "expectedResourceVersion": "rv1-use-latest-discovery-value",
       "settings": {
-        "polarity": "negative",
-        "compression": "lossless",
-        "rotation": "90"
+        "contrast": "72",
+        "brightness": "0",
+        "gamma": "-16",
+        "sharpen": "6",
+        "auto-crop": "true",
+        "auto-deskew": "true",
+        "rotate": "90",
+        "save-grayscale": "true",
+        "save-bitonal": "false"
       }
     },
     "previewFramesPaths": {
@@ -104,10 +117,33 @@
     "jobId": "demo-job-opaque",
     "planId": "demo-plan-opaque",
     "purpose": "qpf-settings",
-    "status": "queued",
-    "percentComplete": 0,
+    "status": "completed",
+    "percentComplete": 100,
     "acceptedAt": "2026-08-11T12:00:00Z",
-    "completedAt": null
+    "completedAt": "2026-08-11T12:00:00Z",
+    "qpfApply": {
+      "qpfFileName": "Roll_123.qpf",
+      "backupFileName": "Roll_123.qpf.demo-backup-20260811120000000",
+      "updatedDetectionSettings": 2
+    }
+  },
+  "physicalFinish": {
+    "context": {
+      "rollId": "roll-123",
+      "rowId": "row-456",
+      "scanState": "finishing",
+      "resourceVersion": "rv1-use-response-value"
+    },
+    "scan": {
+      "scanId": "demo-scan-opaque",
+      "status": "finishing",
+      "folderName": "Roll_123",
+      "notes": "Finished",
+      "acceptedAt": "2026-08-11T11:55:00Z",
+      "informationalFullPath": "C:\\TotemDemoScans\\Roll_123"
+    },
+    "imageCount": 3723,
+    "idfFileName": "Roll_123.idf"
   },
   "error": {
     "issues": [

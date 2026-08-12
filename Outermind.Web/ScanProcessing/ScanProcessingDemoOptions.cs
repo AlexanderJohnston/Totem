@@ -8,6 +8,8 @@ namespace Quantum.Web.ScanProcessing
     public bool AllowSyntheticActor { get; set; }
     public int TransitionDelayMilliseconds { get; set; } = 750;
     public int PlanLifetimeMinutes { get; set; } = 30;
+    public bool PhysicalWorkflowEnabled { get; set; }
+    public string PhysicalScanRoot { get; set; }
   }
 
   public interface IScanProcessingDemoClock

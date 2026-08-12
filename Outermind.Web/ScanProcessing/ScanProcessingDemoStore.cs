@@ -20,6 +20,7 @@ namespace Quantum.Web.ScanProcessing
     readonly Dictionary<string, PlanState> _plans = new(StringComparer.Ordinal);
     readonly Dictionary<string, JobState> _jobs = new(StringComparer.Ordinal);
     readonly Dictionary<string, IdempotentValue<ScanProcessingDemoScanResponse>> _scanRequests = new(StringComparer.Ordinal);
+    readonly Dictionary<string, IdempotentValue<FinishScanProcessingDemoResponse>> _physicalFinishRequests = new(StringComparer.Ordinal);
     readonly Dictionary<string, IdempotentValue<ScanProcessingDemoJobResponse>> _applyRequests = new(StringComparer.Ordinal);
 
     public ScanProcessingDemoStore(
@@ -129,13 +130,101 @@ namespace Quantum.Web.ScanProcessing
           "starting",
           request.FolderName.Trim(),
           row.LastNotes,
-          now);
+          now,
+          null);
         row.ScanActorId = actorId;
         row.ScanTransitionAt = now + TransitionDelay;
 
         var response = new ScanProcessingDemoScanResponse(Context(row), row.Scan);
         _scanRequests[idempotencyKey] = new IdempotentValue<ScanProcessingDemoScanResponse>(fingerprint, response);
         return ScanProcessingDemoResult<ScanProcessingDemoScanResponse>.Success(response, 202);
+      }
+    }
+
+    public ScanProcessingDemoResult<ScanProcessingDemoScanResponse> AttachScanFolder(
+      string actorId,
+      string rollId,
+      string rowId,
+      string scanId,
+      string informationalFullPath)
+    {
+      lock(_gate)
+      {
+        var row = GetOrCreateRow(rollId, rowId);
+        if(row.Scan == null || row.Scan.ScanId != scanId || row.ScanActorId != actorId)
+        {
+          return ScanProcessingDemoResult<ScanProcessingDemoScanResponse>.Failure(
+            ScanProcessingDemoIssueCodes.ScanNotFound,
+            "The demo scan was not found while attaching its folder.",
+            "scanId",
+            404);
+        }
+
+        row.Scan = row.Scan with { InformationalFullPath = informationalFullPath };
+        row.LatestFolderPath = informationalFullPath;
+        row.LatestFolderActorId = actorId;
+
+        foreach(var key in _scanRequests.Keys.ToList())
+        {
+          var request = _scanRequests[key];
+          if(request.Value.Scan.ScanId == scanId)
+          {
+            _scanRequests[key] = request with
+            {
+              Value = new ScanProcessingDemoScanResponse(request.Value.Context, row.Scan)
+            };
+          }
+        }
+
+        return ScanProcessingDemoResult<ScanProcessingDemoScanResponse>.Success(
+          new ScanProcessingDemoScanResponse(Context(row), row.Scan),
+          202);
+      }
+    }
+
+    public void FailStart(string actorId, string rollId, string rowId, string scanId)
+    {
+      lock(_gate)
+      {
+        var row = GetOrCreateRow(rollId, rowId);
+        if(row.Scan?.ScanId != scanId || row.ScanActorId != actorId || row.ScanState != RollScanState.Starting)
+        {
+          return;
+        }
+
+        row.Revision++;
+        row.ScanState = RollScanState.Idle;
+        row.Scan = null;
+        row.ScanActorId = null;
+        row.ScanTransitionAt = null;
+        row.LatestFolderPath = null;
+        row.LatestFolderActorId = null;
+
+        foreach(var key in _scanRequests.Keys
+          .Where(key => _scanRequests[key].Value.Scan.ScanId == scanId)
+          .ToList())
+        {
+          _scanRequests.Remove(key);
+        }
+      }
+    }
+
+    public bool TryGetActiveScanFolder(
+      string actorId,
+      string rollId,
+      string rowId,
+      string scanId,
+      out string folderPath)
+    {
+      lock(_gate)
+      {
+        var row = GetOrCreateRow(rollId, rowId);
+        Advance(row);
+        folderPath = row.LatestFolderPath;
+        return row.Scan?.ScanId == scanId
+          && row.ScanActorId == actorId
+          && row.ScanState == RollScanState.Active
+          && !string.IsNullOrWhiteSpace(folderPath);
       }
     }
 
@@ -205,6 +294,103 @@ namespace Quantum.Web.ScanProcessing
       }
     }
 
+    public ScanProcessingDemoResult<ScanProcessingDemoScanResponse> ValidateFinish(
+      string actorId,
+      string rollId,
+      string rowId,
+      string scanId,
+      FinishScanDemoRequest request)
+    {
+      lock(_gate)
+      {
+        if(request == null)
+        {
+          return Failure<ScanProcessingDemoScanResponse>("A request body is required.", "request");
+        }
+
+        if(string.IsNullOrWhiteSpace(request.IdempotencyKey))
+        {
+          return ScanProcessingDemoResult<ScanProcessingDemoScanResponse>.Failure(
+            ScanProcessingDemoIssueCodes.IdempotencyKeyRequired,
+            "An idempotency key is required.",
+            "idempotencyKey");
+        }
+
+        var row = GetOrCreateRow(rollId, rowId);
+        Advance(row);
+        var fingerprint = Join(request.ExpectedResourceVersion, scanId, request.Notes);
+        var idempotencyKey = Join("scan-finish", actorId, request.IdempotencyKey);
+        if(_scanRequests.TryGetValue(idempotencyKey, out var previous))
+        {
+          return previous.Fingerprint == fingerprint
+            ? ScanProcessingDemoResult<ScanProcessingDemoScanResponse>.Success(previous.Value, 202)
+            : IdempotencyMismatch<ScanProcessingDemoScanResponse>();
+        }
+
+        if(request.ExpectedResourceVersion != ResourceVersion(row))
+        {
+          return Stale<ScanProcessingDemoScanResponse>();
+        }
+
+        if(row.Scan == null || row.Scan.ScanId != scanId || row.ScanActorId != actorId)
+        {
+          return ScanProcessingDemoResult<ScanProcessingDemoScanResponse>.Failure(
+            ScanProcessingDemoIssueCodes.ScanNotFound,
+            "The active demo scan was not found for this actor and row.",
+            "scanId",
+            404);
+        }
+
+        if(row.ScanState != RollScanState.Active)
+        {
+          return Ineligible<ScanProcessingDemoScanResponse>("Only an active scan can be finished.");
+        }
+
+        return ScanProcessingDemoResult<ScanProcessingDemoScanResponse>.Success(
+          new ScanProcessingDemoScanResponse(Context(row), row.Scan));
+      }
+    }
+
+    public bool TryReplayPhysicalFinish(
+      string actorId,
+      string scanId,
+      FinishScanDemoRequest request,
+      out FinishScanProcessingDemoResponse response)
+    {
+      lock(_gate)
+      {
+        response = null;
+        if(request == null || string.IsNullOrWhiteSpace(request.IdempotencyKey))
+        {
+          return false;
+        }
+
+        var key = Join("physical-scan-finish", actorId, request.IdempotencyKey);
+        var fingerprint = Join(request.ExpectedResourceVersion, scanId, request.Notes);
+        if(!_physicalFinishRequests.TryGetValue(key, out var previous) || previous.Fingerprint != fingerprint)
+        {
+          return false;
+        }
+
+        response = previous.Value;
+        return true;
+      }
+    }
+
+    public void RememberPhysicalFinish(
+      string actorId,
+      string scanId,
+      FinishScanDemoRequest request,
+      FinishScanProcessingDemoResponse response)
+    {
+      lock(_gate)
+      {
+        var key = Join("physical-scan-finish", actorId, request.IdempotencyKey);
+        var fingerprint = Join(request.ExpectedResourceVersion, scanId, request.Notes);
+        _physicalFinishRequests[key] = new IdempotentValue<FinishScanProcessingDemoResponse>(fingerprint, response);
+      }
+    }
+
     public ScanProcessingDemoResult<ScanProcessingDemoPreviewResponse> PreviewQpf(
       string actorId,
       string rollId,
@@ -213,9 +399,21 @@ namespace Quantum.Web.ScanProcessing
     {
       var allowedSettings = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
       {
-        "polarity",
-        "compression",
-        "rotation"
+        "contrast",
+        "brightness",
+        "gamma",
+        "sharpen",
+        "auto-crop",
+        "auto-deskew",
+        "rotate",
+        "flip",
+        "save-grayscale",
+        "save-bitonal",
+        "grayscale-format",
+        "bitonal-format",
+        "crop-border",
+        "crop-threshold",
+        "deskew-quality"
       };
       var invalidSetting = request?.Settings?.Keys.FirstOrDefault(key => !allowedSettings.Contains(key));
       if(invalidSetting != null)
@@ -282,7 +480,8 @@ namespace Quantum.Web.ScanProcessing
     public ScanProcessingDemoResult<ScanProcessingDemoJobResponse> Apply(
       string actorId,
       string planId,
-      ApplyScanProcessingDemoPlanRequest request)
+      ApplyScanProcessingDemoPlanRequest request,
+      Func<ScanProcessingDemoPlanExecution, ScanProcessingDemoResult<ScanProcessingDemoQpfApplyResult>> physicalApply = null)
     {
       lock(_gate)
       {
@@ -347,16 +546,53 @@ namespace Quantum.Web.ScanProcessing
             409);
         }
 
+        ScanProcessingDemoQpfApplyResult qpfApply = null;
+        if(physicalApply != null && plan.Purpose == "qpf-settings")
+        {
+          if(row.LatestFolderActorId != actorId || string.IsNullOrWhiteSpace(row.LatestFolderPath))
+          {
+            return ScanProcessingDemoResult<ScanProcessingDemoJobResponse>.Failure(
+              ScanProcessingDemoIssueCodes.ScanFolderUnavailable,
+              "No completed physical demo scan folder is available for this actor and row.",
+              "scanFolder",
+              409);
+          }
+
+          var physical = physicalApply(new ScanProcessingDemoPlanExecution(
+            plan.Purpose,
+            plan.RollId,
+            plan.RowId,
+            row.LatestFolderPath,
+            plan.QpfSettings));
+          if(!physical.Succeeded)
+          {
+            return ScanProcessingDemoResult<ScanProcessingDemoJobResponse>.Failure(
+              physical.Issue.Code,
+              physical.Issue.Message,
+              physical.Issue.Field,
+              physical.StatusCode);
+          }
+
+          qpfApply = physical.Value;
+        }
+
         var now = _clock.UtcNow;
         var job = new JobState
         {
           JobId = $"demo-job-{Guid.NewGuid():N}",
           Plan = plan,
-          Status = ScanProcessingDemoJobStatus.Queued,
+          Status = qpfApply == null ? ScanProcessingDemoJobStatus.Queued : ScanProcessingDemoJobStatus.Completed,
           AcceptedAt = now,
-          NextTransitionAt = now + TransitionDelay
+          NextTransitionAt = now + TransitionDelay,
+          CompletedAt = qpfApply == null ? null : now,
+          QpfApply = qpfApply
         };
         _jobs[job.JobId] = job;
+
+        if(qpfApply != null)
+        {
+          ApplyCompletedSettings(job);
+        }
 
         var response = JobResponse(job);
         _applyRequests[idempotencyKey] = new IdempotentValue<ScanProcessingDemoJobResponse>(fingerprint, response);
@@ -419,6 +655,7 @@ namespace Quantum.Web.ScanProcessing
         _plans.Clear();
         _jobs.Clear();
         _scanRequests.Clear();
+        _physicalFinishRequests.Clear();
         _applyRequests.Clear();
         return new ScanProcessingDemoResetResponse(true, _clock.UtcNow);
       }
@@ -531,13 +768,19 @@ namespace Quantum.Web.ScanProcessing
 
       job.Status = ScanProcessingDemoJobStatus.Completed;
       job.CompletedAt = now;
+      ApplyCompletedSettings(job);
+    }
 
-      if(job.Plan.Purpose == "qpf-settings" && job.Plan.QpfSettings != null)
+    void ApplyCompletedSettings(JobState job)
+    {
+      if(job.Plan.Purpose != "qpf-settings" || job.Plan.QpfSettings == null)
       {
-        var row = GetOrCreateRow(job.Plan.RollId, job.Plan.RowId);
-        row.QpfSettings = new Dictionary<string, string>(job.Plan.QpfSettings, StringComparer.OrdinalIgnoreCase);
-        row.Revision++;
+        return;
       }
+
+      var row = GetOrCreateRow(job.Plan.RollId, job.Plan.RowId);
+      row.QpfSettings = new Dictionary<string, string>(job.Plan.QpfSettings, StringComparer.OrdinalIgnoreCase);
+      row.Revision++;
     }
 
     RowState GetOrCreateRow(string rollId, string rowId)
@@ -555,9 +798,16 @@ namespace Quantum.Web.ScanProcessing
         Revision = 1,
         QpfSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-          ["polarity"] = "positive",
-          ["compression"] = "lossless",
-          ["rotation"] = "0"
+          ["contrast"] = "64",
+          ["brightness"] = "0",
+          ["gamma"] = "0",
+          ["sharpen"] = "0",
+          ["auto-crop"] = "false",
+          ["auto-deskew"] = "false",
+          ["rotate"] = "0",
+          ["flip"] = "0",
+          ["save-grayscale"] = "true",
+          ["save-bitonal"] = "false"
         }
       };
       _rows[key] = row;
@@ -601,7 +851,8 @@ namespace Quantum.Web.ScanProcessing
           _ => 100
         },
         job.AcceptedAt,
-        job.CompletedAt);
+        job.CompletedAt,
+        job.QpfApply);
 
     TimeSpan TransitionDelay => TimeSpan.FromMilliseconds(Math.Max(1, _options.TransitionDelayMilliseconds));
 
@@ -667,6 +918,8 @@ namespace Quantum.Web.ScanProcessing
       public DateTimeOffset? ScanTransitionAt { get; set; }
       public string LastNotes { get; set; }
       public Dictionary<string, string> QpfSettings { get; set; }
+      public string LatestFolderPath { get; set; }
+      public string LatestFolderActorId { get; set; }
     }
 
     sealed class PlanState
@@ -690,6 +943,7 @@ namespace Quantum.Web.ScanProcessing
       public DateTimeOffset AcceptedAt { get; set; }
       public DateTimeOffset NextTransitionAt { get; set; }
       public DateTimeOffset? CompletedAt { get; set; }
+      public ScanProcessingDemoQpfApplyResult QpfApply { get; set; }
     }
 
     sealed record IdempotentValue<T>(string Fingerprint, T Value);
