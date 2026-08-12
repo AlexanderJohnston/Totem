@@ -1,0 +1,123 @@
+{
+  "contract": "scan-processing-demo-frontend-surface",
+  "version": 1,
+  "disposable": true,
+  "discovery": {
+    "demo": true,
+    "context": {
+      "clientId": "demo-client",
+      "rowId": "row-456",
+      "origin": "regular",
+      "rollId": "roll-123",
+      "rollName": "Demo roll roll-123",
+      "isScanning": false,
+      "scanState": "idle",
+      "resourceVersion": "rv1-0000000000000001",
+      "eligibleActions": [
+        "scan",
+        "process"
+      ]
+    },
+    "scan": {
+      "parent": {
+        "id": "demo-ref-opaque-value-from-discovery",
+        "kind": "scan-parent",
+        "label": "Demo Scan parent",
+        "informationalFullPath": "demo://configured-storage/opaque-scope/scan-parent"
+      },
+      "suggestedFolderName": "roll-123-row-456",
+      "notes": null
+    },
+    "processing": {
+      "availablePreviews": [
+        "qpf-settings",
+        "frames-paths"
+      ],
+      "qpfSettings": {
+        "polarity": "positive",
+        "compression": "lossless",
+        "rotation": "0"
+      },
+      "qpf": {
+        "id": "demo-ref-opaque-qpf",
+        "kind": "qpf",
+        "label": "Demo QPF",
+        "informationalFullPath": "demo://configured-storage/opaque-scope/qpf"
+      },
+      "grayscaleFrames": {
+        "id": "demo-ref-opaque-grayscale",
+        "kind": "frames-grayscale",
+        "label": "Demo grayscale Frames",
+        "informationalFullPath": "demo://configured-storage/opaque-scope/frames-grayscale"
+      },
+      "bitonalFrames": {
+        "id": "demo-ref-opaque-bitonal",
+        "kind": "frames-bitonal",
+        "label": "Demo bitonal Frames",
+        "informationalFullPath": "demo://configured-storage/opaque-scope/frames-bitonal"
+      }
+    }
+  },
+  "requests": {
+    "start": {
+      "expectedResourceVersion": "rv1-0000000000000001",
+      "parentResourceRefId": "demo-ref-opaque-value-from-discovery",
+      "folderName": "Roll_123",
+      "notes": "Morning demo",
+      "idempotencyKey": "start-row-456-1"
+    },
+    "finish": {
+      "expectedResourceVersion": "rv1-use-latest-discovery-value",
+      "notes": "Finished",
+      "idempotencyKey": "finish-row-456-1"
+    },
+    "previewQpfSettings": {
+      "expectedResourceVersion": "rv1-use-latest-discovery-value",
+      "settings": {
+        "polarity": "negative",
+        "compression": "lossless",
+        "rotation": "90"
+      }
+    },
+    "previewFramesPaths": {
+      "expectedResourceVersion": "rv1-use-latest-discovery-value",
+      "grayscaleResourceRefId": "demo-ref-opaque-grayscale",
+      "bitonalResourceRefId": "demo-ref-opaque-bitonal"
+    },
+    "apply": {
+      "expectedPlanVersion": "pv1-use-preview-value",
+      "acknowledgedIssueCodes": [],
+      "idempotencyKey": "apply-row-456-1"
+    }
+  },
+  "preview": {
+    "planId": "demo-plan-opaque",
+    "planVersion": "pv1-opaque",
+    "purpose": "qpf-settings",
+    "expiresAt": "2026-08-11T13:00:00Z",
+    "effects": [
+      "Update the demo QPF settings shown for this row."
+    ],
+    "issues": []
+  },
+  "job": {
+    "jobId": "demo-job-opaque",
+    "planId": "demo-plan-opaque",
+    "purpose": "qpf-settings",
+    "status": "queued",
+    "percentComplete": 0,
+    "acceptedAt": "2026-08-11T12:00:00Z",
+    "completedAt": null
+  },
+  "error": {
+    "issues": [
+      {
+        "code": "RESOURCE_VERSION_STALE",
+        "severity": "error",
+        "message": "The demo row changed. Refresh discovery and try again.",
+        "field": "expectedResourceVersion",
+        "correlationId": "request-trace-id"
+      }
+    ]
+  }
+}

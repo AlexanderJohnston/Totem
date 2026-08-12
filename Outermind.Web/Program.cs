@@ -69,6 +69,20 @@ namespace Quantum.Web
           services.Configure<ScanProcessingAccessOptions>(context.Configuration.GetSection("ScanProcessingAccess"));
           services.AddSingleton<IRegisteredScanProcessingActorResolver, RegisteredScanProcessingActorResolver>();
           services.AddSingleton<IDemoBootstrapSecretValidator, DemoBootstrapSecretValidator>();
+          var scanProcessingDemo = context.Configuration
+            .GetSection("ScanProcessingDemo")
+            .Get<ScanProcessingDemoOptions>() ?? new ScanProcessingDemoOptions();
+
+          if(scanProcessingDemo.Enabled
+            && string.Equals(context.HostingEnvironment.EnvironmentName, "Production", StringComparison.OrdinalIgnoreCase))
+          {
+            throw new InvalidOperationException(
+              "ScanProcessingDemo cannot be enabled in the Production environment.");
+          }
+
+          services.Configure<ScanProcessingDemoOptions>(context.Configuration.GetSection("ScanProcessingDemo"));
+          services.AddSingleton<IScanProcessingDemoClock, SystemScanProcessingDemoClock>();
+          services.AddSingleton<ScanProcessingDemoStore>();
           services.AddCors(options =>
             options.AddPolicy(CorsPolicyName, policy =>
               ConfigureCors(policy, context.Configuration)));
