@@ -1,7 +1,7 @@
 # Scan and Processing Backend Policy
 
 Status: Draft for Backend, Product, Security, and Operations review  
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 Frontend baseline: `406b352d996f101350a48d2636625ff312c6be12`
 
 ## 1. Purpose and scope
@@ -113,6 +113,8 @@ The frontend supplies `rollId + rowId`. The backend verifies that the row belong
 Each client/workspace has exactly one active logical storage binding in Version 1. The binding may expose the distinct Scan parent, QPF, grayscale Frames, and bitonal Frames capabilities; capabilities may intentionally resolve beneath the same approved root. Domain state stores only the stable binding ID and configuration generation, never the physical root.
 
 Developer-admin API commands create or activate a client's binding ID, generation, labels, and capability set. `Quantum.Service` configuration maps that same binding ID and generation to the physical root. Activating a different binding or generation invalidates outstanding discoveries and plans. The Server entity does not participate in this mapping.
+
+Current implementation note: work package 4 now provides one client-routed durable logical-binding stream per Version 1 workspace. Create generates the stable binding ID on the server. Activation requires the current workspace `storageRevision` and exactly the next configuration generation for that binding; repeating the already-active pair is durably unchanged. Switching back to a previously active binding therefore requires its next generation and cannot revive an older reference. This is logical configuration evidence only; Operations mapping and all physical resolution remain unimplemented.
 
 ## 5. Scan policy
 
@@ -251,6 +253,8 @@ An authorized resource reference:
 - MAY expose a full display path as informational output in a deliberately workspace-scoped query or operation result so a user can check completed work; that path never becomes operation authority or valid path input.
 
 Version 1 resource references do not expire automatically. Future automatic expiry may be added without changing the rule that use-time authorization and binding-generation validation are required.
+
+Work package 4 defines the server-side Version 1 reference record and deterministic use-time validator. The authoritative record is bound to actor ID, exact resolved scope, purpose, permission, access revision, active binding, configuration generation, and one logical capability. The browser will later submit only the opaque reference ID. Package 4 does not issue references from a public discovery route and does not resolve informational paths; those operation and worker boundaries remain later packages.
 
 Storage policy:
 
@@ -521,6 +525,7 @@ Initial stable codes:
 | Authorization | `FORBIDDEN_OPERATION`, `FORBIDDEN_RESOURCE`, `SENSITIVE_VALUE_REDACTED` |
 | Validation | `INVALID_FIELD`, `UNSUPPORTED_SETTING`, `SETTING_OUT_OF_RANGE`, `SETTING_COMBINATION_INVALID`, `SCHEMA_VERSION_UNSUPPORTED` |
 | Resource/path | `RESOURCE_REF_EXPIRED`, `RESOURCE_VERSION_STALE`, `RESOURCE_LOCKED`, `ROOT_UNAVAILABLE`, `PATH_POLICY_VIOLATION`, `RESOURCE_COLLISION` |
+| Logical storage binding | `STORAGE_BINDING_CLIENT_NOT_FOUND`, `STORAGE_BINDING_INVALID_REQUEST`, `STORAGE_BINDING_INVALID_LABEL`, `STORAGE_BINDING_INVALID_CAPABILITIES`, `STORAGE_BINDING_ALREADY_EXISTS`, `STORAGE_BINDING_NOT_FOUND`, `STORAGE_BINDING_REVISION_STALE`, `STORAGE_CONFIGURATION_GENERATION_STALE` |
 | Files | `SOURCE_NOT_FOUND`, `SOURCE_AMBIGUOUS`, `SOURCE_MALFORMED`, `BACKUP_FAILED`, `STAGING_FAILED`, `ATOMIC_REPLACE_FAILED` |
 | Plan/job | `PLAN_EXPIRED`, `PLAN_VERSION_STALE`, `PLAN_ACK_REQUIRED`, `JOB_NOT_FOUND`, `JOB_RETIRED`, `CANCEL_NOT_ALLOWED` |
 | Idempotency | `IDEMPOTENCY_RECONCILED`, `IDEMPOTENCY_KEY_MISMATCH`, `IDEMPOTENCY_RECORD_RETIRED` |

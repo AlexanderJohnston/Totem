@@ -1,203 +1,444 @@
-# Scan and Processing Backend Implementation Handoff Prompt
+# Scan and Processing Backend — Package 5 Handoff Prompt
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
-Use this document to resume Miller Scan and Processing backend work in a fresh context at:
+Use this prompt to continue Miller Scan and Processing backend work in a fresh session at:
 
 ```text
 C:\Users\ajohnston\Desktop\Refactor\Totem
 ```
 
-## Required reading order
+## Objective
 
-Read these documents completely before editing code:
+Preserve and verify the completed-but-uncommitted package 3 and package 4 implementations, then implement only the smallest coherent package 5 slice: durable Start Scan acceptance without folder creation.
 
-1. `docs/SCAN_AND_PROCESSING_BACKEND_IMPLEMENTATION_HANDOFF_PROMPT.md`
-2. `docs/SCAN_AND_PROCESSING_BACKEND_POLICY.md` — authoritative behavior and safety policy
-3. `docs/SCAN_AND_PROCESSING_BACKEND_IMPLEMENTATION_STATUS.md` — completed implementation and verification evidence
-4. `docs/SCAN_AND_PROCESSING_NEXT_STEPS_PLAN.md` — proposed sequence, open decisions, and package boundaries
-5. `docs/contracts/scan-processing/v1/README.md` — implemented operation-context contract
-
-`docs/SCAN_AND_PROCESSING_RECOMMENDED_BACKEND_PLAN.md` is supporting architectural background. Where documents differ, the policy wins; where a proposed plan conflicts with current code or status evidence, verify the repository and update the documentation rather than assuming either is current.
-
-## Current checkpoint
-
-Verify this checkpoint at the start of the session; do not treat it as a substitute for `git status`, `git log`, or reading the code.
-
-- Expected branch at handoff preparation: `user-auth`.
-- Work package 1 is committed as `c4815cb Retire client-scoped microfilm rows`.
-- Work package 2 is committed as `cb03223 Add durable roll operation context`.
-- Work package 1 removed legacy client-scoped row routes and compatibility behavior.
-- Work package 2 added the read-only durable roll operation context, scan-state projection, JSON Boolean `isScanning`, and business `resourceVersion`.
-- Start, Finish, Preview, Apply, role/permission topics, storage-binding code, idempotency, worker execution, recovery, and production enablement are not implemented.
-- The policy, status, recommended plan, this handoff, and the next-steps plan were prepared as a separate documentation continuation after work package 2. Verify the actual commit/worktree state before doing more work.
-- The recorded broad test baseline is 121 passing and 2 unrelated existing failures; re-run relevant tests rather than presenting this historical result as fresh evidence.
-
-The user previously supplied an EventStoreDB instance for development. Check whether it is already running before starting another instance; do not assume the old process state is still current.
-
-## Resume objective and stop boundary
-
-Continue after completed work package 2. The next implementation target is the smallest coherent portion of work package 3: durable role definitions, assignments, permissions, and topic-owned authorization decisions. Keep it independent of filesystem work.
-
-Then proceed only in the small verified packages listed below. Do not compress role authority, storage configuration, Start acceptance, filesystem mutation, and recovery into one demo change.
-
-Unless the user explicitly expands the scope, stop before:
-
-- any real local or UNC filesystem mutation;
-- production mutation enablement;
-- QPF or Frames Apply;
-- claims of recovery, multi-instance, target-host, or Windows-service qualification.
-
-QueryHub protection is not a work item. Totem intentionally provides identity-independent ETag subscriptions. Do not add subscription authorization or replace QueryHub. General HTTP fetch-endpoint authorization is also deferred.
-
-## Settled domain and infrastructure decisions
-
-Carry these decisions forward without reopening them:
-
-1. Canonical operation identity is `rollId + rowId`.
-2. The frontend does not provide names, client IDs, box IDs, workspace IDs, cell values, roles, permissions, or filesystem paths as operation authority.
-3. The backend resolves the canonical roll, box, client/workspace, and roll name from `rollId`, then verifies that `rowId` belongs to the roll.
-4. For Version 1, a client is the workspace and `workspaceId` is the resolved `clientId`.
-5. Each client/workspace has exactly one active logical storage binding. The binding may contain distinct Scan-parent, QPF, grayscale-Frames, and bitonal-Frames capabilities, even when capabilities resolve beneath the same root.
-6. The existing Server entity remains a separate identifier and does not select or resolve the storage binding.
-7. Developer-admin API commands may create and activate a logical binding ID and configuration generation. Durable domain state stores only that ID and generation; Operations-owned `Quantum.Service` configuration maps them to physical locations.
-8. The initial production share root is `\\sbsr-film\film\`.
-9. The approved worker identity is `CMGX\appdevsvc`, with access already configured. This is policy input, not live Windows-service evidence.
-10. Labels are the primary resource presentation. An authorized operation result or deliberately client/workspace-scoped query may sometimes expose an informational full path so a user can verify work. Returned paths never become valid operation input.
-11. Version 1 resource references do not automatically expire. Use-time authorization and binding-generation validation remain mandatory, and explicit revocation, permission/scope changes, or generation changes may still invalidate use.
-12. Configured parent choices are sufficient for Version 1. Arbitrary filesystem browsing is deferred.
-13. Profiles and visible cells are presentation only. `cells.rollName` and `cells.isScanning` are never authoritative.
-14. Regular and custom rows are equally eligible. `origin` is provenance only and does not change identity, permissions, capabilities, or behavior.
-15. `isScanning` is durable roll-owned state, projected independently of profiles and cells.
-16. Scan and Processing are authorized domain actions. Managers define roles and choose their permissions, assignments are global, and operation-authorization outcomes are topic decisions rather than ASP.NET endpoint authorization.
-17. Query ETags and QueryHub notifications are invalidation infrastructure, never business concurrency or operation authority.
-18. `Quantum.Web` does not resolve or touch production storage. `Quantum.Service` is the only filesystem boundary.
-19. Role-definition and assignment endpoints are frontend-facing management contracts. Backend manager-only enforcement for those endpoints is deliberately deferred for the demo.
-20. A temporary admin endpoint accepts an existing username plus a plaintext hard-coded demo secret and grants that registered user manager status. Never persist or log the secret, and remove or harden this endpoint before production enablement.
-21. Scoped Version 1 contracts may return full informational paths as normal output; returned paths never become operation authority.
-
-## Settled demo role policy
-
-Implement the following without reopening the product decision:
-
-1. Managers create named roles and choose their Scan/Processing permissions.
-2. Managers assign those roles globally to registered users.
-3. The frontend may call role-definition and assignment endpoints; the demo backend does not enforce manager-only access to those management endpoints.
-4. The temporary bootstrap endpoint validates the hard-coded demo secret and upgrades the named registered user to manager.
-5. The secret arrives as plaintext in the request body but must never enter events, logs, metrics, responses, fixtures, or committed documentation.
-6. Full paths are normal informational output from the scoped contracts and never operation authority.
-
-The user supplied the temporary hard-coded secret directly in conversation. It is intentionally omitted from this durable handoff; obtain it from the operator at implementation/demo setup time and do not commit the plaintext value. Unless Product overrides it, implement forward-only revocation: decisions ordered after revocation fail, while already accepted operation history is not rewritten.
-
-The exact cross-topic routing, ordering, replay, and projection design is a backend implementation decision to derive from current Totem patterns. Do not burden the user with it unless repository evidence exposes a real business tradeoff.
+Package 5 may accept or reject Start durably and move the roll to `starting`. It must not resolve a physical path, touch a local or UNC filesystem, create a folder, emit `ScanStarted`, run a worker, implement recovery, or enable production mutation.
 
 ## Start-of-session procedure
 
-1. Read any applicable `AGENTS.md` files.
-2. Run `git status --short`, record the current branch and HEAD, and preserve all existing user changes and untracked files.
-3. Read `global.json` before building. The recorded requirement is .NET SDK `10.0.300`; obey the current file if it changed.
-4. Read the required documents above and inspect the completed package code/tests before designing the next slice.
-5. Trace current registered-user identity, commands/events/topics/queries, command dispatch, authorization-related code, HTTP mapping, replay behavior, and multi-instance assumptions.
-6. Write a short working plan, implement one coherent package, run focused verification, and report what remains proposed.
+1. Read every applicable `AGENTS.md` file.
+2. Run:
+   - `git status --short --branch`
+   - `git log --oneline --decorate -10`
+3. Do not switch branches, reset, discard, overwrite, clean, stage, or commit existing work unless the operator explicitly requests it.
+4. Read `global.json` before building.
+5. Read these documents completely, in order:
+   1. `docs/SCAN_AND_PROCESSING_BACKEND_IMPLEMENTATION_HANDOFF_PROMPT.md`
+   2. `docs/SCAN_AND_PROCESSING_BACKEND_POLICY.md`
+   3. `docs/SCAN_AND_PROCESSING_BACKEND_IMPLEMENTATION_STATUS.md`
+   4. `docs/SCAN_AND_PROCESSING_NEXT_STEPS_PLAN.md`
+   5. `docs/contracts/scan-processing/v1/README.md`
+   6. `docs/SCAN_AND_PROCESSING_RECOMMENDED_BACKEND_PLAN.md` as supporting background
+6. Inspect packages 3 and 4 and re-run their focused tests before designing package 5.
+7. Check whether EventStoreDB is already running before starting another instance.
 
-Do not switch branches, reset the worktree, discard changes, edit another checkout, or mutate the production share without explicit authorization.
+Policy is authoritative. Status records completed implementation and evidence. Plans describe future work. Where policy, status, plans, code, or this handoff differ, verify the repository and correct the documentation rather than assuming any snapshot is current.
 
-## Proposed implementation sequence
+## Current Git checkpoint
 
-### Completed package 1: canonical row boundary
-
-Do not reimplement it. Verify the status document and commit when needed. The supported model contains only roll-scoped regular and custom rows addressed by `rollId + rowId`; there is no name/cell fallback or client-scoped compatibility route.
-
-### Completed package 2: durable operation context
-
-Do not reimplement it. Verify the status document and commit when needed. The current read-only contract owns scan state on the roll, projects a real Boolean `isScanning`, uses a business `resourceVersion` distinct from query ETags, and treats both row origins equally.
-
-### Work package 3: durable role and permission foundation
-
-Implement no operation or filesystem mutation in this package:
-
-- stable registered actor identity from authenticated server context;
-- manager-defined, versioned roles and the Scan/Processing permission catalog;
-- global assignment and revocation requests;
-- frontend-facing role-definition and assignment endpoints with the accepted demo-only lack of backend manager enforcement;
-- temporary admin bootstrap endpoint for an existing registered user, including invalid-secret, unknown-user, and secret-non-disclosure tests;
-- durable role-definition, assignment, revocation, decision, rejection, and audit facts;
-- topic-owned decisions that never trust client-authored roles or permissions;
-- focused replay, ordering, operation-authorization, revocation, forged-input, and multi-instance tests.
-
-HTTP may resolve the authenticated registered actor, append a request, and map durable outcomes. It does not become the authoritative permission evaluator.
-
-### Work package 4: logical storage-binding contract
-
-Implement contracts and durable configuration only—no physical path resolution or filesystem mutation:
-
-- exactly one active binding per client/workspace;
-- stable binding ID, configuration generation, labels, and capability set;
-- developer-admin create/activate API commands and durable facts;
-- opaque resource references with no automatic Version 1 expiry;
-- configured parent choices, with arbitrary browsing deferred;
-- informational full-path response shape that never accepts a returned path as authority;
-- mapping/generation invalidation, redaction, wrong-scope, and Server-separation tests;
-- no physical root in browser-authoritative input or durable domain identity.
-
-### Work package 5: durable Start acceptance
-
-Only after packages 3 and 4 are focused-test green, implement the durable command side of Start Scan without folder creation:
-
-- topic-owned authorization bound to one request, actor, permission, scope, and authorization revision;
-- exact `rollId + rowId`, expected `resourceVersion`, idle state, binding generation, folder-name, and notes validation;
-- idempotency key plus semantic-input hash and lost-response reconciliation;
-- one active or transitioning scan per roll;
-- durable scan ID, `ScanStartAccepted`, roll version change, `starting` state, rejection, and audit facts;
-- worker-owned asynchronous boundary for a later package.
-
-Do not claim an atomic transaction between KurrentDB and storage. Stop before folder creation unless the user explicitly authorizes the filesystem package.
-
-## Architectural boundary
+Expected branch:
 
 ```text
-Browser
-   |
-   | HTTP operations + identity-independent QueryHub invalidations
-   v
-Quantum.Web
-   | resolve authenticated actor, validate transport, append commands, serve projections
-   v
-KurrentDB / durable topics
-   | roles, permissions, decisions, rolls, bindings, scans, versions, idempotency, audit
-   v
-Quantum.Service
-   | later: resolve configured bindings and perform filesystem work
-   v
-Approved Windows storage roots
+user-auth
 ```
 
-## Verification expectations
+Expected HEAD:
 
-For every work package:
+```text
+067e16c3 Set demo role management policy
+```
 
-1. Run focused tests first and record exact pass/fail counts.
-2. Prove both regular and custom row behavior where operation context is involved.
-3. Prove wrong `rollId + rowId` combinations fail without name matching.
-4. Prove roles, permissions, client/workspace IDs, Server IDs, and paths supplied by a client never become authority.
-5. Prove replay and ordering behavior for new durable topic decisions.
-6. Run the narrowest relevant build and broader tests practical without hiding unrelated baseline failures.
-7. Run `git diff --check`.
+At handoff preparation the branch was five commits ahead of `origin/user-auth`.
 
-Do not silently build with a different SDK. Do not present fixture, mock-filesystem, or development-machine results as production evidence.
+Packages 3 and 4 are complete in the worktree and intentionally uncommitted. Preserve all of their tracked and untracked files.
 
-## Documentation and end-of-session report
+Expected modified tracked files:
 
-Keep the policy, status, next-steps plan, machine-readable contracts, and deterministic fixtures synchronized only with decisions or implementation actually made. Preserve the distinction between completed evidence, approved policy, recommended defaults, and future work.
+```text
+Outermind.Web/Identity/ApplicationUserManager.cs
+Outermind.Web/Program.cs
+docs/SCAN_AND_PROCESSING_BACKEND_IMPLEMENTATION_HANDOFF_PROMPT.md
+docs/SCAN_AND_PROCESSING_BACKEND_IMPLEMENTATION_STATUS.md
+docs/SCAN_AND_PROCESSING_BACKEND_POLICY.md
+docs/SCAN_AND_PROCESSING_NEXT_STEPS_PLAN.md
+docs/SCAN_AND_PROCESSING_RECOMMENDED_BACKEND_PLAN.md
+docs/contracts/scan-processing/v1/README.md
+tests/Quantum.Tests/ApplicationUserManagerTests.cs
+```
+
+Expected untracked package 3 files:
+
+```text
+Outermind.Web/Controllers/ScanProcessingAccessController.cs
+Outermind.Web/ScanProcessing/DemoBootstrapSecretValidator.cs
+Outermind.Web/ScanProcessing/RegisteredScanProcessingActorResolver.cs
+Outermind/Microfilm/Queries/ScanProcessingAccessQuery.cs
+Outermind/Microfilm/Queries/ScanProcessingAuthorizationDecisionQuery.cs
+Outermind/Microfilm/ScanProcessingAccessCommands.cs
+Outermind/Microfilm/ScanProcessingAccessEvents.cs
+Outermind/Microfilm/ScanProcessingAccessTypes.cs
+Outermind/Microfilm/Topics/ScanProcessingAccessTopic.cs
+docs/contracts/scan-processing/v1/access.assignments.json
+docs/contracts/scan-processing/v1/access.bootstrap.json
+docs/contracts/scan-processing/v1/access.permissions.json
+docs/contracts/scan-processing/v1/access.roles.json
+tests/Quantum.Tests/ScanProcessingAccessControllerTests.cs
+tests/Quantum.Tests/ScanProcessingAccessTests.cs
+```
+
+Expected untracked package 4 files:
+
+```text
+Outermind.Web/Controllers/ScanProcessingStorageBindingsController.cs
+Outermind/Microfilm/Queries/ScanProcessingStorageBindingQuery.cs
+Outermind/Microfilm/ScanProcessingStorageBindingCommands.cs
+Outermind/Microfilm/ScanProcessingStorageBindingEvents.cs
+Outermind/Microfilm/ScanProcessingStorageBindingTypes.cs
+Outermind/Microfilm/Topics/ScanProcessingStorageBindingTopic.cs
+docs/contracts/scan-processing/v1/storage.bindings.json
+docs/contracts/scan-processing/v1/storage.resource-reference.json
+tests/Quantum.Tests/ScanProcessingStorageBindingTests.cs
+```
+
+Re-run `git status`; these lists are preservation checkpoints, not permission to remove anything else.
+
+## Completed packages
+
+### Package 1 — committed
+
+Canonical roll-scoped regular and custom rows addressed only by `rollId + rowId`. Legacy client-scoped rows, routes, routing indexes, and identity fallbacks were removed.
+
+### Package 2 — committed
+
+Read-only durable operation context with roll-owned `scanState`, JSON Boolean `isScanning`, exact row/roll/client resolution, and opaque business `resourceVersion` distinct from QueryHub/query ETags.
+
+### Package 3 — uncommitted
+
+Package 3 provides the durable demo authorization foundation:
+
+- fixed Version 1 permission catalog;
+- one globally ordered `ScanProcessingAccessTopic`;
+- versioned roles and global role assignments/revocations;
+- temporary manager bootstrap using a runtime-only secret;
+- stable actors derived from server-issued registered-user IDs;
+- request-bound authorization decisions/rejections and redacted audit facts;
+- deterministic reducer and projections;
+- frontend role/assignment/bootstrap routes.
+
+Manager status, registration, authentication, usernames, labels, roles, permissions, client IDs, workspace IDs, Server IDs, and paths supplied by a browser are not operation authority.
+
+### Package 4 — uncommitted
+
+Package 4 provides only logical storage configuration:
+
+- one client-routed binding topic per Version 1 workspace;
+- server-generated stable binding IDs;
+- one active binding/generation pair per configured workspace;
+- sequential per-binding configuration generations guarded by `storageRevision`;
+- path-free labels for distinct Scan-parent, QPF, grayscale-Frames, and bitonal-Frames capabilities;
+- durable create, activation, unchanged, rejection, and redacted audit facts;
+- deterministic reducer and read/audit projections;
+- registered developer-admin read/create/activate routes;
+- a server-side opaque resource-reference record and pure use-time validator;
+- an output-only informational full-path response shape.
+
+Package 4 deliberately does not expose operation discovery or public resource-reference issuance. It does not persist references, map bindings to physical roots, or resolve informational paths. A future caller must resolve an opaque ID to an authoritative server-side record and validate it against current access and binding state.
+
+## Verification checkpoint
+
+`global.json` requires .NET SDK `10.0.300`.
+
+Normal `dotnet` previously selected `10.0.302`; do not use that as evidence. The exact SDK was available at:
+
+```text
+C:\Users\ajohnston\AppData\Local\Temp\formatic-dotnet-sdk\dotnet.exe
+```
+
+Use the build-server controls below to avoid the previously observed compiler/build-server fan-out:
+
+```powershell
+$taskTemp = [IO.Path]::GetTempPath()
+$env:DOTNET_CLI_HOME = Join-Path $taskTemp 'formatic-dotnet-home'
+$env:NUGET_PACKAGES = Join-Path $taskTemp 'formatic-nuget-packages'
+$env:DOTNET_ADD_GLOBAL_TOOLS_TO_PATH = 'false'
+$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = 'true'
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = 'true'
+$requiredDotnet = Join-Path $taskTemp 'formatic-dotnet-sdk\dotnet.exe'
+& $requiredDotnet --version
+```
+
+Add these flags to builds and tests:
+
+```text
+--no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+```
+
+Recorded results under SDK `10.0.300`:
+
+- package 3 focused tests: 21 passed, 0 failed;
+- package 4 focused tests: 17 passed, 0 failed;
+- broader `Quantum.Tests`: 160 passed, 2 unrelated existing failures;
+- full `Totem.sln` Release build: 0 errors and 3 existing dependency warnings;
+- all 9 Scan/Processing JSON fixtures parsed;
+- `git diff --check` and the separate untracked whitespace/newline scan passed;
+- static package 4 scan found no filesystem API, physical-root configuration, production share, worker identity, or Server-selection code.
+
+The two unrelated broader failures were:
+
+```text
+Quantum.Tests.ClientProfileRegistryTests.MatchesCorrectProfile
+Quantum.Tests.WaspAssetServiceTests.GetClientBatchAsync_FetchesAdditionalPagesWhenTotalCountExceedsCurrentPageWindow
+```
+
+Treat all recorded results as historical until re-run. Focused tests used the in-memory harness. EventStoreDB was already running as `EventStore.ClusterNode` and was not changed or used by the focused suites.
+
+## Package 5 implementation target
+
+Implement durable Start Scan acceptance only.
+
+The coherent Version 1 outcome is:
+
+```text
+authenticated HTTP request
+        ↓
+server resolves exact roll + row + client/workspace + actor
+        ↓
+durable access topic decides scan.start for one bound request
+        ↓
+roll-scoped durable authority validates current state and idempotency
+        ↓
+ScanStartAccepted + audit + idempotency + scanState=starting
+        ↓
+202 Accepted with durable scan ID and refreshed operation context
+```
+
+Stop at the final line. Do not create or inspect a folder.
+
+Package 5 must include:
+
+1. A Start transport contract addressed by the route's `rollId + rowId`.
+2. Stable registered actor resolution from the server-issued cookie.
+3. Canonical roll, box, client/workspace, roll-name, and exact row resolution from durable queries.
+4. A durable `scan.start` authorization request and a matching topic-owned authorization decision or rejection.
+5. Request binding that prevents an authorization fact from authorizing a different actor, permission, roll, row, resource reference, or Start payload.
+6. One roll-routed command authority with deterministic replay.
+7. Atomic validation and persistence of:
+   - exact `rollId + rowId`;
+   - expected business `resourceVersion`;
+   - `scanState == idle`;
+   - one current Scan-parent reference or its authoritative server-side record;
+   - active binding ID and configuration generation;
+   - folder name and notes;
+   - idempotency key and semantic-input hash;
+   - durable scan ID;
+   - `ScanStartAccepted` and roll resource-version advance;
+   - Start audit and accepted/rejected outcome.
+8. `scanState=starting`, `isScanning=true`, and `activeScanId` immediately after durable acceptance.
+9. `202 Accepted` for a new or reconciled accepted Start and structured stable issues for rejection.
+10. Deterministic fixtures and tests for success, rejection, idempotency, replay, ordering, forged input, and redaction.
+
+Package 5 must not emit `ScanStarted`. That fact belongs to the later worker/folder-creation package.
+
+## Logical Start request boundary
+
+The logical HTTP input should contain only values the operator is allowed to choose or echo:
+
+```ts
+interface StartScanRequest {
+  expectedResourceVersion: string;
+  parentResourceRefId: string;
+  folderName: string;
+  notes: string;
+  idempotencyKey: string;
+}
+```
+
+The route supplies `rollId + rowId`. The request must not contain:
+
+- actor, username, process-user ID, role, or permission;
+- client ID, workspace ID, box ID, roll name, or cell values;
+- Server ID;
+- binding ID or configuration generation as client-authored authority;
+- physical root, full path, parent path, UNC path, or worker identity;
+- scan ID.
+
+Web resolves actor and canonical scope. Durable state resolves the authoritative reference, binding, generation, permission decision, and scan ID.
+
+Folder-name validation may be pure deterministic string validation. Reject path separators, rooted input, traversal, invalid Windows filename characters, reserved names, trailing dots/spaces, empty normalized names, and configured length violations without probing a filesystem. Trim notes and enforce the policy limit of 2,000 characters. Do not persist rejected raw values in audit or error facts.
+
+## Resource-reference dependency
+
+Package 4 defines `ScanProcessingResourceReference` and `ScanProcessingResourceReferences.ValidateUse`, but it intentionally does not expose discovery, issue a public reference, or persist a reference registry.
+
+Before implementing Start, determine the smallest durable way to resolve `parentResourceRefId` to an authoritative server-side record. Preserve these rules:
+
+- the browser submits only the opaque ID;
+- the browser never constructs or edits the authoritative record;
+- reference resolution is logical only and performs no physical path lookup;
+- the record remains actor-, purpose-, scope-, permission-, access-revision-, binding-, generation-, and capability-bound;
+- use-time validation observes current authorization and binding state;
+- permission removal, assignment revocation, scope mismatch, explicit reference revocation, binding switch, or generation advance rejects Start;
+- Version 1 has no automatic reference expiry;
+- no path is stored in the reference record.
+
+If public Start cannot be coherent without a minimal logical issuance/lookup seam, implement only that bounded seam and its tests. Do not expand package 5 into filesystem discovery, arbitrary browsing, informational-path resolution, or worker configuration. Ask the operator only if repository evidence exposes a genuine product tradeoff that cannot be resolved while preserving the settled contract.
+
+## Durable authorization and cross-topic ordering
+
+Do not authorize Start in the controller.
+
+The access decision must remain owned by `ScanProcessingAccessTopic` and bound to one request ID, stable actor ID, `scan.start`, exact server-resolved scope, effective role IDs, and authorization revision. The roll authority must consume or verify that bound decision without trusting an HTTP Boolean or client-authored claims.
+
+Trace Totem's current cross-topic routing and command-response conventions before choosing the implementation. Prove that:
+
+- a rejected or missing access decision cannot reach acceptance;
+- a decision for another request, actor, permission, roll, row, or resource cannot be replayed for this Start;
+- a decision ordered after permission removal or assignment revocation rejects;
+- already accepted durable history is not rewritten by later revocation;
+- the roll's state/version/idempotency decision is serialized in one roll-routed authority;
+- deterministic replay produces the same accepted scan, state, and idempotency result;
+- no in-memory controller lock is treated as concurrency authority.
+
+Do not claim deployed multi-instance qualification unless live evidence is added separately.
+
+## Roll state and existing event warning
+
+`Outermind/Microfilm/RollOperationEvents.cs` already defines thin projection-foundation facts including `ScanStartAccepted`, `ScanStarted`, and `ScanStartFailed`. `RollOperationQuery` consumes them, but there is currently no public mutation command or command topic that emits them.
+
+Package 5 may evolve or pair the existing `ScanStartAccepted` fact with richer durable Start, idempotency, and audit facts. Keep one shared deterministic roll-operation reducer so command decisions and `RollOperationQuery` cannot drift.
+
+There are other legacy types named `ScanStarted` under `Outermind/_Events.cs` and `Outermind/Decisions/ScanOps.cs`. They are unrelated legacy models. Do not route package 5 through them or conflate their identity with the Microfilm roll-operation facts.
+
+## Idempotency requirements
+
+Idempotency is part of package 5, not a future enhancement.
+
+- Scope the key by stable actor ID, command kind, roll ID, and idempotency key.
+- Compute a deterministic semantic-input hash from normalized authoritative Start inputs.
+- Same key plus same semantics returns the same accepted scan ID and current result.
+- Same key plus different semantics rejects with `IDEMPOTENCY_KEY_MISMATCH`.
+- Persist acceptance before returning `202 Accepted`.
+- Prove lost-response reconciliation by idempotency key without appending a second acceptance.
+- Persist records durably; retention cleanup is not part of package 5.
+- Never place credentials, full paths, or unredacted rejected values in the idempotency record or audit.
+
+## Settled policy — do not reopen
+
+1. Canonical operation identity is `rollId + rowId`.
+2. The backend resolves roll, box, client/workspace, and roll name from `rollId`, then verifies exact row membership.
+3. Version 1 `workspaceId == clientId`.
+4. Regular and custom rows are equally eligible; `origin` is provenance only.
+5. Profile fields and cells, including `cells.rollName` and `cells.isScanning`, are presentation only.
+6. Query ETags and QueryHub invalidations are not business concurrency or operation authority.
+7. The existing Server entity does not select or resolve storage.
+8. Durable domain state stores logical binding identity and generation, never physical roots.
+9. `Quantum.Web` does not resolve or touch production storage.
+10. Operation authorization is a durable topic decision, not ASP.NET endpoint authorization.
+11. Registration, authentication, manager status, username, or process-user label alone grants no `scan.start` permission.
+12. Forward-only revocation does not rewrite an already accepted Start.
+13. Version 1 resource references have no automatic expiry but require current use-time validation.
+14. Start acceptance makes the roll `starting`; folder creation later makes it `active`.
+15. At most one `starting`, `active`, or `finishing` scan exists per roll.
+16. Existing-folder collision behavior belongs to the worker package because package 5 does not inspect storage.
+17. QueryHub authorization changes and general HTTP fetch-endpoint authorization remain out of scope.
+
+The policy mentions production root `\\sbsr-film\film\` and worker identity `CMGX\appdevsvc`. They are policy inputs only. Do not resolve, inspect, access, persist, or mutate the share, and do not claim live worker qualification.
+
+## Code investigation before editing
+
+Trace these current seams:
+
+- `Outermind/Microfilm/Queries/MicrofilmClientLookupQuery.cs`
+- `Outermind/Microfilm/Queries/RollMicrofilmLookupQuery.cs`
+- `Outermind/Microfilm/Queries/RollMicrofilmRowQuery.cs`
+- `Outermind/Microfilm/Queries/RollOperationQuery.cs`
+- `Outermind/Microfilm/RollOperationEvents.cs`
+- `Outermind/Microfilm/RollOperationTypes.cs`
+- `Outermind.Web/Controllers/MicrofilmController.cs`
+- `Outermind/Microfilm/Topics/ScanProcessingAccessTopic.cs`
+- `Outermind/Microfilm/Queries/ScanProcessingAuthorizationDecisionQuery.cs`
+- `Outermind/Microfilm/ScanProcessingAccessCommands.cs`
+- `Outermind/Microfilm/ScanProcessingAccessEvents.cs`
+- `Outermind/Microfilm/Topics/ScanProcessingStorageBindingTopic.cs`
+- `Outermind/Microfilm/Queries/ScanProcessingStorageBindingQuery.cs`
+- `Outermind/Microfilm/ScanProcessingStorageBindingTypes.cs`
+- current topic routing, `FlowCall`, controller-to-command dispatch, query registration, and expected-version patterns;
+- current test harnesses for topics, queries, controllers, replay, and any live KurrentDB integration.
+
+Search for idempotency before creating new abstractions. No current Microfilm Start idempotency implementation was found at this handoff, but verify the repository again.
+
+## Required package 5 verification
+
+At minimum, prove:
+
+- registered cookie actor is required and client-authored actors are absent or ignored;
+- `scan.start` permission is required through a durable access decision;
+- revoked or removed permission rejects later Start requests;
+- exact regular and custom `rollId + rowId` contexts both succeed under the same rules;
+- wrong roll/row combinations fail without name or cell fallback;
+- stale `resourceVersion` fails;
+- non-idle roll state fails and no second active/transitioning scan is accepted;
+- missing, forged, wrong-actor, wrong-purpose, wrong-scope, wrong-capability, revoked, or stale-generation resource references fail;
+- client-authored roles, permissions, actors, client/workspace IDs, Server IDs, binding generations, roots, and paths never become authority;
+- folder-name and notes validation is deterministic and redacted;
+- new Start accepts exactly once and sets `starting`, `isScanning=true`, and `activeScanId`;
+- same idempotency key and same semantic input reconciles to the original scan;
+- same key with different semantic input fails;
+- a simulated lost HTTP response does not create another acceptance;
+- replay yields identical roll state, version, idempotency, rejection, and audit results;
+- accepted/rejected/audit/idempotency facts contain no physical root, full path, credentials, secret, or rejected raw sensitive value;
+- concurrent semantics rely on durable per-roll ordering and business versions, without claiming live deployed multi-instance qualification;
+- no `ScanStarted`, folder creation, filesystem access, worker execution, or recovery behavior occurs.
+
+Use focused tests first. Re-run package 3 and package 4 focused suites. Then run the narrowest relevant Release build, broader `Quantum.Tests`, JSON fixture parsing, static boundary scans, `git diff --check`, and a separate whitespace/newline scan for untracked files. Record exact pass/fail counts and identify unrelated failures separately.
+
+## Stop boundary
+
+Stop before all of the following:
+
+- physical binding mapping or path resolution;
+- local or UNC filesystem reads, probes, enumeration, or writes;
+- production share access;
+- folder creation or collision checks;
+- `ScanStarted`, `ScanStartFailed`, worker claim, lease, or heartbeat;
+- Finish or Abandon Scan;
+- Processing discovery, Preview, Confirm, or Apply;
+- QPF or Frames mutation;
+- asynchronous worker execution;
+- retry/recovery or crash-restart claims;
+- target-host, Windows-service, multi-instance, or production qualification;
+- QueryHub authorization changes;
+- general HTTP fetch-endpoint authorization;
+- production enablement.
+
+Do not describe the Scan/Processing backend as complete or production-ready.
+
+## Documentation
+
+Update the existing policy, implementation status, next-steps plan, this handoff, recommended plan, machine-readable contracts, and deterministic fixtures only where package 5 implementation or verified evidence requires it.
+
+Preserve the distinction between:
+
+- approved policy;
+- completed implementation;
+- fresh verification evidence;
+- recommended future design;
+- human decisions;
+- production gates.
+
+Do not invent evidence for folder creation, filesystem safety, recovery, multi-instance deployment, or production readiness.
+
+## End-of-session report
 
 Report:
 
-1. the implemented package and dependency boundary;
-2. files, routes, events, contracts, and projections changed;
-3. focused and broader verification with exact results;
-4. unrelated failures separately identified;
-5. the next smallest package;
-6. remaining human decisions and production gates;
-7. explicit confirmation that no filesystem or production mutation occurred.
-
-Do not describe the Scan/Processing backend as complete or production-ready until all applicable gates have live evidence.
+1. The exact package 5 boundary implemented.
+2. Files, routes, commands, events, idempotency records, audit facts, contracts, reducers, and projections changed.
+3. The authorization-to-roll routing and how request binding is enforced.
+4. How the opaque reference is resolved and validated without physical path access.
+5. Focused and broader verification with exact counts.
+6. Unrelated failures and dependency warnings separately.
+7. Whether packages 3, 4, and 5 remain uncommitted.
+8. The next smallest package, expected to be worker claim/lease plus controlled scan-folder creation and collision handling.
+9. Remaining human decisions and production gates.
+10. Explicit confirmation that no Scan/Processing storage path was resolved or mutated and no production mutation occurred.

@@ -1,0 +1,14 @@
+{
+  "id": "resource-opaque-fixture-1",
+  "kind": "directory",
+  "displayName": "Scan parent",
+  "version": "storage-2",
+  "capabilities": [
+    "create-child"
+  ],
+  "expiresAt": null,
+  "informationalPath": {
+    "label": "Fixture-only resolved path",
+    "fullPath": "X:\\contract-fixture\\scan-parent"
+  }
+}

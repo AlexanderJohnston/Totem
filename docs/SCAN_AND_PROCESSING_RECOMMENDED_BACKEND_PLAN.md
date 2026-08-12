@@ -2,7 +2,7 @@
 
 Status: Architecture recommendation for Backend, Product, Security, and Operations review  
 Prepared: 2026-07-31  
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 Frontend baseline: `406b352d996f101350a48d2636625ff312c6be12`
 
 The handoff is sound. I recommend adopting it with three architectural amendments:
@@ -11,15 +11,15 @@ The handoff is sound. I recommend adopting it with three architectural amendment
 2. `Quantum.Service` should be the only production process that touches Formatic storage. `Quantum.Web` should resolve the authenticated registered actor, validate, append commands, and serve projections; durable topics should make role/permission decisions.
 3. Start Scan should be a durable asynchronous state transition. Do not promise an atomic transaction across KurrentDB and an SMB or local filesystem.
 
-This is a target design and review recommendation, not production-readiness evidence.
+This is a target design and review recommendation, not production-readiness evidence. Implementation packages 1 through 4 now cover the canonical row boundary, durable operation context, durable demo role/permission foundation, and durable logical storage-binding contract; the implementation status document contains the evidence and remaining gates.
 
 ## Evidence behind the recommendation
 
 - The current Miller row already separates durable identity (`Id`, `RollId`, `Origin`) from presentation cells.
-- The current domain maps roll to box/client and client to server, but it does not yet define an authorized filesystem binding. For Version 1, a client is the workspace; the existing Server entity remains a separate identifier.
+- The current domain maps roll to box/client and now defines one active logical binding/generation per client/workspace. It still does not map that logical identity to a physical location. The existing Server entity remains a separate identifier.
 - Query ETags represent projection checkpoints. They are useful for caching and QueryHub invalidation, but they are not business concurrency tokens.
 - Commands can be durably appended before their processing response is observed. Lost-response reconciliation is therefore required for mutations.
-- Current identity is tracking-oriented rather than the durable role/permission authority required for Scan and Processing topic decisions.
+- The registered-user cookie now supplies the stable actor ID for the durable role/permission authority. The existing tracking identity remains presentation/audit context rather than operation authority, and the file-backed registered-user store is not yet qualified for shared multi-host deployment.
 - The installed web and worker processes use separate Windows service identities. Remote share access must be deliberately assigned to the worker identity.
 - The legacy Formatic implementations disagree on discovery, validation, Frames roots, and file behavior. Neither implementation should be declared wholly canonical.
 - Both existing QPF editors correctly avoid rewriting the affected QPF when backup creation fails. The new backend must preserve or improve that safety property.
@@ -82,7 +82,7 @@ The backend should resolve storage scope through durable relationships rather th
 row -> roll -> box -> client (the Version 1 workspace) -> configured storage binding
 ```
 
-The missing piece is a server-owned storage binding. Version 1 has exactly one active binding per client. Domain state should reference its stable binding ID and configuration generation; Operations-owned `Quantum.Service` configuration supplies the physical root and service identity. Developer-admin API commands may create and activate logical binding generations. The existing Server entity does not resolve storage.
+The server-owned logical storage binding is now implemented. Version 1 has exactly one active pair per client. A client-routed durable topic owns server-generated stable binding IDs, fixed logical capability definitions, sequential configuration generations, `storageRevision` concurrency, redacted audit facts, and deterministic replay. Operations-owned `Quantum.Service` configuration still must map the active binding ID, generation, and capability to physical locations and service identity. The existing Server entity does not resolve storage.
 
 The initial production root is `\\sbsr-film\film\`, and the approved worker identity is `CMGX\appdevsvc`. Labels remain the primary presentation value. A deliberately client/workspace-scoped query or operation result may return an informational full path so a user can verify work, but the path is never accepted back as operation authority. Version 1 uses configured parent choices rather than arbitrary browsing.
 
@@ -149,6 +149,8 @@ Resource references should be:
 - invalidated by explicit revocation or expiry, permission change, mapping change, or configuration change.
 
 Version 1 does not automatically expire resource references. Automatic expiry may be added later without weakening use-time authorization or binding-generation validation.
+
+Work package 4 now implements the server-side reference record and pure use-time validation contract. It binds actor, exact resolved scope, purpose, fixed permission, access revision, active binding, generation, and logical capability; current replayed access and binding state are mandatory. Public discovery/reference issuance and the cross-topic authorization-to-operation chain remain later work.
 
 The server should reject arbitrary paths, traversal, rooted child input, device paths, alternate data streams, mapped drives, and root escape. Reparse points, symlinks, and junctions should be rejected by default. If later permitted, containment must be verified using resolved final handles rather than string-prefix checks.
 
@@ -323,8 +325,8 @@ Never return stack traces, credentials, service-account details, or arbitrary pa
 
 ## Delivery sequence
 
-1. Security and Operations foundation: registered-user identity, manager-defined roles, global assignments, topic-enforced operation permissions, worker identity, approved roots/ACLs, redaction, logs, metrics, recovery ownership.
-2. Canonical row boundary, contracts, and roll state: retire legacy row compatibility; preserve regular/custom parity; add durable scan state/version, row context, errors, OpenAPI, deterministic fixtures, and contract tests.
+1. Security and Operations foundation: registered-user identity, manager-defined roles, global assignments, topic-enforced operation permissions, logical storage bindings, worker identity, approved roots/ACLs, redaction, logs, metrics, recovery ownership. Identity, access, and logical-binding foundations are implemented; physical and operational qualification remains open.
+2. Canonical row boundary, contracts, and roll state: retire legacy row compatibility; preserve regular/custom parity; add durable scan state/version, row context, errors, OpenAPI, deterministic fixtures, and contract tests. The read-side context foundation is implemented.
 3. Scan vertical slice: discovery, idempotent Start, async folder creation, Finish, Abandon, audit, collision and restart tests.
 4. Shared plan/job platform: resource references, Preview, Apply, leases, durable jobs, cancellation, results, paging, history, reconciliation.
 5. QPF schema and Preview against representative production files.

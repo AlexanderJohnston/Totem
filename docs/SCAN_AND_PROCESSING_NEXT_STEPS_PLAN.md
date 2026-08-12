@@ -1,6 +1,6 @@
 # Scan and Processing Next Steps Plan
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 Status: Working plan for team review. This document separates settled direction from decisions that still need Product, Backend, Security, Operations, or QA input. It does not claim production readiness.
 
@@ -34,15 +34,15 @@ Authoritative policy: `SCAN_AND_PROCESSING_BACKEND_POLICY.md`
 
 - Work package 1 retired client-scoped row compatibility and established the canonical roll boundary.
 - Work package 2 added durable read-side scan state, the operation context, a business `resourceVersion`, structured issues, fixtures, and tests.
-- No Start, Finish, Preview, Apply, filesystem, role/permission topic, idempotency, worker lease, recovery, or production-enablement implementation exists yet.
-- The existing authentication system can identify registered users, but it is not yet the durable role/permission authority described here.
+- Work package 3 now adds the durable role/permission authority, global assignment and revocation, temporary bootstrap manager grant, request-bound operation decisions/rejections, audit facts, projections, frontend management routes, and deterministic fixtures.
+- Work package 4 now adds client-routed logical bindings, explicit configuration generations, fixed logical capabilities, developer-admin configuration routes, durable rejection/audit facts, opaque-reference validation contracts, projections, and deterministic fixtures.
+- No Start, Finish, Preview, Apply, physical mapping/resolution, filesystem, idempotency, worker lease, recovery, or production-enablement implementation exists yet.
+- Registered operation actors now use the stable application user ID from server-issued cookie claims. The existing file-backed user store remains a Web deployment boundary and has not been qualified for shared multi-host use.
 
 ### Proposed sequence
 
 ```text
-Role/permission and storage-binding foundations
-        ↓
-Durable role assignment and operation-authorization topics
+Logical storage-binding foundation (implemented)
         ↓
 Roll command authority + idempotent Start acceptance
         ↓
@@ -61,34 +61,37 @@ Production enablement
 
 ## 1. Role, permission, and QueryHub boundary
 
-### Proposal
+### Implemented demo foundation
 
-- Define a stable permission catalog for Scan and Processing. Initial candidates are:
+- The stable Version 1 permission catalog is:
   - `scan.discover`
   - `scan.start`
   - `scan.finish-own`
   - `scan.finish-any`
   - `scan.abandon`
   - `processing.discover`
-  - `processing.preview`
-  - operation-specific Apply permissions
+  - `processing.preview.qpf-settings`
+  - `processing.preview.frames-paths`
+  - `processing.apply.qpf-settings`
+  - `processing.apply.frames-paths`
   - `job.cancel-own`
   - `job.cancel-any`
-  - sensitive-error, backup-cleanup, and future restore permissions
-- Represent role definitions, role assignments, revocations, and permission changes as durable facts.
-- Let managers define named roles and select permissions through HTTP contracts intended for the frontend team.
-- Make role assignments global in Version 1.
-- Defer backend manager-only enforcement for role-definition and assignment endpoints during the demo. Record this explicitly as production-hardening debt.
-- Add a temporary admin bootstrap endpoint that accepts an existing username and plaintext secret, compares the secret to the hard-coded demo value, and grants manager status when the user exists.
-- Never write the bootstrap secret to events, logs, metrics, responses, fixtures, or committed documentation. Remove or harden the endpoint before production enablement.
-- Scan and Processing commands contain a server-resolved registered actor ID. They never accept client-supplied roles or permissions as authority.
-- Operation authorization is decided in topics. Rejections produce stable durable facts such as forbidden operation or forbidden scope, which the HTTP layer maps to safe responses. Role-management and bootstrap validation use stable contract errors.
-- Audit role and permission changes with the available acting identity, target user, previous and resulting roles, reason where required, and timestamp.
+  - `history.view-context`
+  - `history.view-workspace`
+  - `sensitive-error.view`
+  - `backup.cleanup`
+- Role definitions, role assignments, revocations, permission changes, manager grants, operation decisions/rejections, and access audit entries are durable facts owned by one globally ordered access topic.
+- Roles are named and versioned, role assignments are global, and role replacements use expected-version concurrency.
+- Backend manager-only enforcement remains deliberately deferred for the demo. Role and assignment management still requires a registered authenticated cookie actor.
+- The temporary bootstrap endpoint validates the runtime-supplied fixed secret before username lookup, appends a secret-free manager command for an existing registered user, and returns stable secret-free errors. It must still be removed or hardened before production enablement.
+- Operation authorization uses the stable registered user ID and current durable assigned roles. Manager status, usernames, display labels, process-user labels, registration, and authentication alone grant no operation permission.
+- Decision facts bind one request ID, actor, fixed catalog permission, server-resolved scope, effective role IDs, and authorization revision. Forward-only revocation is proven for decisions ordered after assignment revocation or permission removal.
+- Audit facts carry the available acting identity, target identity, previous/resulting roles or permissions, result, safe code, revision, and timestamp without credentials or physical paths.
 - QueryHub remains unchanged. It accepts ETag subscriptions regardless of caller identity and grants no fetch or operation authority.
 
-### Topic composition to design before implementation
+### Implemented ordering and later cross-topic boundary
 
-The exact event routing must preserve both durable authorization and roll-level atomicity. A candidate flow is:
+Work package 3 implements the first three stages below in one single-instance access topic. Work package 5 must add the roll stage without weakening request binding or roll-level atomicity:
 
 ```text
 HTTP request with server-resolved actor
@@ -103,36 +106,34 @@ resourceVersion, scan state, row identity, and idempotency
 accepted or rejected roll facts
 ```
 
-The authorization fact would be bound to one operation request ID, actor, permission, scope, and authorization revision so it cannot be replayed for a different request. This is a candidate, not yet an approved topology; we must verify it against Totem routing, ordering, replay, revocation, and multi-instance behavior.
+The authorization fact is bound to one operation request ID, actor, permission, resolved scope, effective roles, and authorization revision, so it cannot authorize a different request. In-memory replay and independent-reducer evidence is complete; deployed multi-instance and cross-topic roll-acceptance evidence remain open.
 
 ### Remaining implementation decisions
 
-- Verify the exact topic topology for evaluating operation permissions without moving Scan/Processing authorization into HTTP code.
-- Unless Product overrides it, use forward-only revocation: authorization decisions ordered after revocation fail, while already accepted operation history is not rewritten.
-- Define the temporary bootstrap route and response envelope without exposing the fixed secret or whether a guessed username exists when the secret is wrong.
+- Define the exact access-decision-to-roll-acceptance routing for work package 5, including how the roll validates request binding and authorization revision without moving permission evaluation into HTTP.
+- Qualify durable ordering under multiple deployed Web/Service instances and replace or qualify the current file-backed registered-user deployment boundary.
+- Remove or harden the temporary bootstrap route and enforce manager-only role management before production enablement.
 
 ## 2. Worker identity and storage-root policy
 
-### Proposal
+### Implemented logical contract
 
-- Introduce one active stable logical storage binding per client/workspace, containing a binding ID, configuration generation, and allowed capabilities.
-- Store only the binding ID and generation in durable domain state.
-- Keep physical local or UNC roots exclusively in Operations-owned `Quantum.Service` configuration.
-- Run `Quantum.Service` as `CMGX\appdevsvc`, which has the required access configured. Do not store credentials in application configuration or KurrentDB, and still capture target-host service/share evidence before production mutation.
-- Model distinct capabilities for the scan parent, QPF access, grayscale Frames, and bitonal Frames. Two capabilities may intentionally reference the same approved root.
-- Let the worker publish safe discovery/resource results. `Quantum.Web` serves opaque references but never resolves or accesses the physical path.
-- Invalidate discoveries and plans when the durable binding or configuration generation changes.
-- Use developer-admin API commands to create and activate the logical binding generation. Match it to the Operations-owned worker configuration generation.
-- Use `\\sbsr-film\film\` as the initial production share root. The existing Server entity is not part of storage resolution.
-- Use configured parent choices in Version 1; do not implement arbitrary directory browsing.
-- Prefer labels in normal responses. When users must check completed work, return an informational full path from an operation result or deliberately client/workspace-scoped query; never accept that path back as authority.
-- Do not automatically expire resource references in Version 1. Continue use-time authorization and binding-generation validation.
+- One client-routed topic owns each Version 1 workspace's logical binding state and projects exactly one active binding/generation pair.
+- Create uses a server-generated stable binding ID and path-free labels for exactly four distinct logical capabilities: Scan parent, QPF, grayscale Frames, and bitonal Frames.
+- Activate requires the current `storageRevision` and the next generation for that binding. Repeating the active pair is unchanged; switching back to an earlier binding requires its next generation.
+- Durable state and audit contain logical IDs and generations only. The existing Server entity, roots, paths, and credentials do not participate.
+- Registered developer-admin read/create/activate routes live under `/api/scan-processing/storage-bindings/clients/{clientId}`. Production authorization hardening for these configuration routes remains open.
+- A server-side opaque-reference record binds actor, exact resolved scope, purpose, permission, access revision, binding, generation, and capability. Current replayed access and binding state are required at use time.
+- Reference revocation, permission/access-revision change, scope change, binding switch, or generation change invalidates use. Version 1 references have no automatic expiry.
+- Configured logical capability choices replace arbitrary browsing. An output-only informational path shape exists, but Web does not resolve it and no package 4 request accepts a path.
 
-### Implementation details to settle in code and contracts
+### Remaining physical and deployment work
 
-- Define the logical binding command/event/projection names and developer-admin API route shapes.
-- Define capability-relative configured locations beneath the approved root without persisting physical paths in domain state.
-- Define the workspace-scoped path result/query shape without turning returned paths into authority.
+- Keep physical local or UNC roots exclusively in Operations-owned `Quantum.Service` configuration and map them by binding ID, generation, and logical capability.
+- Define and implement capability-relative physical configuration beneath the approved root without persisting paths in domain state.
+- Have a later worker publish scoped informational paths and resolve opaque IDs; `Quantum.Web` must continue to avoid physical resolution.
+- Run `Quantum.Service` as `CMGX\appdevsvc` only after target-host service/share evidence is captured; do not store credentials in application configuration or KurrentDB.
+- Use `\\sbsr-film\film\` only as the approved future Operations input. Package 4 did not inspect or access it.
 - Prove the configured service logon plus share and NTFS access on the target host before production mutation.
 
 ## 3. Idempotency and durable Start Scan
@@ -243,9 +244,9 @@ Final qualification occurs under the real worker identity and approved roots, no
 
 ## Proposed implementation packages
 
-1. **Role and permission foundation:** add manager-defined roles, global assignments, the temporary demo bootstrap contract, durable role/assignment events and projections, operation-authorization decisions, audit, and tests. No operation mutation yet.
-2. **Storage-binding contract:** add logical bindings, configuration generations, capabilities, opaque references, redaction rules, deterministic fixtures, and no filesystem access.
-3. **Durable Start acceptance:** add topic-owned permission decision, command-side roll authority, business-version checks, idempotency, accepted/rejected facts, audit, and lost-response tests. No folder creation.
+1. **Role and permission foundation — implemented:** manager-defined versioned roles, global assignments/revocations, temporary demo bootstrap contract, durable decisions/rejections/audit, projections, frontend management routes, fixtures, and focused tests. No operation mutation.
+2. **Storage-binding contract — implemented:** client-routed logical bindings, sequential configuration generations, distinct capabilities, server-side opaque-reference validation, redaction rules, deterministic fixtures, and no filesystem access.
+3. **Durable Start acceptance — next:** add topic-owned permission decision, command-side roll authority, business-version checks, idempotency, accepted/rejected facts, audit, and lost-response tests. No folder creation.
 4. **Scan worker slice:** add worker claim/lease, approved-root resolution, path policy, folder creation, collision handling, and fault/restart reconciliation tests in controlled storage.
 5. **Finish and Abandon:** add ownership rules, notes, permission decisions, durable history, version changes, reconciliation, and tests.
 6. **Processing discovery and Preview:** expose only QPF settings and Frames paths initially; generate versioned deterministic plans without mutation.

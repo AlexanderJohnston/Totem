@@ -1,0 +1,38 @@
+{
+  "clientId": "client-fixture-1",
+  "workspaceId": "client-fixture-1",
+  "storageRevision": 2,
+  "activeBinding": {
+    "bindingId": "binding-primary",
+    "configurationGeneration": 1,
+    "activatedStorageRevision": 2
+  },
+  "bindings": [
+    {
+      "bindingId": "binding-primary",
+      "clientId": "client-fixture-1",
+      "workspaceId": "client-fixture-1",
+      "label": "Primary Miller storage",
+      "capabilities": [
+        {
+          "kind": "frames-bitonal",
+          "label": "Bitonal Frames"
+        },
+        {
+          "kind": "frames-grayscale",
+          "label": "Grayscale Frames"
+        },
+        {
+          "kind": "qpf",
+          "label": "QPF files"
+        },
+        {
+          "kind": "scan-parent",
+          "label": "Scan parent"
+        }
+      ],
+      "definitionVersion": 1,
+      "createdStorageRevision": 1
+    }
+  ]
+}

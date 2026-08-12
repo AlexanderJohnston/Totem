@@ -1,0 +1,15 @@
+{
+  "authorizationRevision": 3,
+  "roles": [
+    {
+      "roleId": "role-demo-scan-operator",
+      "name": "Scan operator",
+      "description": "May discover and start scans.",
+      "permissions": [
+        "scan.discover",
+        "scan.start"
+      ],
+      "version": 2
+    }
+  ]
+}

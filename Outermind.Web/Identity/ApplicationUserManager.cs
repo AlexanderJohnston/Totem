@@ -12,6 +12,7 @@ namespace Quantum.Web.Identity
   {
     Task<ApplicationUserResult> RegisterAsync(string userName, string displayName, string password, CancellationToken cancellationToken);
     Task<ApplicationUserResult> LoginAsync(string userName, string password, CancellationToken cancellationToken);
+    Task<ApplicationUser> FindByUserNameAsync(string userName, CancellationToken cancellationToken);
   }
 
   public sealed class ApplicationUserManager : IApplicationUserManager
@@ -84,6 +85,15 @@ namespace Quantum.Web.Identity
       }
 
       return ApplicationUserResult.Success(user);
+    }
+
+    public Task<ApplicationUser> FindByUserNameAsync(string userName, CancellationToken cancellationToken)
+    {
+      var normalizedUserName = NormalizeUserName(userName);
+
+      return string.IsNullOrWhiteSpace(normalizedUserName)
+        ? Task.FromResult<ApplicationUser>(null)
+        : _store.FindByNormalizedUserNameAsync(normalizedUserName, cancellationToken);
     }
 
     static IReadOnlyList<string> ValidateRegistration(string userName, string password)

@@ -14,6 +14,7 @@ using Totem.Timeline;
 using Quantum.Web.Identity;
 using Quantum.Web.Wasp;
 using Quantum.Web.IdentityTracking;
+using Quantum.Web.ScanProcessing;
 using static Totem.Timeline.FlowCall;
 
 namespace Quantum.Web
@@ -65,6 +66,9 @@ namespace Quantum.Web
           services.AddInteractionAuth(context.Configuration, context.HostingEnvironment);
           services.Configure<InteractionIdentityOptions>(context.Configuration.GetSection("InteractionIdentity"));
           services.AddSingleton<IInteractionIdentityResolver, InteractionIdentityResolver>();
+          services.Configure<ScanProcessingAccessOptions>(context.Configuration.GetSection("ScanProcessingAccess"));
+          services.AddSingleton<IRegisteredScanProcessingActorResolver, RegisteredScanProcessingActorResolver>();
+          services.AddSingleton<IDemoBootstrapSecretValidator, DemoBootstrapSecretValidator>();
           services.AddCors(options =>
             options.AddPolicy(CorsPolicyName, policy =>
               ConfigureCors(policy, context.Configuration)));

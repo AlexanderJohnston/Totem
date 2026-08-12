@@ -1,0 +1,20 @@
+{
+  "permissions": [
+    "backup.cleanup",
+    "history.view-context",
+    "history.view-workspace",
+    "job.cancel-any",
+    "job.cancel-own",
+    "processing.apply.frames-paths",
+    "processing.apply.qpf-settings",
+    "processing.discover",
+    "processing.preview.frames-paths",
+    "processing.preview.qpf-settings",
+    "scan.abandon",
+    "scan.discover",
+    "scan.finish-any",
+    "scan.finish-own",
+    "scan.start",
+    "sensitive-error.view"
+  ]
+}

@@ -61,6 +61,18 @@ namespace Quantum.Tests
       Assert.Equal("Invalid username or password.", Assert.Single(login.Errors));
     }
 
+    [Fact]
+    public async Task FindByUserNameAsync_ResolvesTheStableRegisteredUserCaseInsensitively()
+    {
+      var manager = Manager(new InMemoryApplicationUserStore());
+      var registered = await manager.RegisterAsync("ajohnston", "Alex Johnston", "CorrectHorse1", CancellationToken.None);
+
+      var found = await manager.FindByUserNameAsync(" AJOHNSTON ", CancellationToken.None);
+
+      Assert.Equal(registered.User.Id, found.Id);
+      Assert.Equal("ajohnston", found.UserName);
+    }
+
     static ApplicationUserManager Manager(IApplicationUserStore store) =>
       new(store, new PasswordHasher<ApplicationUser>());
 

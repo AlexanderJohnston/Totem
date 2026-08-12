@@ -1,0 +1,27 @@
+{
+  "authorizationRevision": 3,
+  "assignments": [
+    {
+      "actor": {
+        "userId": "user-demo-manager",
+        "userName": "demo-manager",
+        "displayName": "Demo Manager",
+        "processUserId": "DEMO_MANAGER"
+      },
+      "roleIds": [],
+      "isManager": true
+    },
+    {
+      "actor": {
+        "userId": "user-demo-operator",
+        "userName": "demo-operator",
+        "displayName": "Demo Operator",
+        "processUserId": "DEMO_OPERATOR"
+      },
+      "roleIds": [
+        "role-demo-scan-operator"
+      ],
+      "isManager": false
+    }
+  ]
+}
