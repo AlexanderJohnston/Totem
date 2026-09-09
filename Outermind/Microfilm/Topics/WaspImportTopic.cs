@@ -186,7 +186,7 @@ namespace Outermind.Microfilm.Topics
     {
       return string.IsNullOrWhiteSpace(jobNumber)
         ? $"Asset '{assetId}' does not contain a recognized client/job number prefix."
-        : $"Asset '{assetId}' does not match the job-box or job-box-roll format for job number '{jobNumber}'.";
+        : $"Asset '{assetId}' does not match a supported WASP box or roll format for job number '{jobNumber}'.";
     }
 
     static bool TryAcceptAsset(

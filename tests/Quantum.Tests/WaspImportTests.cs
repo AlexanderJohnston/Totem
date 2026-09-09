@@ -106,7 +106,7 @@ namespace Quantum.Tests
       var ignored = await Expect<WaspLegacyAssetsIgnored>();
       var ignoredAsset = Assert.Single(ignored.Assets);
       Assert.Equal("JOB-001-Legacy", ignoredAsset.AssetId);
-      Assert.Contains("does not match the job-box or job-box-roll format", ignoredAsset.Reason);
+      Assert.Contains("does not match a supported WASP box or roll format", ignoredAsset.Reason);
 
       var imported = await Expect<WaspClientAssetsImported>();
       Assert.Equal("JOB-001", imported.JobNumber);
@@ -360,7 +360,7 @@ namespace Quantum.Tests
     }
 
     [Fact]
-    public async Task AcceptedBatch_FailsClientWhenRollBoxIsMissing()
+    public async Task AcceptedBatch_CreatesParentBoxWhenOnlyRollsArePresent()
     {
       var clientId = Id.From("00000000-0000-0000-0000-000000000101");
 
@@ -371,9 +371,13 @@ namespace Quantum.Tests
         new List<WaspAcceptedBoxAsset>(),
         new List<WaspAcceptedRollAsset> { new("JOB-001-Box 1-APP-41", "1", "APP-41") }));
 
-      var failed = await Expect<WaspClientImportFailed>();
-      Assert.Equal("JOB-001", failed.JobNumber);
-      Assert.Contains("not recognized", failed.Error);
+      var boxCreated = await Expect<BoxCreated>();
+      Assert.Equal("1", boxCreated.Box.BoxName);
+      Assert.Equal(clientId, boxCreated.Box.ClientId);
+
+      var rollBatch = await Expect<WaspBoxRollsIdentified>();
+      Assert.Equal(boxCreated.Box.BoxId, rollBatch.BoxId);
+      Assert.Equal("APP-41", Assert.Single(rollBatch.Rolls).RollName);
 
       var handled = await Expect<WaspImportClientHandled>();
       Assert.Equal("JOB-001", handled.JobNumber);

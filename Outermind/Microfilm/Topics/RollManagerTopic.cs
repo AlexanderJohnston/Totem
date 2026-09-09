@@ -36,7 +36,7 @@ namespace Outermind.Microfilm.Topics
       else
       {
         var roll = CreateRoll(command.ClientId, command.BoxId, command.RollName);
-        Then(new RollCreated(roll));
+        Then(new RollCreated(roll, command.ClientId));
       }
     }
 
@@ -51,7 +51,7 @@ namespace Outermind.Microfilm.Topics
           continue;
         }
 
-        Then(new RollCreated(CreateRoll(e.ClientId, e.BoxId, roll.RollName)));
+        Then(new RollCreated(CreateRoll(e.ClientId, e.BoxId, roll.RollName), e.ClientId));
       }
     }
 
@@ -64,7 +64,7 @@ namespace Outermind.Microfilm.Topics
       else
       {
         var roll = CreateRoll(e.ClientId, e.BoxId, e.RollName);
-        Then(new RollCreated(roll));
+        Then(new RollCreated(roll, e.ClientId));
       }
     }
 

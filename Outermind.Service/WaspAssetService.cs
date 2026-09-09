@@ -18,23 +18,20 @@ namespace Outermind.Service
   public class WaspAssetService : IWaspAssetService
   {
     const int AssetPageSize = 500;
-    static readonly TimeSpan AssetCacheDuration = TimeSpan.FromMinutes(30);
     const string AssetSnapshotCacheKey = "WaspAssetService.AssetSnapshot";
 
     readonly HttpClient _http;
     readonly IMemoryCache _cache;
-    readonly TimeProvider _timeProvider;
 
     static readonly JsonSerializerOptions JsonOptions = new()
     {
       PropertyNameCaseInsensitive = true
     };
 
-    public WaspAssetService(HttpClient http, IMemoryCache cache, TimeProvider timeProvider = null)
+    public WaspAssetService(HttpClient http, IMemoryCache cache)
     {
       _http = http;
       _cache = cache;
-      _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<WaspImportClientBatch> GetClientBatchAsync(
@@ -89,43 +86,48 @@ namespace Outermind.Service
     {
       var assetIds = new List<string>();
       var seenAssetIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-      long? totalCount = null;
-      var pageNumber = 1;
 
-      while (true)
+      foreach (var jobNumber in knownJobNumbers)
       {
-        var result = await FetchAssetPageAsync(new AdvancedSearchParameters
-        {
-          PageSize = AssetPageSize,
-          PageNumber = pageNumber,
-          TotalCountFromPriorFetch = totalCount,
-          IgnoreAttachments = true,
-          IgnoreGeoLocation = true,
-          Filter = CreateAssetTagFilter(knownJobNumbers)
-        });
+        long? totalCount = null;
+        var pageNumber = 1;
 
-        foreach (var assetTag in result.Data?
-          .Where(a => !string.IsNullOrWhiteSpace(a.AssetTag))
-          .Select(a => a.AssetTag)
-          .Where(assetTag => knownJobNumbers.Any(jobNumber =>
-            assetTag.StartsWith(jobNumber, StringComparison.OrdinalIgnoreCase)))
-          ?? Enumerable.Empty<string>())
+        while (true)
         {
-          if (seenAssetIds.Add(assetTag))
+          var result = await FetchAssetPageAsync(new AdvancedSearchParameters
           {
-            assetIds.Add(assetTag);
+            PageSize = AssetPageSize,
+            PageNumber = pageNumber,
+            TotalCountFromPriorFetch = totalCount,
+            IgnoreAttachments = true,
+            IgnoreGeoLocation = true,
+            Filter = CreateAssetTagFilter(jobNumber)
+          });
+
+          foreach (var assetTag in result.Data?
+            .Where(a => !string.IsNullOrWhiteSpace(a.AssetTag))
+            .Select(a => a.AssetTag)
+            .Where(assetTag => assetTag.StartsWith(jobNumber, StringComparison.OrdinalIgnoreCase))
+            ?? Enumerable.Empty<string>())
+          {
+            if (seenAssetIds.Add(assetTag))
+            {
+              assetIds.Add(assetTag);
+            }
           }
+
+          totalCount = result.TotalRecordsLongCount;
+
+          if (!ShouldContinuePaging(pageNumber, AssetPageSize, result.Data?.Count ?? 0, totalCount ?? 0))
+          {
+            break;
+          }
+
+          pageNumber++;
         }
-
-        totalCount = result.TotalRecordsLongCount;
-
-        if (!ShouldContinuePaging(pageNumber, AssetPageSize, result.Data?.Count ?? 0, totalCount ?? 0))
-        {
-          return assetIds;
-        }
-
-        pageNumber++;
       }
+
+      return assetIds;
     }
 
     async Task<WaspResult<List<AssetInfo>>> FetchAssetPageAsync(AdvancedSearchParameters request)
@@ -174,34 +176,23 @@ namespace Outermind.Service
         .OrderBy(jobNumber => jobNumber, StringComparer.OrdinalIgnoreCase)
         .ToList();
 
-    static TopLevelFilterType CreateAssetTagFilter(IReadOnlyCollection<string> knownJobNumbers) =>
+    static TopLevelFilterType CreateAssetTagFilter(string jobNumber) =>
       new()
       {
-        Logic = "or",
-        Filters = knownJobNumbers
-          .Select(jobNumber => new TopLevelFilterType
+        Logic = "and",
+        Filters = new List<TopLevelFilterType>
+        {
+          new()
           {
             Field = "AssetTag",
             Operator = "startswith",
             Value = jobNumber
-          })
-          .ToList()
+          }
+        }
       };
 
-    bool ShouldRefreshSnapshot(CachedAssetSnapshot snapshot, int clientPosition)
-    {
-      if (snapshot is null)
-      {
-        return true;
-      }
-
-      if (clientPosition > 0)
-      {
-        return false;
-      }
-
-      return _timeProvider.GetUtcNow() - snapshot.CachedAt >= AssetCacheDuration;
-    }
+    static bool ShouldRefreshSnapshot(CachedAssetSnapshot snapshot, int clientPosition) =>
+      snapshot is null || clientPosition == 0;
 
     CachedAssetSnapshot BuildAssetSnapshot(List<string> assetIds)
     {
@@ -236,29 +227,22 @@ namespace Outermind.Service
         .OrderBy(jobNumber => jobNumber, StringComparer.OrdinalIgnoreCase)
         .ToList();
 
-      return new CachedAssetSnapshot(
-        _timeProvider.GetUtcNow(),
-        unassignedAssetIds,
-        jobNumbers,
-        assetIdsByJobNumber);
+      return new CachedAssetSnapshot(unassignedAssetIds, jobNumbers, assetIdsByJobNumber);
     }
 
     sealed class CachedAssetSnapshot
     {
       readonly Dictionary<string, List<string>> _assetIdsByJobNumber;
 
-      public DateTimeOffset CachedAt { get; }
       public List<string> UnassignedAssetIds { get; }
       public List<string> JobNumbers { get; }
       public bool HasUnassignedAssets => UnassignedAssetIds.Count > 0;
 
       public CachedAssetSnapshot(
-        DateTimeOffset cachedAt,
         List<string> unassignedAssetIds,
         List<string> jobNumbers,
         Dictionary<string, List<string>> assetIdsByJobNumber)
       {
-        CachedAt = cachedAt;
         UnassignedAssetIds = unassignedAssetIds ?? new List<string>();
         JobNumbers = jobNumbers ?? new List<string>();
         _assetIdsByJobNumber = assetIdsByJobNumber ?? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);

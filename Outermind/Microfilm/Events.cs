@@ -111,10 +111,17 @@ namespace Outermind.Microfilm
   public class RollCreated : Event
   {
     public KnownRoll Roll { get; set; }
+    public Id ClientId { get; set; }
 
     public RollCreated(KnownRoll roll)
+      : this(roll, Id.Unassigned)
+    {
+    }
+
+    public RollCreated(KnownRoll roll, Id clientId)
     {
       Roll = roll;
+      ClientId = clientId;
     }
   }
 

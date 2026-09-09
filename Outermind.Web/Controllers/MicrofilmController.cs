@@ -129,6 +129,10 @@ namespace Outermind.Controllers
     public Task<IActionResult> GetClientBoxes(string clientId) =>
       _queries.Get<ClientBoxesQuery>(clientId);
 
+    [HttpGet("clients/{clientId}/roll-index")]
+    public Task<IActionResult> GetClientRollIndex(string clientId) =>
+      _queries.Get<ClientRollIndexQuery>(clientId);
+
     [HttpGet("rolls/{rollId}")]
     public Task<IActionResult> GetRollStatus(string rollId) =>
       _queries.Get<RollStatusQuery>(rollId);

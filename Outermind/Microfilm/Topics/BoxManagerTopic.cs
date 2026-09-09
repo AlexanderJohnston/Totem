@@ -75,11 +75,10 @@ namespace Outermind.Microfilm.Topics
       {
         if (!boxIdsByName.TryGetValue(rollGroup.Key, out var boxId))
         {
-          Then(new WaspClientImportFailed(
-            e.JobNumber,
-            $"Box '{rollGroup.Key}' is not recognized for job number '{e.JobNumber}'."));
-          Then(new WaspImportClientHandled(e.JobNumber));
-          return;
+          var inferredBox = new KnownBox(rollGroup.Key, Id.FromGuid(), e.ClientId);
+          boxIdsByName[inferredBox.BoxName] = inferredBox.BoxId;
+          boxId = inferredBox.BoxId;
+          Then(new BoxCreated(inferredBox));
         }
 
         Then(new WaspBoxRollsIdentified(e.JobNumber, e.ClientId, boxId, rollGroup.ToList()));

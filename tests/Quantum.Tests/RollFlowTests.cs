@@ -42,12 +42,14 @@ namespace Quantum.Tests
           Assert.Equal("APP-41", e.Roll.RollName);
           Assert.Equal(RollIds.From(clientId, box.BoxId, "APP-41"), e.Roll.RollId);
           Assert.Equal(box.BoxId, e.Roll.BoxId);
+          Assert.Equal(clientId, e.ClientId);
         },
         e =>
         {
           Assert.Equal("APP-42", e.Roll.RollName);
           Assert.Equal(RollIds.From(clientId, box.BoxId, "APP-42"), e.Roll.RollId);
           Assert.Equal(box.BoxId, e.Roll.BoxId);
+          Assert.Equal(clientId, e.ClientId);
         });
     }
 

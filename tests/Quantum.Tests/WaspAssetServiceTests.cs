@@ -40,7 +40,7 @@ namespace Quantum.Tests
     }
 
     [Fact]
-    public async Task GetClientBatchAsync_FetchesAdditionalPagesWhenTotalCountExceedsCurrentPageWindow()
+    public async Task GetClientBatchAsync_FetchesEachKnownJobSeparatelyAndPagesWithinJob()
     {
       var requests = new List<AdvancedSearchParameters>();
       var responses = new Queue<WaspResult<List<AssetInfo>>>(new[]
@@ -61,6 +61,14 @@ namespace Quantum.Tests
             new() { AssetTag = "JOB-001-Box-2" }
           },
           TotalRecordsLongCount = 501
+        },
+        new WaspResult<List<AssetInfo>>
+        {
+          Data = new List<AssetInfo>
+          {
+            new() { AssetTag = "JOB-002-Box-1" }
+          },
+          TotalRecordsLongCount = 1
         }
       });
 
@@ -87,51 +95,29 @@ namespace Quantum.Tests
       Assert.Equal("JOB-001", batch.JobNumber);
       Assert.Equal(new[] { "JOB-001-Box 1-APP-41", "JOB-001-Box-1", "JOB-001-Box-2" }, batch.AssetIds);
       Assert.Collection(requests,
-        first =>
-        {
-          Assert.Equal(500, first.PageSize);
-          Assert.Equal(1, first.PageNumber);
-          Assert.Null(first.TotalCountFromPriorFetch);
-          Assert.True(first.IgnoreAttachments);
-          Assert.True(first.IgnoreGeoLocation);
-          Assert.NotNull(first.Filter);
-          Assert.Equal("or", first.Filter.Logic);
-          Assert.Collection(first.Filter.Filters,
-            filter =>
-            {
-              Assert.Equal("AssetTag", filter.Field);
-              Assert.Equal("startswith", filter.Operator);
-              Assert.Equal("JOB-001", filter.Value);
-            },
-            filter =>
-            {
-              Assert.Equal("AssetTag", filter.Field);
-              Assert.Equal("startswith", filter.Operator);
-              Assert.Equal("job-002", filter.Value);
-            });
-        },
-        second =>
-        {
-          Assert.Equal(500, second.PageSize);
-          Assert.Equal(2, second.PageNumber);
-          Assert.Equal(501, second.TotalCountFromPriorFetch);
-          Assert.True(second.IgnoreAttachments);
-          Assert.True(second.IgnoreGeoLocation);
-          Assert.Equal("or", second.Filter.Logic);
-          Assert.Collection(second.Filter.Filters,
-            filter =>
-            {
-              Assert.Equal("AssetTag", filter.Field);
-              Assert.Equal("startswith", filter.Operator);
-              Assert.Equal("JOB-001", filter.Value);
-            },
-            filter =>
-            {
-              Assert.Equal("AssetTag", filter.Field);
-              Assert.Equal("startswith", filter.Operator);
-              Assert.Equal("job-002", filter.Value);
-            });
-        });
+        request => AssertRequest(request, 1, null, "JOB-001"),
+        request => AssertRequest(request, 2, 501, "JOB-001"),
+        request => AssertRequest(request, 1, null, "job-002"));
+
+      static void AssertRequest(
+        AdvancedSearchParameters request,
+        int expectedPageNumber,
+        long? expectedTotalCount,
+        string expectedJobNumber)
+      {
+        Assert.Equal(500, request.PageSize);
+        Assert.Equal(expectedPageNumber, request.PageNumber);
+        Assert.Equal(expectedTotalCount, request.TotalCountFromPriorFetch);
+        Assert.True(request.IgnoreAttachments);
+        Assert.True(request.IgnoreGeoLocation);
+        Assert.NotNull(request.Filter);
+        Assert.Equal("and", request.Filter.Logic);
+
+        var filter = Assert.Single(request.Filter.Filters);
+        Assert.Equal("AssetTag", filter.Field);
+        Assert.Equal("startswith", filter.Operator);
+        Assert.Equal(expectedJobNumber, filter.Value?.ToString());
+      }
     }
 
     [Fact]
@@ -215,21 +201,20 @@ namespace Quantum.Tests
       };
 
       using var cache = new MemoryCache(new MemoryCacheOptions());
-      var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 4, 9, 19, 0, 0, TimeSpan.Zero));
 
-      var firstService = new WaspAssetService(client, cache, timeProvider);
-      var secondService = new WaspAssetService(client, cache, timeProvider);
+      var firstService = new WaspAssetService(client, cache);
+      var secondService = new WaspAssetService(client, cache);
 
       var firstBatch = await firstService.GetClientBatchAsync(0, new[] { "JOB-001", "JOB-002" });
       var secondBatch = await secondService.GetClientBatchAsync(1, new[] { "JOB-001", "JOB-002" });
 
       Assert.Equal("JOB-001", firstBatch.JobNumber);
       Assert.Equal("JOB-002", secondBatch.JobNumber);
-      Assert.Equal(1, requestCount);
+      Assert.Equal(2, requestCount);
     }
 
     [Fact]
-    public async Task GetClientBatchAsync_RefreshesStaleSnapshotWhenNewRunStarts()
+    public async Task GetClientBatchAsync_RefreshesSnapshotWhenNewRunStarts()
     {
       var responses = new Queue<WaspResult<List<AssetInfo>>>(new[]
       {
@@ -240,6 +225,11 @@ namespace Quantum.Tests
             new() { AssetTag = "JOB-001-Box-1" }
           },
           TotalRecordsLongCount = 1
+        },
+        new WaspResult<List<AssetInfo>>
+        {
+          Data = new List<AssetInfo>(),
+          TotalRecordsLongCount = 0
         },
         new WaspResult<List<AssetInfo>>
         {
@@ -257,11 +247,9 @@ namespace Quantum.Tests
       };
 
       using var cache = new MemoryCache(new MemoryCacheOptions());
-      var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 4, 9, 19, 0, 0, TimeSpan.Zero));
-      var service = new WaspAssetService(client, cache, timeProvider);
+      var service = new WaspAssetService(client, cache);
 
-      var firstRun = await service.GetClientBatchAsync(0, new[] { "JOB-001", "JOB-002" });
-      timeProvider.Advance(TimeSpan.FromMinutes(31));
+      var firstRun = await service.GetClientBatchAsync(0, new[] { "JOB-001" });
       var secondRun = await service.GetClientBatchAsync(0, new[] { "JOB-001", "JOB-002" });
 
       Assert.Equal("JOB-001", firstRun.JobNumber);
@@ -269,7 +257,7 @@ namespace Quantum.Tests
     }
 
     [Fact]
-    public async Task GetClientBatchAsync_ReusesStaleSnapshotForLaterClientPositionsInSameRun()
+    public async Task GetClientBatchAsync_ReusesSnapshotForLaterClientPositionsInSameRun()
     {
       var requestCount = 0;
 
@@ -293,16 +281,14 @@ namespace Quantum.Tests
       };
 
       using var cache = new MemoryCache(new MemoryCacheOptions());
-      var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 4, 9, 19, 0, 0, TimeSpan.Zero));
-      var service = new WaspAssetService(client, cache, timeProvider);
+      var service = new WaspAssetService(client, cache);
 
       var firstBatch = await service.GetClientBatchAsync(0, new[] { "JOB-001", "JOB-002" });
-      timeProvider.Advance(TimeSpan.FromMinutes(31));
       var secondBatch = await service.GetClientBatchAsync(1, new[] { "JOB-001", "JOB-002" });
 
       Assert.Equal("JOB-001", firstBatch.JobNumber);
       Assert.Equal("JOB-002", secondBatch.JobNumber);
-      Assert.Equal(1, requestCount);
+      Assert.Equal(2, requestCount);
     }
 
     [Fact]
@@ -395,21 +381,5 @@ namespace Quantum.Tests
         _sendAsync(request);
     }
 
-    sealed class FakeTimeProvider : TimeProvider
-    {
-      DateTimeOffset _utcNow;
-
-      public FakeTimeProvider(DateTimeOffset utcNow)
-      {
-        _utcNow = utcNow;
-      }
-
-      public override DateTimeOffset GetUtcNow() => _utcNow;
-
-      public void Advance(TimeSpan by)
-      {
-        _utcNow = _utcNow.Add(by);
-      }
-    }
   }
 }

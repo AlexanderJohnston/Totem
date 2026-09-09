@@ -33,5 +33,17 @@ namespace Quantum.Tests
 
       Assert.DoesNotContain(rowRoutes, route => route.Contains("{clientId}", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void ClientRollIndexHttpContract_IsClientScoped()
+    {
+      var route = typeof(MicrofilmController)
+        .GetMethod(nameof(MicrofilmController.GetClientRollIndex))
+        ?.GetCustomAttributes<HttpMethodAttribute>()
+        .Single()
+        .Template;
+
+      Assert.Equal("clients/{clientId}/roll-index", route);
+    }
   }
 }
